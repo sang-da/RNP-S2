@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Loader2, ShieldCheck, LogOut } from 'lucide-react';
+import { Loader2, ShieldCheck, LogOut, HelpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -57,6 +57,11 @@ export const WaitingScreen: React.FC = () => {
                         Cette page s'actualisera automatiquement dès que votre rôle sera validé.
                     </li>
                 </ul>
+                
+                <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-400 flex items-center gap-2">
+                    <HelpCircle size={14} />
+                    <span>Connecté en tant que : <strong className="text-slate-600">{userData?.email}</strong></span>
+                </div>
             </div>
 
             <button 

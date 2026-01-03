@@ -39,8 +39,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser(user);
           
           // --- SÉCURITÉ ADMIN ---
-          // On vérifie l'email en dur pour garantir l'accès
-          const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com'; 
+          // Normalisation de l'email pour éviter les soucis de casse ou d'espaces
+          const email = user.email?.toLowerCase().trim() || '';
+          const isHardcodedAdmin = email === 'ahme.sang@gmail.com'; 
 
           const userRef = doc(db, 'users', user.uid);
           
@@ -50,14 +51,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userSnap.exists()) {
                 // L'utilisateur existe déjà
                 const data = userSnap.data();
-                
-                // --- AUTO-CORRECTION ---
-                // Si c'est toi (l'email admin) mais que la base dit "pending" ou "student",
-                // on force la mise à jour immédiate vers "admin".
-                if (isHardcodedAdmin && data.role !== 'admin') {
-                    console.log("👑 Admin reconnu mais mauvais rôle en DB. Correction forcée...");
-                    await updateDoc(userRef, { role: 'admin' });
-                    data.role = 'admin'; // On met à jour la variable locale pour l'affichage immédiat
+                let finalRole = data.role;
+
+                // --- AUTO-CORRECTION ROBUSTE ---
+                // On force le rôle localement d'abord pour ne pas bloquer l'UI
+                if (isHardcodedAdmin) {
+                    finalRole = 'admin';
+                    
+                    // On tente la mise à jour DB en arrière-plan sans attendre (fire & forget)
+                    if (data.role !== 'admin') {
+                        updateDoc(userRef, { role: 'admin' }).catch(err => 
+                            console.warn("La mise à jour Admin en DB a échoué (sans gravité pour l'accès local):", err)
+                        );
+                    }
                 }
 
                 setUserData({
@@ -65,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     email: user.email,
                     displayName: data.displayName || user.displayName,
                     photoURL: data.photoURL || user.photoURL,
-                    role: data.role,
+                    role: finalRole, // Utilise la valeur forcée
                     agencyId: data.agencyId
                 });
             } else {
@@ -77,7 +83,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     email: user.email,
                     displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
                     photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-                    // Si c'est ton email, on met direct Admin, sinon Pending
                     role: isHardcodedAdmin ? 'admin' : 'pending',
                     agencyId: undefined
                 };
@@ -91,14 +96,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUserData(newUserData);
             }
           } catch (err) {
-            console.error("Erreur lors de la récupération du profil:", err);
-            // Fallback pour ne pas bloquer l'UI
+            console.error("Erreur critique AuthContext:", err);
+            
+            // --- FALLBACK DE SECURITÉ ---
+            // Même si Firestore plante complètement, si c'est toi, tu passes.
             setUserData({
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName,
                 photoURL: user.photoURL,
-                role: 'pending' 
+                role: isHardcodedAdmin ? 'admin' : 'pending' // <--- LE FIX EST ICI
             });
           }
       } else {
