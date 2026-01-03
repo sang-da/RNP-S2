@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail } from 'lucide-react';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, RefreshCw, Database } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
+import { useGame } from '../contexts/GameContext'; // Pour resetGame
 
 interface AdminAccessProps {
   agencies: Agency[];
@@ -20,9 +21,11 @@ interface PendingUser {
 }
 
 export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgencies }) => {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
+  const { resetGame } = useGame();
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [isResetting, setIsResetting] = useState(false);
 
   // 1. REAL-TIME LISTENER FOR PENDING USERS
   useEffect(() => {
@@ -51,6 +54,12 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   const filteredStudents = allGameStudents.filter(s => 
       s.student.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Filter only students who have a "Mock ID" (starting with s-)
+  // If ID is a long string, it means it's already linked to a Real User.
+  const availableSlots = allGameStudents
+    .filter(({student}) => student.id.startsWith('s-')) 
+    .sort((a,b) => a.student.name.localeCompare(b.student.name));
 
   const handleAssignStudent = async (firebaseUser: PendingUser, targetStudentId: string) => {
       // Find target agency and student in Game State
@@ -100,7 +109,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
           batch.update(agencyRef, { members: updatedMembers });
 
           await batch.commit();
-          toast('success', `${firebaseUser.displayName} connecté en tant que ${oldMemberData.name}`);
+          toast('success', `${firebaseUser.displayName} relié au profil "${oldMemberData.name}"`);
 
       } catch (error) {
           console.error(error);
@@ -109,8 +118,6 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   };
 
   const handleForceOffline = async (student: Student, agencyId: string) => {
-       // Logic to force offline (visual only mostly, unless we implement session tokens)
-       // Here we just update the visual status in the agency
        const agency = agencies.find(a => a.id === agencyId);
        if(!agency) return;
 
@@ -123,14 +130,46 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
        toast('info', `${student.name} marqué hors ligne.`);
   };
 
+  const handleResetDatabase = async () => {
+      const confirmed = await confirm({
+          title: "Réinitialiser la Base de Données ?",
+          message: "ATTENTION : Ceci va effacer toutes les données actuelles et restaurer les 12 équipes et 42 étudiants par défaut.\n\nÀ n'utiliser qu'au tout début ou en cas de problème majeur.",
+          confirmText: "Oui, restaurer les données par défaut",
+          isDangerous: true
+      });
+
+      if (confirmed) {
+          setIsResetting(true);
+          try {
+            await resetGame();
+            toast('success', "Base de données restaurée avec les équipes par défaut.");
+          } catch(e) {
+            toast('error', "Erreur lors de la réinitialisation.");
+          } finally {
+            setIsResetting(false);
+          }
+      }
+  };
+
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-         <div className="mb-8">
-            <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><ShieldCheck size={32}/></div>
-                Accès & Comptes
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">Validez l'identité des étudiants qui tentent de se connecter.</p>
+         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><ShieldCheck size={32}/></div>
+                    Accès & Comptes
+                </h2>
+                <p className="text-slate-500 text-sm mt-1">Liez les comptes Google entrants aux profils étudiants pré-existants.</p>
+            </div>
+            
+            <button 
+                onClick={handleResetDatabase}
+                disabled={isResetting}
+                className="text-xs font-bold text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+                {isResetting ? <Loader2 className="animate-spin" size={14}/> : <Database size={14}/>}
+                Restaurer les équipes par défaut
+            </button>
         </div>
 
         {/* SECTION 1: GATEKEEPER (Real Pending Connections) */}
@@ -167,17 +206,16 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     }}
                                     defaultValue=""
                                 >
-                                    <option value="" disabled>Associer à un profil...</option>
-                                    {allGameStudents
-                                        // Filter out students who are ALREADY linked (assume complicated logic, or just show all offline ones)
-                                        // Ideally check if ID looks like a Firebase UID, but for now show all offline
-                                        .filter(s => !s.student.id.startsWith(user.uid)) 
-                                        .sort((a,b) => a.student.name.localeCompare(b.student.name))
-                                        .map(({student, agency}) => (
-                                        <option key={student.id} value={student.id}>
-                                            {student.name} ({agency.name})
-                                        </option>
-                                    ))}
+                                    <option value="" disabled>Choisir un profil libre...</option>
+                                    {availableSlots.length > 0 ? (
+                                        availableSlots.map(({student, agency}) => (
+                                            <option key={student.id} value={student.id}>
+                                                {student.name} ({agency.name})
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option disabled>Aucun profil libre</option>
+                                    )}
                                 </select>
                             </div>
                         </div>
@@ -216,20 +254,29 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredStudents.map(({student, agency}) => (
+                        {filteredStudents.map(({student, agency}) => {
+                            // Check if it's a "Mock ID" (s-123) or a "Real ID" (long string)
+                            const isLinked = !student.id.startsWith('s-');
+
+                            return (
                             <tr key={student.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-4">
                                     <div className="flex items-center gap-3">
                                         <div className="relative">
-                                            <img src={student.avatarUrl} className="w-8 h-8 rounded-full bg-slate-200 object-cover" />
-                                            {student.connectionStatus === 'online' && (
+                                            <img src={student.avatarUrl} className={`w-8 h-8 rounded-full object-cover ${isLinked ? 'bg-indigo-100' : 'bg-slate-200 grayscale'}`} />
+                                            {student.connectionStatus === 'online' && isLinked && (
                                                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                                             )}
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-900 text-sm">{student.name}</div>
-                                            {/* Show UID only for debug or if it's a real connected user */}
-                                            {!student.id.startsWith('s-') && <div className="text-[9px] text-slate-400 font-mono">Compte Lié</div>}
+                                            {isLinked ? (
+                                                <div className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 rounded w-fit flex items-center gap-1">
+                                                    <Link size={8}/> Compte Relié
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-slate-400 font-medium italic">En attente liaison</div>
+                                            )}
                                         </div>
                                     </div>
                                 </td>
@@ -242,7 +289,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     </span>
                                 </td>
                                 <td className="p-4">
-                                    {student.connectionStatus === 'online' ? (
+                                    {student.connectionStatus === 'online' && isLinked ? (
                                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
                                             <Wifi size={12}/> En Ligne
                                         </span>
@@ -253,19 +300,18 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     )}
                                 </td>
                                 <td className="p-4 text-right">
-                                    {student.connectionStatus === 'online' ? (
+                                    {isLinked && (
                                         <button 
                                             onClick={() => handleForceOffline(student, agency.id)}
-                                            className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
+                                            className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
+                                            title="Forcer déconnexion / délier (Fonction avancée)"
                                         >
-                                            Déconnecter
+                                            <WifiOff size={14}/>
                                         </button>
-                                    ) : (
-                                        <span className="text-xs text-slate-300 italic pr-2">En attente</span>
                                     )}
                                 </td>
                             </tr>
-                        ))}
+                        )})}
                     </tbody>
                 </table>
             </div>
