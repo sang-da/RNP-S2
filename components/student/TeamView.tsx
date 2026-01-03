@@ -1,8 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Loader2, Wand2, Star, Award, Clock, MessageCircle, Send, Lock, Coins } from 'lucide-react';
-import { generateAgencyNames } from '../../services/geminiService';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 
@@ -12,25 +11,11 @@ interface TeamViewProps {
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Student | null>(null);
   const [reviewMode, setReviewMode] = useState<Student | null>(null);
 
   // Pour la démo, on considère que l'utilisateur courant est le 1er de la liste
   const currentUser = agency.members[0];
-
-  const handleGenerateName = async () => {
-    setIsGenerating(true);
-    const suggestions = await generateAgencyNames(agency.constraints);
-    if (suggestions.length > 0) {
-      onUpdateAgency({
-        ...agency,
-        name: suggestions[0].name,
-        tagline: suggestions[0].tagline
-      });
-    }
-    setIsGenerating(false);
-  };
 
   const handlePeerReview = (review: PeerReview) => {
     onUpdateAgency({
@@ -104,21 +89,6 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                 );
             })}
         </div>
-
-        {agency.name === "Nouvelle Agence" && (
-            <div className="mt-8 text-center p-8 bg-indigo-50 rounded-3xl border border-dashed border-indigo-200">
-                <h4 className="text-indigo-900 font-bold mb-2">Besoin d'identité ?</h4>
-                <p className="text-indigo-700/70 text-sm mb-4">L'IA peut générer un nom basé sur vos contraintes.</p>
-                <button 
-                    onClick={handleGenerateName} 
-                    disabled={isGenerating}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all flex items-center gap-2 mx-auto shadow-lg shadow-indigo-600/20"
-                >
-                    {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                    Générer Branding
-                </button>
-            </div>
-        )}
 
         {/* MODAL: Détail Note Élève */}
         <Modal isOpen={!!selectedMember} onClose={() => setSelectedMember(null)} title="Bulletin Individuel">
@@ -240,7 +210,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClo
                 <div>
                     <div className="flex justify-between items-end mb-2">
                         <label className="block text-sm font-bold text-slate-700">Feedback Privé (Optionnel)</label>
-                        <span className="text-[10px] text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                        <span className="text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 text-[10px]">
                             <Lock size={10} /> Visible uniquement par l'admin
                         </span>
                     </div>

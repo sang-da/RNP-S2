@@ -1,8 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
-import { Agency, WeekModule, GameEvent, Deliverable, CycleType } from '../../types';
+import React, { useState } from 'react';
+import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
 import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle } from 'lucide-react';
-import { generateFeedback } from '../../services/geminiService';
 import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
 
@@ -52,8 +51,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
     setIsUploading(deliverableId);
     setTimeout(async () => {
-        const deliverable = currentWeekData.deliverables.find(d => d.id === deliverableId);
-        const feedback = await generateFeedback(deliverable?.name || "Livrable", agency.constraints.style);
+        // Suppression de l'appel à l'IA. Feedback générique.
+        const feedback = "Rendu reçu. En attente de validation par l'enseignant.";
 
         const updatedWeek = { ...currentWeekData };
         updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
@@ -64,9 +63,9 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
             type: 'VE_DELTA',
-            label: `Rendu ${deliverable?.name}`,
+            label: `Rendu ${updatedWeek.deliverables.find(d => d.id === deliverableId)?.name}`,
             deltaVE: 5,
-            description: "Validation automatique MVP"
+            description: "Validation automatique MVP (En attente confirmation prof)"
         };
 
         onUpdateAgency({
@@ -79,7 +78,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             }
         });
         setIsUploading(null);
-        toast('success', "Livrable envoyé ! (+5 VE)");
+        toast('success', "Livrable envoyé ! (+5 VE temporaire)");
     }, 1500);
   };
 
@@ -92,7 +91,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
       const updatedWeek = { ...currentWeekData };
       updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "En attente de validation par l'enseignant." } : d
+          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte soumise. En attente de validation." } : d
       );
 
       const newEvent: GameEvent = {
