@@ -1,9 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
 import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle } from 'lucide-react';
 import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../services/firebase';
 
 interface MissionsViewProps {
   agency: Agency;
@@ -12,8 +14,11 @@ interface MissionsViewProps {
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [activeWeek, setActiveWeek] = useState<string>("1"); // Default ID
   const [isUploading, setIsUploading] = useState<string | null>(null);
+  const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
   const [isCharterModalOpen, setIsCharterModalOpen] = useState(false);
   
   // Charter Form State
@@ -42,30 +47,47 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const visibleWeeks = getVisibleWeeks();
   const currentWeekData = agency.progress[activeWeek] || visibleWeeks[0];
 
-  const handleFileUpload = async (deliverableId: string) => {
-    // Special Case: Project Charter
+  // --- TRIGGER FILE SELECTION ---
+  const handleFileClick = (deliverableId: string) => {
+    // Special Case: Project Charter (Formulaire, pas de fichier)
     if (deliverableId === 'd_charter') {
         setIsCharterModalOpen(true);
         return;
     }
+    setTargetDeliverableId(deliverableId);
+    fileInputRef.current?.click();
+  };
 
-    setIsUploading(deliverableId);
-    setTimeout(async () => {
-        // Suppression de l'appel à l'IA. Feedback générique.
-        const feedback = "Rendu reçu. En attente de validation par l'enseignant.";
+  // --- HANDLE REAL UPLOAD ---
+  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !targetDeliverableId) return;
 
+    setIsUploading(targetDeliverableId);
+    
+    try {
+        // 1. Upload to Firebase Storage
+        // Path: submissions/{AGENCY_ID}/{WEEK_ID}/{DELIVERABLE_ID}_{FILENAME}
+        const storageRef = ref(storage, `submissions/${agency.id}/${activeWeek}/${targetDeliverableId}_${file.name}`);
+        
+        await uploadBytes(storageRef, file);
+        const downloadUrl = await getDownloadURL(storageRef);
+
+        // 2. Update Agency Data in Firestore (via Parent)
+        const feedback = "Fichier reçu. En attente de validation.";
         const updatedWeek = { ...currentWeekData };
+        
         updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-            d.id === deliverableId ? { ...d, status: 'submitted' as const, fileUrl: '#', feedback: feedback } : d
+            d.id === targetDeliverableId ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback } : d
         );
 
         const newEvent: GameEvent = {
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
             type: 'VE_DELTA',
-            label: `Rendu ${updatedWeek.deliverables.find(d => d.id === deliverableId)?.name}`,
+            label: `Rendu ${updatedWeek.deliverables.find(d => d.id === targetDeliverableId)?.name}`,
             deltaVE: 5,
-            description: "Validation automatique MVP (En attente confirmation prof)"
+            description: "Fichier uploadé. Validation en attente (+5 VE temp)"
         };
 
         onUpdateAgency({
@@ -77,9 +99,17 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                 [activeWeek]: updatedWeek
             }
         });
+        
+        toast('success', "Fichier transmis avec succès !");
+
+    } catch (error) {
+        console.error("Upload failed", error);
+        toast('error', "Erreur lors de l'envoi du fichier.");
+    } finally {
         setIsUploading(null);
-        toast('success', "Livrable envoyé ! (+5 VE temporaire)");
-    }, 1500);
+        setTargetDeliverableId(null);
+        if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+    }
   };
 
   const handleSubmitCharter = () => {
@@ -124,6 +154,13 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+        {/* HIDDEN INPUT FOR FILE UPLOAD */}
+        <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={onFileSelected} 
+        />
         
         {/* Cycle Info */}
         <div className="bg-indigo-900 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-indigo-900/20">
@@ -214,17 +251,24 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                                 <div>
                                     <h4 className="font-bold text-lg text-slate-900">{deliverable.name}</h4>
                                     <p className="text-sm text-slate-500">{deliverable.description}</p>
+                                    {/* Show link if submitted */}
+                                    {deliverable.fileUrl && deliverable.fileUrl !== '#' && (
+                                        <a href={deliverable.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1 mt-1">
+                                            <FileText size={12} /> Voir le fichier envoyé
+                                        </a>
+                                    )}
                                 </div>
                             </div>
 
                             {(deliverable.status === 'pending' || deliverable.status === 'rejected') ? (
                                 <button 
-                                onClick={() => !isUploading && handleFileUpload(deliverable.id)}
+                                onClick={() => !isUploading && handleFileClick(deliverable.id)}
+                                disabled={!!isUploading}
                                 className={`w-full md:w-auto px-6 py-3 font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg ${
                                     deliverable.id === 'd_charter' 
                                     ? 'bg-slate-900 hover:bg-slate-700 text-white shadow-slate-900/20' 
                                     : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
-                                }`}
+                                } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {isUploading === deliverable.id ? <Loader2 className="animate-spin" size={18}/> : 
                                  deliverable.id === 'd_charter' ? <FileText size={18} /> : <Upload size={18}/>}

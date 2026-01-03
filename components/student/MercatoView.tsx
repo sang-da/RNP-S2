@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
 import { Agency, Student, MercatoRequest } from '../../types';
-import { Briefcase, UserPlus, UserMinus, FileText, Upload, Clock, UserX, Coins, FileSearch } from 'lucide-react';
+import { Briefcase, UserPlus, UserMinus, FileText, Upload, Clock, UserX, Coins, FileSearch, Loader2 } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useUI } from '../../contexts/UIContext';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../services/firebase';
 
 interface MercatoViewProps {
   agency: Agency;
@@ -16,7 +18,10 @@ interface MercatoViewProps {
 export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies }) => {
   const { toast, confirm } = useUI();
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
-  const [cvUrlInput, setCvUrlInput] = useState('');
+  
+  // CV Upload State
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [isUploadingCV, setIsUploadingCV] = useState(false);
 
   // FILTER CHÔMAGE: Only show students from my class
   const unemployedAgency = allAgencies.find(a => a.id === 'unassigned');
@@ -115,17 +120,33 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       toast('warning', `Demande de renvoi pour ${colleague.name} soumise.`);
   };
 
-  const handleUploadCV = () => {
-    if(!currentUser || !cvUrlInput) return;
-    const updatedMembers = agency.members.map(m => 
-        m.id === currentUser.id ? { ...m, cvUrl: cvUrlInput } : m
-    );
-    onUpdateAgency({
-        ...agency,
-        members: updatedMembers
-    });
-    setIsCVModalOpen(false);
-    toast('success', "CV mis à jour !");
+  // --- HANDLE CV UPLOAD ---
+  const handleUploadCV = async () => {
+    if(!currentUser || !cvFile) return;
+    setIsUploadingCV(true);
+    
+    try {
+        // Path: resumes/{USER_ID}_{FILENAME}
+        const storageRef = ref(storage, `resumes/${currentUser.id}_${cvFile.name}`);
+        await uploadBytes(storageRef, cvFile);
+        const downloadUrl = await getDownloadURL(storageRef);
+
+        const updatedMembers = agency.members.map(m => 
+            m.id === currentUser.id ? { ...m, cvUrl: downloadUrl } : m
+        );
+        onUpdateAgency({
+            ...agency,
+            members: updatedMembers
+        });
+        setIsCVModalOpen(false);
+        setCvFile(null);
+        toast('success', "CV mis à jour !");
+    } catch (error) {
+        console.error(error);
+        toast('error', "Erreur lors de l'upload du CV.");
+    } finally {
+        setIsUploadingCV(false);
+    }
   };
 
   const hasPendingResignation = agency.mercatoRequests.find(r => r.studentId === currentUser?.id && r.requesterId === currentUser?.id && r.type === 'FIRE' && r.status === 'PENDING');
@@ -178,15 +199,38 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
 
               <Modal isOpen={isCVModalOpen} onClose={() => setIsCVModalOpen(false)} title="Mettre à jour mon CV">
                   <div className="space-y-4">
-                      <p className="text-sm text-slate-500">Collez le lien vers votre portfolio ou CV (Google Drive, Notion, etc).</p>
-                      <input 
-                        type="url" 
-                        placeholder="https://..." 
-                        value={cvUrlInput}
-                        onChange={e => setCvUrlInput(e.target.value)}
-                        className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900"
-                      />
-                      <button onClick={handleUploadCV} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl">Enregistrer</button>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
+                           Importez un fichier PDF (Max 5MB). Ce CV sera visible par les recruteurs.
+                      </div>
+                      
+                      <div className="flex items-center justify-center w-full">
+                            <label htmlFor="dropzone-file" className={`flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors ${cvFile ? 'border-indigo-500 bg-indigo-50' : ''}`}>
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {cvFile ? (
+                                        <>
+                                            <FileText className="w-8 h-8 text-indigo-500 mb-2"/>
+                                            <p className="text-sm text-indigo-900 font-bold">{cvFile.name}</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                                            <p className="text-sm text-slate-500"><span className="font-bold">Cliquez</span> pour sélectionner</p>
+                                            <p className="text-xs text-slate-400">PDF uniquement</p>
+                                        </>
+                                    )}
+                                </div>
+                                <input id="dropzone-file" type="file" accept="application/pdf" className="hidden" onChange={e => setCvFile(e.target.files?.[0] || null)} />
+                            </label>
+                      </div> 
+
+                      <button 
+                        onClick={handleUploadCV} 
+                        disabled={!cvFile || isUploadingCV}
+                        className={`w-full text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 ${!cvFile || isUploadingCV ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-indigo-600'}`}
+                      >
+                         {isUploadingCV ? <Loader2 className="animate-spin" size={20}/> : <Upload size={20}/>}
+                         {isUploadingCV ? 'Envoi en cours...' : 'Enregistrer le CV'}
+                      </button>
                   </div>
               </Modal>
           </div>

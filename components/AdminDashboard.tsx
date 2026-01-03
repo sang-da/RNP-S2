@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, Deliverable, GameEvent, WeekModule, CrisisPreset } from '../types';
-import { AlertTriangle, CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Ban, List, ChevronDown, ChevronUp, Siren, Trophy, XCircle, Calculator } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Ban, List, ChevronDown, ChevronUp, Siren, Trophy, XCircle, Calculator, Link as LinkIcon } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
 
@@ -575,8 +575,18 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Correction de Livrable">
             <div className="space-y-6">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
                     <h3 className="font-bold text-slate-900 text-lg leading-tight">{item.deliverable.name}</h3>
+                    {item.deliverable.fileUrl && item.deliverable.fileUrl !== '#' && (
+                        <a 
+                            href={item.deliverable.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2"
+                        >
+                            <LinkIcon size={14}/> Voir le Fichier
+                        </a>
+                    )}
                 </div>
 
                 <div className="space-y-5">
