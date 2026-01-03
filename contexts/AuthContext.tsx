@@ -34,51 +34,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        // HARDCODED ADMIN CHECK
-        const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com';
-        
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        let finalRole: 'admin' | 'student' | 'pending' = 'pending';
-        let agencyId: string | undefined = undefined;
+      try {
+          setCurrentUser(user);
+          if (user) {
+            // HARDCODED ADMIN CHECK
+            const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com';
+            
+            const userRef = doc(db, 'users', user.uid);
+            let userSnap;
+            
+            try {
+                userSnap = await getDoc(userRef);
+            } catch (err) {
+                console.error("Firestore read error (likely permissions), proceeding with minimal data", err);
+                // On continue même si Firestore bloque, pour ne pas white-screen
+            }
+            
+            let finalRole: 'admin' | 'student' | 'pending' = 'pending';
+            let agencyId: string | undefined = undefined;
 
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          finalRole = data.role;
-          agencyId = data.agencyId;
-        }
+            if (userSnap && userSnap.exists()) {
+              const data = userSnap.data();
+              finalRole = data.role;
+              agencyId = data.agencyId;
+            }
 
-        // FORCE OVERRIDE: Si c'est toi, tu es admin. Point final.
-        if (isHardcodedAdmin) {
-            finalRole = 'admin';
-        }
+            // FORCE OVERRIDE: Si c'est toi, tu es admin. Point final.
+            if (isHardcodedAdmin) {
+                finalRole = 'admin';
+            }
 
-        const newUserData: UserData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || user.email?.split('@')[0] || 'User',
-            photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-            role: finalRole,
-            agencyId: agencyId
-        };
+            const newUserData: UserData = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email?.split('@')[0] || 'User',
+                photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                role: finalRole,
+                agencyId: agencyId
+            };
 
-        // 1. Mise à jour de l'état local (Immédiat pour l'UI)
-        setUserData(newUserData);
+            // 1. Mise à jour de l'état local (Immédiat pour l'UI)
+            setUserData(newUserData);
 
-        // 2. Mise à jour de la DB (Si nécessaire)
-        if (isHardcodedAdmin && (!userSnap.exists() || userSnap.data()?.role !== 'admin')) {
-             await setDoc(userRef, { ...newUserData, role: 'admin' }, { merge: true });
-        } else if (!userSnap.exists()) {
-             await setDoc(userRef, newUserData);
-        }
+            // 2. Mise à jour de la DB (Si nécessaire et si on a les droits)
+            try {
+                if (isHardcodedAdmin && (!userSnap || !userSnap.exists() || userSnap.data()?.role !== 'admin')) {
+                    await setDoc(userRef, { ...newUserData, role: 'admin' }, { merge: true });
+                } else if (!userSnap || !userSnap.exists()) {
+                    await setDoc(userRef, newUserData);
+                }
+            } catch (err) {
+                console.error("Firestore write error", err);
+            }
 
-      } else {
-        setUserData(null);
+          } else {
+            setUserData(null);
+          }
+      } catch (error) {
+          console.error("Auth Initialization Error:", error);
+      } finally {
+          setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
