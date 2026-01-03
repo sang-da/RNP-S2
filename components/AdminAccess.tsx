@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, RefreshCw, Database } from 'lucide-react';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, RefreshCw, Database, ServerCrash } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
@@ -36,6 +36,8 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
             users.push(doc.data() as PendingUser);
         });
         setPendingUsers(users);
+    }, (error) => {
+        console.error("Auth Listener Error", error);
     });
     return () => unsubscribe();
   }, []);
@@ -133,8 +135,8 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   const handleResetDatabase = async () => {
       const confirmed = await confirm({
           title: "Réinitialiser la Base de Données ?",
-          message: "ATTENTION : Ceci va effacer toutes les données actuelles et restaurer les 12 équipes et 42 étudiants par défaut.\n\nÀ n'utiliser qu'au tout début ou en cas de problème majeur.",
-          confirmText: "Oui, restaurer les données par défaut",
+          message: "ATTENTION : Ceci va écraser les données actuelles avec les équipes par défaut.\n\nUtile si votre base est vide ou corrompue.",
+          confirmText: "Oui, initialiser les données",
           isDangerous: true
       });
 
@@ -142,9 +144,8 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
           setIsResetting(true);
           try {
             await resetGame();
-            toast('success', "Base de données restaurée avec les équipes par défaut.");
           } catch(e) {
-            toast('error', "Erreur lors de la réinitialisation.");
+            // Error handled in context
           } finally {
             setIsResetting(false);
           }
@@ -168,7 +169,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                 className="text-xs font-bold text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
             >
                 {isResetting ? <Loader2 className="animate-spin" size={14}/> : <Database size={14}/>}
-                Restaurer les équipes par défaut
+                Restaurer / Initialiser
             </button>
         </div>
 
@@ -225,7 +226,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
         )}
 
         {/* SECTION 2: STUDENT DIRECTORY */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
             <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50">
                  <h3 className="font-bold text-slate-700 flex items-center gap-2">
                     <UserCheck size={18} /> Annuaire Étudiants
@@ -242,81 +243,94 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                  </div>
             </div>
             
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
-                        <tr>
-                            <th className="p-4">Étudiant</th>
-                            <th className="p-4">Agence / Groupe</th>
-                            <th className="p-4">Classe</th>
-                            <th className="p-4">Statut</th>
-                            <th className="p-4 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredStudents.map(({student, agency}) => {
-                            // Check if it's a "Mock ID" (s-123) or a "Real ID" (long string)
-                            const isLinked = !student.id.startsWith('s-');
-
-                            return (
-                            <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative">
-                                            <img src={student.avatarUrl} className={`w-8 h-8 rounded-full object-cover ${isLinked ? 'bg-indigo-100' : 'bg-slate-200 grayscale'}`} />
-                                            {student.connectionStatus === 'online' && isLinked && (
-                                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-slate-900 text-sm">{student.name}</div>
-                                            {isLinked ? (
-                                                <div className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 rounded w-fit flex items-center gap-1">
-                                                    <Link size={8}/> Compte Relié
-                                                </div>
-                                            ) : (
-                                                <div className="text-[10px] text-slate-400 font-medium italic">En attente liaison</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-4 text-sm text-slate-600 font-medium">
-                                    {agency.name}
-                                </td>
-                                <td className="p-4">
-                                    <span className={`text-[10px] font-bold px-2 py-1 rounded ${student.classId === 'A' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                                        CLASSE {student.classId}
-                                    </span>
-                                </td>
-                                <td className="p-4">
-                                    {student.connectionStatus === 'online' && isLinked ? (
-                                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
-                                            <Wifi size={12}/> En Ligne
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">
-                                            <WifiOff size={12}/> Hors Ligne
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="p-4 text-right">
-                                    {isLinked && (
-                                        <button 
-                                            onClick={() => handleForceOffline(student, agency.id)}
-                                            className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
-                                            title="Forcer déconnexion / délier (Fonction avancée)"
-                                        >
-                                            <WifiOff size={14}/>
-                                        </button>
-                                    )}
-                                </td>
+            {filteredStudents.length > 0 ? (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                            <tr>
+                                <th className="p-4">Étudiant</th>
+                                <th className="p-4">Agence / Groupe</th>
+                                <th className="p-4">Classe</th>
+                                <th className="p-4">Statut</th>
+                                <th className="p-4 text-right">Action</th>
                             </tr>
-                        )})}
-                    </tbody>
-                </table>
-            </div>
-            {filteredStudents.length === 0 && (
-                <div className="p-8 text-center text-slate-400 text-sm italic">Aucun étudiant trouvé.</div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredStudents.map(({student, agency}) => {
+                                // Check if it's a "Mock ID" (s-123) or a "Real ID" (long string)
+                                const isLinked = !student.id.startsWith('s-');
+
+                                return (
+                                <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative">
+                                                <img src={student.avatarUrl} className={`w-8 h-8 rounded-full object-cover ${isLinked ? 'bg-indigo-100' : 'bg-slate-200 grayscale'}`} />
+                                                {student.connectionStatus === 'online' && isLinked && (
+                                                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-900 text-sm">{student.name}</div>
+                                                {isLinked ? (
+                                                    <div className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 rounded w-fit flex items-center gap-1">
+                                                        <Link size={8}/> Compte Relié
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[10px] text-slate-400 font-medium italic">En attente liaison</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-sm text-slate-600 font-medium">
+                                        {agency.name}
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded ${student.classId === 'A' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                            CLASSE {student.classId}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        {student.connectionStatus === 'online' && isLinked ? (
+                                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                                                <Wifi size={12}/> En Ligne
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">
+                                                <WifiOff size={12}/> Hors Ligne
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        {isLinked && (
+                                            <button 
+                                                onClick={() => handleForceOffline(student, agency.id)}
+                                                className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
+                                                title="Forcer déconnexion / délier (Fonction avancée)"
+                                            >
+                                                <WifiOff size={14}/>
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            )})}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="p-12 text-center flex flex-col items-center justify-center text-slate-400 gap-4">
+                    <ServerCrash size={48} className="text-slate-200"/>
+                    <div>
+                        <p className="text-lg font-bold text-slate-500">Aucune donnée trouvée.</p>
+                        <p className="text-sm">La base de données semble vide ou inaccessible.</p>
+                    </div>
+                    <button 
+                        onClick={handleResetDatabase}
+                        className="mt-4 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
+                    >
+                        Initialiser les données par défaut
+                    </button>
+                </div>
             )}
         </div>
     </div>

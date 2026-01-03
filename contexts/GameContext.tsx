@@ -4,7 +4,7 @@ import { Agency, WeekModule, GameEvent } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
 import { useUI } from './UIContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, updateDoc, writeBatch, getDocs, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 interface GameContextType {
@@ -40,8 +40,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { userData } = useAuth();
   
   const [role, setRole] = useState<'admin' | 'student'>('student');
-  const [agencies, setAgencies] = useState<Agency[]>([]);
-  const [weeks, setWeeks] = useState<{ [key: string]: WeekModule }>({});
+  // START WITH MOCKS TO AVOID EMPTY SCREEN
+  const [agencies, setAgencies] = useState<Agency[]>(MOCK_AGENCIES);
+  const [weeks, setWeeks] = useState<{ [key: string]: WeekModule }>(INITIAL_WEEKS);
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
 
   // Sync Role with Auth
@@ -54,33 +55,48 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // 1. REAL-TIME SYNC: Agencies
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "agencies"), (snapshot) => {
-      const agenciesData: Agency[] = [];
-      snapshot.forEach((doc) => {
-        agenciesData.push(doc.data() as Agency);
-      });
-      // Sort to keep consistent order if needed, otherwise rely on array
-      // If empty, we might need to seed
-      if (agenciesData.length === 0) {
-        seedDatabase();
-      } else {
-        setAgencies(agenciesData);
+    const unsubscribe = onSnapshot(collection(db, "agencies"), 
+      (snapshot) => {
+        const agenciesData: Agency[] = [];
+        snapshot.forEach((doc) => {
+          agenciesData.push(doc.data() as Agency);
+        });
+        
+        if (agenciesData.length === 0) {
+          console.log("Firestore empty. Attempting auto-seed...");
+          seedDatabase().catch(err => {
+             console.error("Auto-seed failed (likely permissions). Using Local Mocks.", err);
+             // On garde les MOCK_AGENCIES par défaut
+          });
+        } else {
+          setAgencies(agenciesData);
+        }
+      },
+      (error) => {
+        console.error("Firestore Read Error (Agencies):", error);
+        // Fallback silently to Mocks, app remains usable
+        toast('info', 'Mode Hors Ligne (Lecture DB impossible)');
       }
-    });
+    );
     return () => unsubscribe();
   }, []);
 
   // 2. REAL-TIME SYNC: Weeks
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "weeks"), (snapshot) => {
-      const weeksData: { [key: string]: WeekModule } = {};
-      snapshot.forEach((doc) => {
-        weeksData[doc.id] = doc.data() as WeekModule;
-      });
-      if (Object.keys(weeksData).length > 0) {
-        setWeeks(weeksData);
+    const unsubscribe = onSnapshot(collection(db, "weeks"), 
+      (snapshot) => {
+        const weeksData: { [key: string]: WeekModule } = {};
+        snapshot.forEach((doc) => {
+          weeksData[doc.id] = doc.data() as WeekModule;
+        });
+        if (Object.keys(weeksData).length > 0) {
+          setWeeks(weeksData);
+        }
+      },
+      (error) => {
+        console.error("Firestore Read Error (Weeks):", error);
       }
-    });
+    );
     return () => unsubscribe();
   }, []);
 
@@ -102,29 +118,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     await batch.commit();
-    console.log("Database Seeded.");
+    console.log("Database Seeded Successfully.");
+    toast('success', 'Base de données initialisée !');
   };
 
   const updateAgency = async (updatedAgency: Agency) => {
     try {
         const agencyRef = doc(db, "agencies", updatedAgency.id);
         await updateDoc(agencyRef, { ...updatedAgency });
-        // Optimistic update handled by onSnapshot
     } catch (e) {
         console.error("Error updating agency", e);
-        toast('error', 'Erreur de sauvegarde');
+        toast('error', 'Erreur de sauvegarde (Droits insuffisants ?)');
     }
   };
 
   const updateAgenciesList = async (newAgencies: Agency[]) => {
-      // This is complex with Firestore. We usually update one by one.
-      // For the sake of this app's logic (e.g. Mercato), we iterate.
-      const batch = writeBatch(db);
-      newAgencies.forEach(a => {
-          const ref = doc(db, "agencies", a.id);
-          batch.update(ref, { ...a });
-      });
-      await batch.commit();
+      try {
+        const batch = writeBatch(db);
+        newAgencies.forEach(a => {
+            const ref = doc(db, "agencies", a.id);
+            batch.update(ref, { ...a });
+        });
+        await batch.commit();
+      } catch(e) {
+         console.error(e);
+         toast('error', 'Erreur mise à jour multiple');
+      }
   };
 
   const updateWeek = async (weekId: string, updatedWeek: WeekModule) => {
@@ -168,82 +187,91 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!confirmed) return;
 
       const today = new Date().toISOString().split('T')[0];
-      const batch = writeBatch(db);
+      
+      try {
+        const batch = writeBatch(db);
 
-      agencies.forEach(agency => {
-          if (agency.id === 'unassigned') return;
+        agencies.forEach(agency => {
+            if (agency.id === 'unassigned') return;
 
-          // 1. Salaires
-          const payrollCost = agency.members.reduce((acc, member) => {
-              return acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER);
-          }, 0);
-          
-          const payrollEvent: GameEvent = {
-              id: `fin-pay-${Date.now()}-${agency.id}`,
-              date: today,
-              type: 'PAYROLL',
-              label: 'Prélèvement Salaires',
-              deltaBudgetReal: -payrollCost,
-              description: `Début de session : Paiement des ${agency.members.length} employés.`
-          };
+            // 1. Salaires
+            const payrollCost = agency.members.reduce((acc, member) => {
+                return acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER);
+            }, 0);
+            
+            const payrollEvent: GameEvent = {
+                id: `fin-pay-${Date.now()}-${agency.id}`,
+                date: today,
+                type: 'PAYROLL',
+                label: 'Prélèvement Salaires',
+                deltaBudgetReal: -payrollCost,
+                description: `Début de session : Paiement des ${agency.members.length} employés.`
+            };
 
-          // 2. Revenus
-          const revenue = GAME_RULES.REVENUE_BASE + (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
-          const revenueEvent: GameEvent = {
-              id: `fin-rev-${Date.now()}-${agency.id}-2`,
-              date: today,
-              type: 'REVENUE',
-              label: 'Rentrée Subvention Hebdo',
-              deltaBudgetReal: revenue,
-              description: `Fin de session : Subvention (${GAME_RULES.REVENUE_BASE}) + Prime (${agency.ve_current} VE).`
-          };
+            // 2. Revenus
+            const revenue = GAME_RULES.REVENUE_BASE + (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
+            const revenueEvent: GameEvent = {
+                id: `fin-rev-${Date.now()}-${agency.id}-2`,
+                date: today,
+                type: 'REVENUE',
+                label: 'Rentrée Subvention Hebdo',
+                deltaBudgetReal: revenue,
+                description: `Fin de session : Subvention (${GAME_RULES.REVENUE_BASE}) + Prime (${agency.ve_current} VE).`
+            };
 
-          // 3. Calcul Budget
-          let newBudget = agency.budget_real - payrollCost + revenue;
+            // 3. Calcul Budget
+            let newBudget = agency.budget_real - payrollCost + revenue;
 
-          // 4. Audit & Ajustement VE
-          let veAdjustment = 0;
-          let auditLabel = "Audit Trésorerie Neutre";
+            // 4. Audit & Ajustement VE
+            let veAdjustment = 0;
+            let auditLabel = "Audit Trésorerie Neutre";
 
-          if (newBudget >= 1000) {
-              const bonus = Math.floor(newBudget / 1000) * 2;
-              veAdjustment = bonus;
-              auditLabel = `Bonus Trésorerie (+${bonus} VE)`;
-          } else if (newBudget < 0) {
-              const debt = Math.abs(newBudget);
-              const malus = Math.ceil(debt / 1000) * 5;
-              veAdjustment = -malus;
-              auditLabel = `Dette Critique (-${malus} VE)`;
-          }
+            if (newBudget >= 1000) {
+                const bonus = Math.floor(newBudget / 1000) * 2;
+                veAdjustment = bonus;
+                auditLabel = `Bonus Trésorerie (+${bonus} VE)`;
+            } else if (newBudget < 0) {
+                const debt = Math.abs(newBudget);
+                const malus = Math.ceil(debt / 1000) * 5;
+                veAdjustment = -malus;
+                auditLabel = `Dette Critique (-${malus} VE)`;
+            }
 
-          const auditEvent: GameEvent = {
-               id: `fin-audit-${Date.now()}-${agency.id}`,
-               date: today,
-               type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS',
-               label: auditLabel,
-               deltaVE: veAdjustment,
-               description: `Ajustement VE basé sur le solde de ${newBudget} PiXi.`
-          };
+            const auditEvent: GameEvent = {
+                 id: `fin-audit-${Date.now()}-${agency.id}`,
+                 date: today,
+                 type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS',
+                 label: auditLabel,
+                 deltaVE: veAdjustment,
+                 description: `Ajustement VE basé sur le solde de ${newBudget} PiXi.`
+            };
 
-          const newEvents = [...agency.eventLog, payrollEvent, revenueEvent, auditEvent];
-          const newVE = Math.max(0, agency.ve_current + veAdjustment);
+            const newEvents = [...agency.eventLog, payrollEvent, revenueEvent, auditEvent];
+            const newVE = Math.max(0, agency.ve_current + veAdjustment);
 
-          const ref = doc(db, "agencies", agency.id);
-          batch.update(ref, {
-              budget_real: newBudget,
-              eventLog: newEvents,
-              ve_current: newVE
-          });
-      });
+            const ref = doc(db, "agencies", agency.id);
+            batch.update(ref, {
+                budget_real: newBudget,
+                eventLog: newEvents,
+                ve_current: newVE
+            });
+        });
 
-      await batch.commit();
-      toast('success', 'Comptabilité hebdomadaire effectuée avec succès.');
+        await batch.commit();
+        toast('success', 'Comptabilité hebdomadaire effectuée avec succès.');
+      } catch(e) {
+          console.error(e);
+          toast('error', "Erreur lors de la clôture (Droits ?)");
+      }
   };
 
   const resetGame = async () => {
-      // Re-upload mocks
-      await seedDatabase();
-      toast('warning', 'Jeu réinitialisé.');
+      try {
+        await seedDatabase();
+      } catch (e) {
+        console.error(e);
+        toast('error', "Impossible de réinitialiser la DB.");
+      }
   };
 
   return (
