@@ -1,0 +1,5 @@
+{
+  "name": "RNP Studio Manager",
+  "description": "Plateforme de gestion pédagogique gamifiée pour le cursus RNP : création d'agence, gestion de projet et levée de fonds.",
+  "requestFramePermissions": []
+}
