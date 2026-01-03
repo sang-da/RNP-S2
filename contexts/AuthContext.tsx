@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 interface UserData {
   uid: string;
@@ -38,8 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
           setCurrentUser(user);
           
-          // HARDCODED ADMIN CHECK (Remplacez par votre email réel si nécessaire pour forcer l'admin au début)
-          // Vous pouvez aussi changer le rôle manuellement dans Firestore Console.
+          // --- SÉCURITÉ ADMIN ---
+          // On vérifie l'email en dur pour garantir l'accès
           const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com'; 
 
           const userRef = doc(db, 'users', user.uid);
@@ -48,8 +48,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userSnap = await getDoc(userRef);
             
             if (userSnap.exists()) {
-                // User exists in DB, load data
+                // L'utilisateur existe déjà
                 const data = userSnap.data();
+                
+                // --- AUTO-CORRECTION ---
+                // Si c'est toi (l'email admin) mais que la base dit "pending" ou "student",
+                // on force la mise à jour immédiate vers "admin".
+                if (isHardcodedAdmin && data.role !== 'admin') {
+                    console.log("👑 Admin reconnu mais mauvais rôle en DB. Correction forcée...");
+                    await updateDoc(userRef, { role: 'admin' });
+                    data.role = 'admin'; // On met à jour la variable locale pour l'affichage immédiat
+                }
+
                 setUserData({
                     uid: user.uid,
                     email: user.email,
@@ -59,14 +69,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     agencyId: data.agencyId
                 });
             } else {
-                // NEW USER: Create Document immediately
-                console.log("New User detected, creating profile in Firestore...");
+                // NOUVEL UTILISATEUR
+                console.log("Nouvel utilisateur détecté, création du profil...");
                 
                 const newUserData: UserData = {
                     uid: user.uid,
                     email: user.email,
                     displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
                     photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                    // Si c'est ton email, on met direct Admin, sinon Pending
                     role: isHardcodedAdmin ? 'admin' : 'pending',
                     agencyId: undefined
                 };
@@ -80,8 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUserData(newUserData);
             }
           } catch (err) {
-            console.error("Error fetching/creating user profile:", err);
-            // Fallback to allow UI to render even if DB fails
+            console.error("Erreur lors de la récupération du profil:", err);
+            // Fallback pour ne pas bloquer l'UI
             setUserData({
                 uid: user.uid,
                 email: user.email,
