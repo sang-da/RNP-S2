@@ -1,8 +1,10 @@
 
 import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 
+// Configuration officielle RNP1001
 const firebaseConfig = {
   apiKey: "AIzaSyCMRGDpT34UvMMVxFKlKb-inQD_5gsBkNc",
   authDomain: "rnp1001.firebaseapp.com",
@@ -13,7 +15,10 @@ const firebaseConfig = {
   measurementId: "G-QSVQW2K3CX"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -28,4 +33,4 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, doc, setDoc, getDoc, updateDoc };
+export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, doc, setDoc, getDoc, updateDoc, analytics };

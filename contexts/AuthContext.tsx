@@ -39,20 +39,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fetch or Create User Data in Firestore
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
+        
+        // HARDCODED ADMIN EMAIL CHECK (Force Admin rights)
+        const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com';
 
         if (userSnap.exists()) {
-          setUserData(userSnap.data() as UserData);
+          const data = userSnap.data() as UserData;
+          
+          // Sécurité : Si c'est toi mais que la DB dit "pending" ou "student", on force l'update
+          if (isHardcodedAdmin && data.role !== 'admin') {
+              const updatedData = { ...data, role: 'admin' as const };
+              await setDoc(userRef, updatedData, { merge: true });
+              setUserData(updatedData);
+          } else {
+              setUserData(data);
+          }
         } else {
           // Initialize new user
-          // HARDCODED ADMIN EMAIL CHECK
-          const isAdmin = user.email === 'ahme.sang@gmail.com';
-          
           const newUserData: UserData = {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || user.email?.split('@')[0] || 'User',
             photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-            role: isAdmin ? 'admin' : 'pending',
+            role: isHardcodedAdmin ? 'admin' : 'pending',
             agencyId: undefined
           };
           
