@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, RefreshCw, Database, ServerCrash } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
-import { useGame } from '../contexts/GameContext'; // Pour resetGame
+import { useGame } from '../contexts/GameContext'; 
 
 interface AdminAccessProps {
   agencies: Agency[];
@@ -29,18 +29,28 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
 
   // 1. REAL-TIME LISTENER FOR PENDING USERS
   useEffect(() => {
+    // Listen to users where role is 'pending'
     const q = query(collection(db, "users"), where("role", "==", "pending"));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const users: PendingUser[] = [];
         snapshot.forEach((doc) => {
-            users.push(doc.data() as PendingUser);
+            const data = doc.data();
+            users.push({
+                uid: doc.id,
+                displayName: data.displayName || 'Sans Nom',
+                email: data.email || '',
+                photoURL: data.photoURL || '',
+                role: data.role
+            });
         });
         setPendingUsers(users);
     }, (error) => {
-        console.error("Auth Listener Error", error);
+        console.error("Error listening to pending users:", error);
+        toast('error', "Erreur de synchro Salle d'Attente");
     });
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   // Flatten all students from Game State
   const allGameStudents = useMemo(() => {
@@ -58,7 +68,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   );
 
   // Filter only students who have a "Mock ID" (starting with s-)
-  // If ID is a long string, it means it's already linked to a Real User.
+  // These are the empty shells waiting for a real soul.
   const availableSlots = allGameStudents
     .filter(({student}) => student.id.startsWith('s-')) 
     .sort((a,b) => a.student.name.localeCompare(b.student.name));
@@ -84,26 +94,32 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
 
       const oldMemberData = targetAgency.members[targetMemberIndex];
 
+      const confirmed = await confirm({
+          title: "Lier le compte ?",
+          message: `Voulez-vous donner le contrôle de "${oldMemberData.name}" (Agence: ${targetAgency.name}) à ${firebaseUser.displayName} ?`,
+          confirmText: "Valider la Liaison"
+      });
+
+      if (!confirmed) return;
+
       try {
           const batch = writeBatch(db);
 
-          // 1. Update USER doc (Auth side)
+          // 1. Update USER doc (Auth side) -> Gives them the role and access
           const userRef = doc(db, "users", firebaseUser.uid);
           batch.update(userRef, {
               role: 'student',
               agencyId: targetAgency.id,
-              linkedStudentId: targetStudentId // Traceability
+              linkedStudentId: targetStudentId,
+              studentProfileName: oldMemberData.name // Store for reference
           });
 
-          // 2. Update AGENCY doc (Game side)
-          // We replace the mock ID with the real Firebase UID to link them
+          // 2. Update AGENCY doc (Game side) -> Replaces the Mock ID with Real UID
           const updatedMembers = [...targetAgency.members];
           updatedMembers[targetMemberIndex] = {
               ...oldMemberData,
-              id: firebaseUser.uid, // CRITICAL: Link Auth UID to Game Entity
-              avatarUrl: firebaseUser.photoURL || oldMemberData.avatarUrl, // Use Google Photo if available
-              // We keep the Game Name (e.g. "Kassandra") or update it? Let's keep Game Name but maybe append info if needed.
-              // For now, we trust the preset names or let them update it later.
+              id: firebaseUser.uid, // CRITICAL: This links the game entity to the auth user
+              avatarUrl: firebaseUser.photoURL || oldMemberData.avatarUrl,
               connectionStatus: 'online'
           };
 
@@ -111,25 +127,55 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
           batch.update(agencyRef, { members: updatedMembers });
 
           await batch.commit();
-          toast('success', `${firebaseUser.displayName} relié au profil "${oldMemberData.name}"`);
+          toast('success', `${firebaseUser.displayName} est maintenant ${oldMemberData.name} !`);
 
       } catch (error) {
-          console.error(error);
-          toast('error', "Erreur lors de l'assignation");
+          console.error("Assign Error:", error);
+          toast('error', "Erreur lors de l'assignation. Vérifiez les droits.");
       }
   };
 
   const handleForceOffline = async (student: Student, agencyId: string) => {
-       const agency = agencies.find(a => a.id === agencyId);
-       if(!agency) return;
+       // Only allows unlinking if it's a real user (not a mock id starting with s-)
+       if (student.id.startsWith('s-')) return;
 
-       const updatedMembers = agency.members.map(m => 
-           m.id === student.id ? { ...m, connectionStatus: 'offline' as const } : m
-       );
-       
-       const agencyRef = doc(db, "agencies", agencyId);
-       await updateDoc(agencyRef, { members: updatedMembers });
-       toast('info', `${student.name} marqué hors ligne.`);
+       const confirmed = await confirm({
+           title: "Délier l'étudiant ?",
+           message: "Attention : L'étudiant perdra l'accès à ce profil. Le profil redeviendra un 'bot' inactif.",
+           confirmText: "Délier / Réinitialiser",
+           isDangerous: true
+       });
+
+       if (!confirmed) return;
+
+       try {
+           const batch = writeBatch(db);
+
+           // 1. Reset Agency Member to Mock ID style (or keep UID but mark offline? Better to generate new ID to allow re-link)
+           const agency = agencies.find(a => a.id === agencyId);
+           if (!agency) return;
+
+           const newMockId = `s-reset-${Date.now()}`;
+           const updatedMembers = agency.members.map(m => 
+               m.id === student.id ? { ...m, id: newMockId, connectionStatus: 'offline' as const } : m
+           );
+           const agencyRef = doc(db, "agencies", agencyId);
+           batch.update(agencyRef, { members: updatedMembers });
+
+           // 2. Reset User Doc to Pending
+           const userRef = doc(db, "users", student.id);
+           batch.update(userRef, { 
+               role: 'pending', 
+               agencyId: null,
+               linkedStudentId: null
+           });
+
+           await batch.commit();
+           toast('success', "Liaison supprimée.");
+       } catch (e) {
+           console.error(e);
+           toast('error', "Erreur lors du déliage.");
+       }
   };
 
   const handleResetDatabase = async () => {
@@ -174,15 +220,19 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
         </div>
 
         {/* SECTION 1: GATEKEEPER (Real Pending Connections) */}
-        {pendingUsers.length > 0 && (
-            <div className="mb-8 bg-white border border-indigo-100 rounded-2xl p-6 shadow-sm ring-4 ring-indigo-50/50">
-                <h3 className="text-indigo-900 font-bold mb-4 flex items-center gap-2">
-                    <Loader2 size={20} className="animate-spin text-indigo-500"/> Salle d'Attente ({pendingUsers.length})
-                </h3>
+        <div className={`mb-8 border rounded-2xl p-6 shadow-sm transition-all ${pendingUsers.length > 0 ? 'bg-white border-indigo-100 ring-4 ring-indigo-50/50' : 'bg-slate-50 border-dashed border-slate-200 opacity-60'}`}>
+            <h3 className={`font-bold mb-4 flex items-center gap-2 ${pendingUsers.length > 0 ? 'text-indigo-900' : 'text-slate-400'}`}>
+                {pendingUsers.length > 0 ? <Loader2 size={20} className="animate-spin text-indigo-500"/> : <WifiOff size={20}/>}
+                Salle d'Attente ({pendingUsers.length})
+            </h3>
+            
+            {pendingUsers.length === 0 ? (
+                <p className="text-sm text-slate-400 italic">Aucun nouvel utilisateur en attente de validation.</p>
+            ) : (
                 <div className="space-y-3">
                     {pendingUsers.map(user => (
-                        <div key={user.uid} className="flex flex-col md:flex-row items-center justify-between bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 gap-4">
-                            <div className="flex items-center gap-4 w-full md:w-auto">
+                        <div key={user.uid} className="flex flex-col xl:flex-row items-start xl:items-center justify-between bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 gap-4">
+                            <div className="flex items-center gap-4 w-full xl:w-auto">
                                 <img 
                                     src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
                                     alt="Google Profile" 
@@ -198,10 +248,10 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-3 w-full md:w-auto bg-white p-2 rounded-xl border border-indigo-100 shadow-sm">
-                                <span className="text-xs font-bold text-slate-400 uppercase hidden md:inline whitespace-nowrap px-2">C'est qui ?</span>
+                            <div className="flex items-center gap-3 w-full xl:w-auto bg-white p-2 rounded-xl border border-indigo-100 shadow-sm">
+                                <span className="text-xs font-bold text-slate-400 uppercase hidden xl:inline whitespace-nowrap px-2">Lier à :</span>
                                 <select 
-                                    className="flex-1 md:w-64 p-2 rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 border-none"
+                                    className="flex-1 w-full xl:w-64 p-2 rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 border-none cursor-pointer"
                                     onChange={(e) => {
                                         if(e.target.value) handleAssignStudent(user, e.target.value);
                                     }}
@@ -222,8 +272,8 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                         </div>
                     ))}
                 </div>
-            </div>
-        )}
+            )}
+        </div>
 
         {/* SECTION 2: STUDENT DIRECTORY */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
@@ -306,7 +356,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                             <button 
                                                 onClick={() => handleForceOffline(student, agency.id)}
                                                 className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
-                                                title="Forcer déconnexion / délier (Fonction avancée)"
+                                                title="Délier / Réinitialiser (Attention)"
                                             >
                                                 <WifiOff size={14}/>
                                             </button>

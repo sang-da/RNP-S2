@@ -1,11 +1,29 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Loader2, ShieldCheck, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut, auth } from '../services/firebase';
+import { signOut, auth, db } from '../services/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export const WaitingScreen: React.FC = () => {
     const { userData } = useAuth();
+
+    // LISTEN TO ROLE CHANGE IN REAL-TIME
+    useEffect(() => {
+        if (!userData?.uid) return;
+        
+        const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                // If role changes to 'student' or 'admin', the App.tsx logic will auto-rerender and redirect
+                // We force a page reload if needed, but Context updates should handle it.
+                if (data.role !== 'pending' && data.role !== userData.role) {
+                     window.location.reload(); 
+                }
+            }
+        });
+        return () => unsub();
+    }, [userData]);
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
@@ -32,7 +50,7 @@ export const WaitingScreen: React.FC = () => {
                     </li>
                     <li className="flex gap-3">
                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">2</div>
-                        Il va vous assigner à votre Agence (Classe A ou B) ou vous donner les droits Enseignant.
+                        Il va vous assigner à votre Agence et transformer votre profil "invité" en profil étudiant officiel.
                     </li>
                     <li className="flex gap-3">
                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">3</div>

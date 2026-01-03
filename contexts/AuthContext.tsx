@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 interface UserData {
   uid: string;
@@ -34,67 +34,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      try {
+      setLoading(true);
+      if (user) {
           setCurrentUser(user);
-          if (user) {
-            // HARDCODED ADMIN CHECK
-            const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com';
-            
-            const userRef = doc(db, 'users', user.uid);
-            let userSnap;
-            
-            try {
-                userSnap = await getDoc(userRef);
-            } catch (err) {
-                console.error("Firestore read error (likely permissions), proceeding with minimal data", err);
-                // On continue même si Firestore bloque, pour ne pas white-screen
-            }
-            
-            let finalRole: 'admin' | 'student' | 'pending' = 'pending';
-            let agencyId: string | undefined = undefined;
+          
+          // HARDCODED ADMIN CHECK (Remplacez par votre email réel si nécessaire pour forcer l'admin au début)
+          // Vous pouvez aussi changer le rôle manuellement dans Firestore Console.
+          const isHardcodedAdmin = user.email === 'ahme.sang@gmail.com'; 
 
-            if (userSnap && userSnap.exists()) {
-              const data = userSnap.data();
-              finalRole = data.role;
-              agencyId = data.agencyId;
-            }
+          const userRef = doc(db, 'users', user.uid);
+          
+          try {
+            const userSnap = await getDoc(userRef);
+            
+            if (userSnap.exists()) {
+                // User exists in DB, load data
+                const data = userSnap.data();
+                setUserData({
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: data.displayName || user.displayName,
+                    photoURL: data.photoURL || user.photoURL,
+                    role: data.role,
+                    agencyId: data.agencyId
+                });
+            } else {
+                // NEW USER: Create Document immediately
+                console.log("New User detected, creating profile in Firestore...");
+                
+                const newUserData: UserData = {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
+                    photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                    role: isHardcodedAdmin ? 'admin' : 'pending',
+                    agencyId: undefined
+                };
 
-            // FORCE OVERRIDE: Si c'est toi, tu es admin. Point final.
-            if (isHardcodedAdmin) {
-                finalRole = 'admin';
-            }
+                await setDoc(userRef, {
+                    ...newUserData,
+                    createdAt: serverTimestamp(),
+                    lastLogin: serverTimestamp()
+                });
 
-            const newUserData: UserData = {
+                setUserData(newUserData);
+            }
+          } catch (err) {
+            console.error("Error fetching/creating user profile:", err);
+            // Fallback to allow UI to render even if DB fails
+            setUserData({
                 uid: user.uid,
                 email: user.email,
-                displayName: user.displayName || user.email?.split('@')[0] || 'User',
-                photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-                role: finalRole,
-                agencyId: agencyId
-            };
-
-            // 1. Mise à jour de l'état local (Immédiat pour l'UI)
-            setUserData(newUserData);
-
-            // 2. Mise à jour de la DB (Si nécessaire et si on a les droits)
-            try {
-                if (isHardcodedAdmin && (!userSnap || !userSnap.exists() || userSnap.data()?.role !== 'admin')) {
-                    await setDoc(userRef, { ...newUserData, role: 'admin' }, { merge: true });
-                } else if (!userSnap || !userSnap.exists()) {
-                    await setDoc(userRef, newUserData);
-                }
-            } catch (err) {
-                console.error("Firestore write error", err);
-            }
-
-          } else {
-            setUserData(null);
+                displayName: user.displayName,
+                photoURL: user.photoURL,
+                role: 'pending' 
+            });
           }
-      } catch (error) {
-          console.error("Auth Initialization Error:", error);
-      } finally {
-          setLoading(false);
+      } else {
+        setCurrentUser(null);
+        setUserData(null);
       }
+      setLoading(false);
     });
 
     return unsubscribe;
