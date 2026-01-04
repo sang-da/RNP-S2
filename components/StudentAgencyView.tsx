@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, BrandColor } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, TrendingDown, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, TrendingDown, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, AlertCircle } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -46,6 +46,13 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const leaderboard = [...allAgencies].filter(a => a.id !== 'unassigned').sort((a, b) => b.ve_current - a.ve_current);
   const myRank = leaderboard.findIndex(a => a.id === agency.id) + 1;
 
+  // Calculs Financiers
+  const rawSalary = agency.members.reduce((acc, member) => acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
+  const weeklyCharges = rawSalary * (1 + (agency.weeklyTax || 0));
+  const veRevenue = agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER;
+  const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
+  const netWeekly = weeklyRevenue - weeklyCharges;
+
   // --- HANDLERS ---
   const handleColorChange = (color: BrandColor) => {
       onUpdateAgency({
@@ -76,7 +83,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
     <div className="flex flex-col min-h-[calc(100vh-6rem)] font-sans">
         
         {/* 1. BRANDED HEADER & BANNER */}
-        <div className="relative mb-8 rounded-b-3xl md:rounded-3xl overflow-hidden bg-slate-100 min-h-[160px] md:min-h-[200px] shadow-sm group">
+        <div className="relative mb-8 rounded-b-3xl md:rounded-3xl overflow-hidden bg-slate-100 min-h-[200px] md:min-h-[240px] shadow-md group">
             {/* Banner Image */}
             {agency.branding?.bannerUrl ? (
                 <img src={agency.branding.bannerUrl} className="absolute inset-0 w-full h-full object-cover" alt="Banner" />
@@ -84,58 +91,82 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 <div className={`absolute inset-0 opacity-10 ${theme.bg}`} style={{backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
             )}
             
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+            {/* Darker Overlay for better contrast */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent"></div>
 
             {/* Customize Button */}
             {agency.id !== 'unassigned' && (
                 <button 
                     onClick={() => setShowSettings(true)}
-                    className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all opacity-0 group-hover:opacity-100"
+                    className="absolute top-4 right-4 p-2 bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 border border-white/10"
                 >
                     <Settings size={20}/>
                 </button>
             )}
 
-            <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col md:flex-row justify-between items-end gap-4">
-                <div>
-                    <h2 className="text-4xl md:text-5xl font-display font-bold text-white tracking-tight shadow-black drop-shadow-md">{agency.name}</h2>
-                    <div className="flex flex-wrap items-center gap-3 mt-2">
-                        {agency.id !== 'unassigned' && <span className="bg-white/20 backdrop-blur text-white px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">Rang #{myRank}</span>}
-                        <span className="text-slate-200 italic text-sm">"{agency.tagline}"</span>
-                        
-                        {/* BADGES DISPLAY */}
-                        <div className="flex items-center gap-1 ml-2">
-                            {BADGE_DEFINITIONS.map(def => {
-                                const isEarned = Math.random() > 0.8; // Mock logic
-                                if(!isEarned) return null;
-                                return (
-                                    <div key={def.id} className="w-6 h-6 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center shadow-lg border border-yellow-200" title={def.label}>
-                                        {def.icon === 'shield' && <Shield size={12}/>}
-                                        {def.icon === 'eye' && <Eye size={12}/>}
-                                        {def.icon === 'crown' && <Crown size={12}/>}
-                                        {def.icon === 'users' && <Users size={12}/>}
-                                    </div>
-                                )
-                            })}
-                        </div>
+            <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col xl:flex-row justify-between items-end xl:items-end gap-6 text-white">
+                <div className="w-full xl:w-auto">
+                    <div className="flex items-center gap-3 mb-1">
+                        {agency.id !== 'unassigned' && <span className="bg-white/20 backdrop-blur border border-white/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Rang #{myRank}</span>}
+                        <span className="text-slate-300 italic text-sm truncate">"{agency.tagline}"</span>
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tight drop-shadow-lg leading-none mb-3">{agency.name}</h2>
+                    
+                    {/* BADGES DISPLAY */}
+                    <div className="flex items-center gap-1">
+                        {BADGE_DEFINITIONS.map(def => {
+                            const isEarned = Math.random() > 0.8; // Mock logic
+                            if(!isEarned) return null;
+                            return (
+                                <div key={def.id} className="w-6 h-6 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center shadow-lg border border-yellow-200" title={def.label}>
+                                    {def.icon === 'shield' && <Shield size={12}/>}
+                                    {def.icon === 'eye' && <Eye size={12}/>}
+                                    {def.icon === 'crown' && <Crown size={12}/>}
+                                    {def.icon === 'users' && <Users size={12}/>}
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
 
                 {/* KPI Widget */}
                 {agency.id !== 'unassigned' && (
-                <div className="flex gap-6 items-end text-white">
-                    <div className="hidden lg:block text-right pr-6 border-r border-white/20">
-                        <span className="text-[10px] font-bold opacity-70 uppercase tracking-widest block">Tréso. Réelle</span>
-                        <div className={`text-xl font-bold flex items-center gap-2 justify-end`}>
-                             {agency.budget_real.toLocaleString()} PiXi
+                <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+                    
+                    {/* EXPENSES */}
+                    <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
+                        <span className="text-[10px] font-bold text-red-300 uppercase tracking-widest block mb-1">Dépenses Hebdos</span>
+                        <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
+                             <span className="text-red-400">- {weeklyCharges.toFixed(0)}</span>
                         </div>
+                        <p className="text-[10px] text-slate-400">Salaires + Taxes</p>
                     </div>
-                    <div className="text-right cursor-pointer" onClick={() => setShowVERules(true)}>
-                        <span className="text-xs font-bold opacity-70 uppercase tracking-widest flex justify-end items-center gap-1">
-                            Valeur (VE) <HelpCircle size={14}/>
-                        </span>
-                        <div className={`text-6xl font-display font-bold leading-none ${agency.ve_current >= 60 ? 'text-emerald-400' : agency.ve_current >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
-                            {agency.ve_current}
+
+                    {/* REVENUES */}
+                    <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
+                        <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest block mb-1">Recettes Hebdos</span>
+                        <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
+                             <span className="text-emerald-400">+ {weeklyRevenue.toFixed(0)}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Base + VE + Bonus</p>
+                    </div>
+
+                    {/* NET & VE */}
+                    <div className="flex items-center justify-between md:justify-start gap-6 pl-2">
+                        <div className="text-center">
+                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
+                            <div className={`text-xl font-bold ${netWeekly >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)}
+                            </div>
+                        </div>
+
+                        <div className="text-center cursor-pointer group" onClick={() => setShowVERules(true)}>
+                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1 group-hover:text-white transition-colors flex items-center gap-1 justify-center">
+                                VE <HelpCircle size={10}/>
+                            </span>
+                            <div className={`text-3xl font-display font-bold leading-none ${agency.ve_current >= 60 ? 'text-emerald-400' : agency.ve_current >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                                {agency.ve_current}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -251,9 +282,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
         <Modal isOpen={showVERules} onClose={() => setShowVERules(false)} title="Audit de Valeur (VE)">
             <div className="space-y-6">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                        La <strong>VE (Valeur d'Entreprise)</strong> reflète la santé et la productivité de votre agence.
+                    <p className="text-sm text-slate-600 leading-relaxed mb-2">
+                        La <strong>VE (Valeur d'Entreprise)</strong> détermine vos revenus.
+                        <br/>Chaque point de VE rapporte <strong>{GAME_RULES.REVENUE_VE_MULTIPLIER} PiXi/sem</strong>.
                     </p>
+                    <div className="flex gap-2 text-xs font-bold uppercase">
+                        <span className="bg-white px-2 py-1 rounded border">VE Actuelle : {agency.ve_current}</span>
+                        <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded border border-emerald-200">Gain : +{veRevenue} PiXi</span>
+                    </div>
                 </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                     {agency.eventLog.filter(e => e.deltaVE).map(event => (

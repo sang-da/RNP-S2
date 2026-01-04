@@ -47,16 +47,16 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
         title: 'Le "Golden Brief"',
         description: 'La meilleure cohérence stratégique (Problème / Cible / Identité).',
         veBonus: 15,
-        budgetBonus: 1000,
+        weeklyBonus: 250, // Bonus récurrent par semaine
         iconName: 'compass'
     },
     {
         id: 'award_c2',
         cycleId: CycleType.NARRATION_IA,
-        title: 'Le Prix "Griot"',
+        title: 'Prix Narration',
         description: 'Storytelling captivant et culturellement pertinent.',
         veBonus: 20,
-        budgetBonus: 1200,
+        weeklyBonus: 350,
         iconName: 'mic'
     },
     {
@@ -65,7 +65,7 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
         title: 'Prix "Vision"',
         description: 'L\'image la plus aboutie techniquement et artistiquement.',
         veBonus: 25,
-        budgetBonus: 1500,
+        weeklyBonus: 500,
         iconName: 'eye'
     },
     {
@@ -74,7 +74,7 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
         title: 'Prix "Signature"',
         description: 'Le projet global le plus professionnel et vendable.',
         veBonus: 40,
-        budgetBonus: 3000,
+        weeklyBonus: 800,
         iconName: 'crown'
     }
 ];
@@ -389,6 +389,7 @@ const generateMockAgencies = (): Agency[] => {
           budget_real: 0,
           budget_valued: 0,
           weeklyTax: 0,
+          weeklyRevenueModifier: 0, // NEW FIELD
           eventLog: [
              { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
           ],
@@ -424,6 +425,7 @@ const generateMockAgencies = (): Agency[] => {
       budget_real: 0,
       budget_valued: 0,
       weeklyTax: 0,
+      weeklyRevenueModifier: 0,
       eventLog: [],
       members: [...unassignedMembersA, ...unassignedMembersB], // Merge everyone here
       peerReviews: [],

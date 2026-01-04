@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, CrisisPreset, GameEvent, CycleAwardDefinition } from '../types';
-import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent, Ruler, Crown, Compass, Mic, Eye } from 'lucide-react';
+import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent, Ruler, Crown, Compass, Mic, Eye, Info } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { CYCLE_AWARDS } from '../constants';
 
@@ -231,7 +231,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
 
       const confirmed = await confirm({
           title: "Confirmer le Lauréat",
-          message: `Vous allez décerner le ${selectedAward.title} à l'agence "${winner.name}".\n\nBonus: +${selectedAward.veBonus} VE / +${selectedAward.budgetBonus} PiXi`,
+          message: `Vous allez décerner le ${selectedAward.title} à l'agence "${winner.name}".\n\nBonus: +${selectedAward.veBonus} VE\nBonus Hebdo: +${selectedAward.weeklyBonus} PiXi/semaine (Permanent)`,
           confirmText: "Décerner le Prix",
           isDangerous: false
       });
@@ -244,14 +244,14 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
           type: 'VE_DELTA',
           label: `🏆 ${selectedAward.title}`,
           deltaVE: selectedAward.veBonus,
-          deltaBudgetReal: selectedAward.budgetBonus,
-          description: `Félicitations ! L'agence remporte le Grand Prix du cycle : "${selectedAward.description}"`
+          deltaBudgetReal: 0, // Pas de cash immédiat, c'est du bonus hebdo
+          description: `Félicitations ! Gain du Grand Prix : "${selectedAward.description}". Augmentation des revenus hebdos de +${selectedAward.weeklyBonus} PiXi.`
       };
 
       onUpdateAgency({
           ...winner,
           ve_current: Math.min(100, winner.ve_current + selectedAward.veBonus),
-          budget_real: winner.budget_real + selectedAward.budgetBonus,
+          weeklyRevenueModifier: (winner.weeklyRevenueModifier || 0) + selectedAward.weeklyBonus,
           eventLog: [...winner.eventLog, newEvent]
       });
 
@@ -306,6 +306,10 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                     <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                         <Trophy size={20} className="text-yellow-500"/> 1. Choisir le Trophée
                     </h3>
+                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 mb-4 text-xs text-yellow-800 flex items-start gap-2">
+                        <Info size={16} className="shrink-0 mt-0.5"/>
+                        <p><strong>Règle :</strong> Vous devez décerner ce prix une fois à une équipe de la Classe A, et une fois à une équipe de la Classe B.</p>
+                    </div>
                     {CYCLE_AWARDS.map(award => (
                         <div 
                             key={award.id}
@@ -325,7 +329,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                                 <div className="flex gap-2 mt-1">
                                     <span className="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{award.cycleId.split(':')[0]}</span>
                                     <span className="text-[10px] font-bold text-emerald-600">+{award.veBonus} VE</span>
-                                    <span className="text-[10px] font-bold text-emerald-600">+{award.budgetBonus} PiXi</span>
+                                    <span className="text-[10px] font-bold text-emerald-600">+{award.weeklyBonus} PiXi/sem</span>
                                 </div>
                             </div>
                         </div>

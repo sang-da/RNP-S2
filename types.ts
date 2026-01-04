@@ -134,6 +134,7 @@ export interface Agency {
   budget_real: number; // En XOF ou €
   budget_valued: number; // En XOF ou €
   weeklyTax: number; // Pourcentage de charges hebdo (0.1 = 10%)
+  weeklyRevenueModifier: number; // Bonus/Malus récurrent en PiXi (ex: +500 par semaine grâce à un prix)
   
   status: 'stable' | 'fragile' | 'critique';
   
@@ -184,7 +185,7 @@ export interface CycleAwardDefinition {
     title: string;
     description: string;
     veBonus: number;
-    budgetBonus: number;
+    weeklyBonus: number; // En PiXi/semaine (Récurrent)
     iconName: 'compass' | 'mic' | 'eye' | 'crown';
 }
 

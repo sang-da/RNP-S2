@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Agency, GameEvent, MercatoRequest } from '../types';
 import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote } from 'lucide-react';
@@ -209,6 +208,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           budget_real: 5000,
           budget_valued: 0,
           weeklyTax: 0,
+          weeklyRevenueModifier: 0, // NEW FIELD
           members: [],
           peerReviews: [],
           eventLog: [],

@@ -253,15 +253,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 description: `Salaires (${rawSalary}) + Charges ${(agency.weeklyTax || 0)*100}% (${taxAmount})`
             };
 
-            // 3. Revenus
-            const revenue = GAME_RULES.REVENUE_BASE + (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
+            // 3. Revenus (Base + VE + Bonus Awards)
+            const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
+            const bonuses = agency.weeklyRevenueModifier || 0;
+            const revenue = GAME_RULES.REVENUE_BASE + revenueVE + bonuses;
+            
             const revenueEvent: GameEvent = {
                 id: `fin-rev-${Date.now()}-${agency.id}-2`,
                 date: today,
                 type: 'REVENUE',
                 label: 'Rentrée Subvention Hebdo',
                 deltaBudgetReal: revenue,
-                description: `Fin de session : Subvention (${GAME_RULES.REVENUE_BASE}) + Prime (${agency.ve_current} VE).`
+                description: `Base (${GAME_RULES.REVENUE_BASE}) + VE (${revenueVE}) + Bonus (${bonuses}).`
             };
 
             // 4. Calcul Budget

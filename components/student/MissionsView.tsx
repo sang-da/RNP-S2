@@ -138,7 +138,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                         <h4 className="font-bold text-lg leading-none">{currentAward.title}</h4>
                         <div className="flex gap-2 mt-1">
                             <span className="text-xs font-bold px-1.5 py-0.5 bg-white/20 rounded">+{currentAward.veBonus} VE</span>
-                            <span className="text-xs font-bold px-1.5 py-0.5 bg-white/20 rounded">+{currentAward.budgetBonus} PiXi</span>
+                            <span className="text-xs font-bold px-1.5 py-0.5 bg-white/20 rounded">+{currentAward.weeklyBonus} PiXi/sem</span>
                         </div>
                     </div>
                 </div>
