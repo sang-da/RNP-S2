@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Agency, GameEvent, MercatoRequest } from '../types';
 import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins } from 'lucide-react';
@@ -215,7 +214,9 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           constraints: { space: "À définir", style: "À définir", client: "À définir" },
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
-          progress: JSON.parse(JSON.stringify(agencies[0].progress))
+          progress: JSON.parse(JSON.stringify(agencies[0].progress)),
+          branding: { color: 'indigo' },
+          badges: [],
       };
       onUpdateAgencies([...agencies, newAgency]);
       toast('success', 'Nouvelle agence créée.');

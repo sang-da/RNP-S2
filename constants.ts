@@ -1,5 +1,5 @@
 
-import { Agency, CycleType, WeekModule, GameEvent, Student } from './types';
+import { Agency, CycleType, WeekModule, GameEvent, Student, Badge } from './types';
 
 // --- ASSETS / MASCOTTES ---
 // Base URL pointing to the main branch to ensure we get the renamed files
@@ -11,7 +11,7 @@ export const MASCOTS = {
     
     // Market Overview (Santé financière)
     MARKET_RICH: `${ASSET_BASE}/PiXi_Extremely_Rich.png`,
-    MARKET_STABLE: `${ASSET_BASE}/Pixi_Moderately_Wealthy.png`, // Attention au P majuscule/minuscule selon ton repo, je garde tel que demandé
+    MARKET_STABLE: `${ASSET_BASE}/Pixi_Moderately_Wealthy.png`, 
     MARKET_POOR: `${ASSET_BASE}/Pixi_Struggling.png`,
     
     // Mercato
@@ -30,6 +30,14 @@ export const GAME_RULES = {
     // DÉPENSES
     SALARY_MULTIPLIER: 10, // Score 80 = 800 PiXi/semaine.
 };
+
+// --- BADGE DEFINITIONS ---
+export const BADGE_DEFINITIONS: Badge[] = [
+    { id: 'survivor', label: 'Survivant', description: 'Avoir survécu à une dette critique sans faillite.', icon: 'shield' },
+    { id: 'visionary', label: 'Visionnaire', description: '3 rendus consécutifs notés A.', icon: 'eye' },
+    { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'crown' },
+    { id: 'teamwork', label: 'Esprit de Corps', description: 'Moyenne évaluation par pairs > 4.5/5.', icon: 'users' },
+];
 
 // --- CONFIGURATION DES ÉQUIPES ACTIVES ---
 // Les équipes existent toujours, mais sont réduites au minimum vital si non spécifiées.
@@ -51,25 +59,25 @@ const TEAMS_CONFIG = [
         id: 'a3',
         name: 'Équipe 3',
         classId: 'A' as const,
-        members: ["Gloria", "Roxane"] // Gloria remplace Iris, + Roxane
+        members: ["Gloria", "Roxane"] 
     },
     {
         id: 'a4',
         name: 'Équipe 4',
         classId: 'A' as const,
-        members: ["Sarah", "Marie-Trinité"] // + Marie-Trinité
+        members: ["Sarah", "Marie-Trinité"] 
     },
     {
         id: 'a5',
         name: 'Équipe 5',
         classId: 'A' as const,
-        members: ["Lydia", "Korell"] // + Korell
+        members: ["Lydia", "Korell"] 
     },
     {
         id: 'a6',
         name: 'Équipe 6',
         classId: 'A' as const,
-        members: ["Shaneen"] // Gardien unique
+        members: ["Shaneen"] 
     },
 
     // --- CLASSE B ---
@@ -101,19 +109,17 @@ const TEAMS_CONFIG = [
         id: 'a11',
         name: 'Équipe 11',
         classId: 'B' as const,
-        members: ["Esther"] // Gardien unique
+        members: ["Esther"] 
     },
     {
         id: 'a12',
         name: 'Équipe 12',
         classId: 'B' as const,
-        members: ["Rayane"] // Rayane remplace Lindsay
+        members: ["Rayane"] 
     }
 ];
 
 // --- POOL DE CHÔMAGE (Le reste des étudiants) ---
-// Iris rejoint le chômage (remplacée par Gloria).
-// Lindsay rejoint le chômage (remplacée par Rayane).
 const UNASSIGNED_POOL_A = [
     "Pascal", "Rolyx", "Noriane", "Ian", 
     "Emeraude", "Loan", "Lidwine", "Tiffany", "Iris"
@@ -325,8 +331,7 @@ const generateMockAgencies = (): Agency[] => {
       avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
       individualScore: 80,
       classId: classId,
-      connectionStatus: 'offline' // Default Status
-      // NOTE: Removed cvUrl: undefined to prevent Firestore Crash. It is optional.
+      connectionStatus: 'offline'
     }));
   };
 
@@ -358,12 +363,13 @@ const generateMockAgencies = (): Agency[] => {
           },
           mercatoRequests: [],
           constraints: { space: "", style: "", client: "" },
-          progress: JSON.parse(JSON.stringify(INITIAL_WEEKS))
+          progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
+          branding: { color: 'indigo' },
+          badges: []
       });
   });
 
   // Add the "Unassigned" Agency (Chômage Pool)
-  // We generate members for Class A and Class B separately to assign correct classIDs
   const unassignedMembersA = createMembers(UNASSIGNED_POOL_A, 'A');
   const unassignedMembersB = createMembers(UNASSIGNED_POOL_B, 'B');
 
@@ -383,7 +389,9 @@ const generateMockAgencies = (): Agency[] => {
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },
       mercatoRequests: [],
       constraints: { space: "", style: "", client: "" },
-      progress: {}
+      progress: {},
+      branding: { color: 'slate' },
+      badges: []
   });
 
   return agencies;

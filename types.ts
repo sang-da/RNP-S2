@@ -102,6 +102,23 @@ export interface MercatoRequest {
   date: string;
 }
 
+// --- NEW TYPES FOR GAMIFICATION ---
+
+export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
+
+export interface AgencyBranding {
+    color: BrandColor;
+    bannerUrl?: string;
+}
+
+export interface Badge {
+    id: string;
+    label: string;
+    description: string;
+    icon: string; // Identifier for Lucide icon or image path
+    unlockedAt?: string;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -138,6 +155,10 @@ export interface Agency {
   progress: {
     [weekId: string]: WeekModule;
   };
+
+  // --- NEW FIELDS ---
+  branding: AgencyBranding;
+  badges: Badge[];
 }
 
 export interface AppState {
@@ -152,4 +173,15 @@ export interface CrisisPreset {
   deltaVE: number;
   deltaBudget: number;
   icon: any;
+}
+
+// --- WIKI / RESOURCES ---
+export interface WikiResource {
+    id: string;
+    title: string;
+    description?: string;
+    type: 'PDF' | 'VIDEO' | 'LINK' | 'ASSET';
+    url: string;
+    targetClass: 'ALL' | 'A' | 'B';
+    date: string;
 }

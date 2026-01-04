@@ -17,8 +17,9 @@ import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
+import { NewsTicker } from './components/NewsTicker';
 
 type AdminViewType = 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS';
 
@@ -124,14 +125,20 @@ const GameContainer: React.FC = () => {
         const agency = agencies.find(a => a.id === selectedAgencyId);
         if (!agency) return <div>Agence introuvable</div>;
         return (
-            <div className="md:ml-64 p-4 md:p-8">
-                 <button 
-                    onClick={() => selectAgency(null)}
-                    className="mb-4 text-slate-400 hover:text-indigo-600 flex items-center gap-2 text-sm font-bold transition-colors"
-                 >
-                    ← Retour à la liste
-                 </button>
-                 <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={updateAgency} />
+            <div className="md:ml-64 bg-slate-50 min-h-screen flex flex-col">
+                 <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 md:px-8 py-3 flex items-center gap-2 shadow-sm">
+                    <button onClick={() => selectAgency(null)} className="text-slate-400 hover:text-indigo-600 flex items-center gap-1 text-sm font-medium transition-colors">
+                        <Home size={16}/> Dashboard
+                    </button>
+                    <ChevronRight size={14} className="text-slate-300"/>
+                    <span className="text-slate-400 text-sm font-medium">Agences</span>
+                    <ChevronRight size={14} className="text-slate-300"/>
+                    <span className="text-indigo-700 text-sm font-bold bg-indigo-50 px-2 py-0.5 rounded-md">{agency.name}</span>
+                 </div>
+                 
+                 <div className="p-4 md:p-8">
+                     <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={updateAgency} />
+                 </div>
             </div>
         );
       }
@@ -146,44 +153,48 @@ const GameContainer: React.FC = () => {
                 onClose={() => setIsSidebarOpen(false)}
             />
             <div 
-                className="md:ml-64 p-4 md:p-8 min-h-screen bg-slate-50/50 pt-16 md:pt-8"
+                className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             >
-                <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="md:hidden fixed top-4 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"
-                >
-                    <Menu size={24} />
-                </button>
-
-                {adminView === 'OVERVIEW' && (
-                    <AdminDashboard 
-                        agencies={agencies} 
-                        onSelectAgency={selectAgency}
-                        onShuffleConstraints={shuffleConstraints}
-                        onUpdateAgency={updateAgency}
-                        onProcessWeek={processWeekFinance}
-                        onNavigate={(view: string) => setAdminView(view as AdminViewType)}
-                    />
-                )}
-                {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
-                {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} />}
-                {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
-                {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} />}
-                {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} />}
+                <NewsTicker />
                 
-                {/* NEW VIEWS */}
-                {adminView === 'RESOURCES' && <AdminResources agencies={agencies} />}
-                {adminView === 'SETTINGS' && <AdminSettings />}
-                {adminView === 'VIEWS' && (
-                    <AdminViews 
-                        agencies={agencies} 
-                        onSimulateWaitingRoom={() => setSimulationMode('WAITING')}
-                        onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }}
-                    />
-                )}
+                <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
+                    <button 
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"
+                    >
+                        <Menu size={24} />
+                    </button>
+
+                    {adminView === 'OVERVIEW' && (
+                        <AdminDashboard 
+                            agencies={agencies} 
+                            onSelectAgency={selectAgency}
+                            onShuffleConstraints={shuffleConstraints}
+                            onUpdateAgency={updateAgency}
+                            onProcessWeek={processWeekFinance}
+                            onNavigate={(view: string) => setAdminView(view as AdminViewType)}
+                        />
+                    )}
+                    {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
+                    {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} />}
+                    {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
+                    {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} />}
+                    {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} />}
+                    
+                    {/* NEW VIEWS */}
+                    {adminView === 'RESOURCES' && <AdminResources agencies={agencies} />}
+                    {adminView === 'SETTINGS' && <AdminSettings />}
+                    {adminView === 'VIEWS' && (
+                        <AdminViews 
+                            agencies={agencies} 
+                            onSimulateWaitingRoom={() => setSimulationMode('WAITING')}
+                            onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }}
+                        />
+                    )}
+                </div>
             </div>
           </>
       );
@@ -198,6 +209,7 @@ const GameContainer: React.FC = () => {
   if (userData?.role === 'student' && myAgency) {
       return (
         <Layout role="student" switchRole={() => {}}>
+          <NewsTicker />
           <StudentAgencyView agency={myAgency} allAgencies={agencies} onUpdateAgency={updateAgency} />
         </Layout>
       );

@@ -1,16 +1,17 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Agency, WeekModule, GameEvent } from '../types';
+import { Agency, WeekModule, GameEvent, WikiResource } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
 import { useUI } from './UIContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 interface GameContextType {
   // State
   agencies: Agency[];
   weeks: { [key: string]: WeekModule };
+  resources: WikiResource[]; // Wiki Data
   role: 'admin' | 'student';
   selectedAgencyId: string | null;
   
@@ -21,6 +22,10 @@ interface GameContextType {
   updateAgenciesList: (agencies: Agency[]) => void;
   updateWeek: (weekId: string, week: WeekModule) => void;
   
+  // Wiki Actions
+  addResource: (resource: WikiResource) => Promise<void>;
+  deleteResource: (id: string) => Promise<void>;
+
   // Game Logic
   shuffleConstraints: (agencyId: string) => void;
   processWeekFinance: () => void;
@@ -43,6 +48,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // START WITH MOCKS TO AVOID EMPTY SCREEN
   const [agencies, setAgencies] = useState<Agency[]>(MOCK_AGENCIES);
   const [weeks, setWeeks] = useState<{ [key: string]: WeekModule }>(INITIAL_WEEKS);
+  const [resources, setResources] = useState<WikiResource[]>([]);
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
 
   // Sync Role with Auth
@@ -96,6 +102,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       (error) => {
         console.error("Firestore Read Error (Weeks):", error);
       }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // 3. REAL-TIME SYNC: Resources (Wiki)
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "resources"), 
+      (snapshot) => {
+        const resData: WikiResource[] = [];
+        snapshot.forEach((doc) => {
+          resData.push(doc.data() as WikiResource);
+        });
+        setResources(resData);
+      },
+      (error) => console.error("Firestore Read Error (Resources):", error)
     );
     return () => unsubscribe();
   }, []);
@@ -155,6 +176,26 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error(e);
         toast('error', 'Erreur maj semaine');
     }
+  };
+
+  const addResource = async (resource: WikiResource) => {
+      try {
+          await setDoc(doc(db, "resources", resource.id), resource);
+          toast('success', "Ressource ajoutée au Wiki");
+      } catch (e) {
+          console.error(e);
+          toast('error', "Erreur ajout ressource");
+      }
+  };
+
+  const deleteResource = async (id: string) => {
+      try {
+          await deleteDoc(doc(db, "resources", id));
+          toast('success', "Ressource supprimée");
+      } catch (e) {
+          console.error(e);
+          toast('error', "Erreur suppression ressource");
+      }
   };
 
   const selectAgency = (id: string | null) => {
@@ -278,6 +319,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <GameContext.Provider value={{
       agencies,
       weeks,
+      resources,
       role,
       selectedAgencyId,
       setRole,
@@ -285,6 +327,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateAgency,
       updateAgenciesList,
       updateWeek,
+      addResource,
+      deleteResource,
       shuffleConstraints,
       processWeekFinance,
       resetGame
