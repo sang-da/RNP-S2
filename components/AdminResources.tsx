@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { Agency, WikiResource } from '../types';
+import { Agency, WikiResource, WeekModule } from '../types';
 import { FileText, Download, FolderOpen, ExternalLink, Search, FileQuestion, BookOpen, Trash2, Link, Video, Box, Plus } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
@@ -28,7 +28,7 @@ export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies }) => {
           if (agency.id === 'unassigned') return;
           if (filterClass !== 'ALL' && agency.classId !== filterClass) return;
 
-          Object.values(agency.progress).forEach(week => {
+          (Object.values(agency.progress) as WeekModule[]).forEach(week => {
               week.deliverables.forEach(del => {
                   if (del.fileUrl && del.fileUrl !== '#' && del.status !== 'pending') {
                       if (del.name.toLowerCase().includes('cv')) return; 

@@ -1,12 +1,12 @@
 
 import React, { useState, useRef } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
-import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle, ArrowRight, CheckSquare } from 'lucide-react';
+import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle, ArrowRight, CheckSquare, Crown, Compass, Mic, Eye } from 'lucide-react';
 import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
-import { MASCOTS } from '../../constants';
+import { CYCLE_AWARDS } from '../../constants';
 
 interface MissionsViewProps {
   agency: Agency;
@@ -40,6 +40,19 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   const visibleWeeks = Object.values(agency.progress).filter((w: WeekModule) => (CYCLE_MAPPING[agency.currentCycle] || []).includes(w.id));
   const currentWeekData = agency.progress[activeWeek] || visibleWeeks[0];
+
+  // FIND CURRENT AWARD
+  const currentAward = CYCLE_AWARDS.find(a => a.cycleId === agency.currentCycle);
+  const hasWonAward = agency.eventLog.some(e => e.label.includes(currentAward?.title || 'Grand Prix'));
+
+  const getAwardIcon = (iconName: string) => {
+      switch(iconName) {
+          case 'compass': return <Compass size={24} />;
+          case 'mic': return <Mic size={24} />;
+          case 'eye': return <Eye size={24} />;
+          default: return <Crown size={24} />;
+      }
+  };
 
   const handleFileClick = (deliverableId: string) => {
     if (deliverableId === 'd_charter') {
@@ -108,12 +121,28 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
         <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelected} />
         
-        {/* Cycle Banner */}
-        <div className="bg-slate-900 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg relative overflow-hidden">
-            <div className="relative z-10">
+        {/* CYCLE BANNER & AWARD TARGET */}
+        <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="relative z-10 text-center md:text-left">
                 <span className="text-indigo-400 text-xs font-bold uppercase tracking-widest">Cycle Actuel</span>
-                <h3 className="font-display font-bold text-xl">{agency.currentCycle}</h3>
+                <h3 className="font-display font-bold text-2xl">{agency.currentCycle}</h3>
             </div>
+
+            {currentAward && (
+                <div className={`relative z-10 p-4 rounded-xl border flex items-center gap-4 max-w-sm w-full ${hasWonAward ? 'bg-yellow-400 text-yellow-900 border-yellow-300' : 'bg-white/10 border-white/20'}`}>
+                    <div className={`p-3 rounded-full ${hasWonAward ? 'bg-white/30' : 'bg-yellow-400 text-yellow-900 shadow-[0_0_15px_rgba(250,204,21,0.5)]'}`}>
+                        {getAwardIcon(currentAward.iconName)}
+                    </div>
+                    <div className="text-left flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-80 block">{hasWonAward ? "GRAND PRIX REMPORTÉ !" : "OBJECTIF DU CYCLE"}</span>
+                        <h4 className="font-bold text-lg leading-none">{currentAward.title}</h4>
+                        <div className="flex gap-2 mt-1">
+                            <span className="text-xs font-bold px-1.5 py-0.5 bg-white/20 rounded">+{currentAward.veBonus} VE</span>
+                            <span className="text-xs font-bold px-1.5 py-0.5 bg-white/20 rounded">+{currentAward.budgetBonus} PiXi</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* Week Slider */}

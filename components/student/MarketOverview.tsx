@@ -28,17 +28,18 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     };
 
     // 3. Construire les points pour chaque date d'événement
-    const historyPoints = allDates.map(date => {
+    const historyPoints = allDates.map((date: unknown) => {
+        const dateStr = date as string;
         const point: any = { 
-            name: new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), // Format DD/MM
-            date: date
+            name: new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), // Format DD/MM
+            date: dateStr
         };
 
         // Pour chaque agence, on calcule sa VE cumulée jusqu'à cette date incluse
         allAgencies.forEach(a => {
             // Somme des deltaVE de tous les événements antérieurs ou égaux à la date
             const veAtDate = a.eventLog
-                .filter(e => e.date <= date)
+                .filter(e => e.date <= dateStr)
                 .reduce((sum, e) => sum + (e.deltaVE || 0), 0); // Départ à 0 + deltas
             
             // On s'assure que ça ne descend pas sous 0

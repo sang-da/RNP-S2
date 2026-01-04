@@ -177,6 +177,17 @@ export interface CrisisPreset {
   icon: any;
 }
 
+// --- NEW: AWARDS ---
+export interface CycleAwardDefinition {
+    id: string;
+    cycleId: CycleType;
+    title: string;
+    description: string;
+    veBonus: number;
+    budgetBonus: number;
+    iconName: 'compass' | 'mic' | 'eye' | 'crown';
+}
+
 // --- WIKI / RESOURCES ---
 export interface WikiResource {
     id: string;

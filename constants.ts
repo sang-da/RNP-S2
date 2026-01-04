@@ -1,5 +1,5 @@
 
-import { Agency, CycleType, WeekModule, GameEvent, Student, Badge } from './types';
+import { Agency, CycleType, WeekModule, GameEvent, Student, Badge, CycleAwardDefinition } from './types';
 
 // --- ASSETS / MASCOTTES ---
 // Base URL pointing to the main branch to ensure we get the renamed files
@@ -37,6 +37,46 @@ export const BADGE_DEFINITIONS: Badge[] = [
     { id: 'visionary', label: 'Visionnaire', description: '3 rendus consécutifs notés A.', icon: 'eye' },
     { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'crown' },
     { id: 'teamwork', label: 'Esprit de Corps', description: 'Moyenne évaluation par pairs > 4.5/5.', icon: 'users' },
+];
+
+// --- GRANDS PRIX CYCLES ---
+export const CYCLE_AWARDS: CycleAwardDefinition[] = [
+    {
+        id: 'award_c1',
+        cycleId: CycleType.MARQUE_BRIEF,
+        title: 'Le "Golden Brief"',
+        description: 'La meilleure cohérence stratégique (Problème / Cible / Identité).',
+        veBonus: 15,
+        budgetBonus: 1000,
+        iconName: 'compass'
+    },
+    {
+        id: 'award_c2',
+        cycleId: CycleType.NARRATION_IA,
+        title: 'Le Prix "Griot"',
+        description: 'Storytelling captivant et culturellement pertinent.',
+        veBonus: 20,
+        budgetBonus: 1200,
+        iconName: 'mic'
+    },
+    {
+        id: 'award_c3',
+        cycleId: CycleType.LOOKDEV,
+        title: 'Prix "Vision"',
+        description: 'L\'image la plus aboutie techniquement et artistiquement.',
+        veBonus: 25,
+        budgetBonus: 1500,
+        iconName: 'eye'
+    },
+    {
+        id: 'award_c4',
+        cycleId: CycleType.PACKAGING,
+        title: 'Prix "Signature"',
+        description: 'Le projet global le plus professionnel et vendable.',
+        veBonus: 40,
+        budgetBonus: 3000,
+        iconName: 'crown'
+    }
 ];
 
 // --- CONFIGURATION DES ÉQUIPES ACTIVES ---
