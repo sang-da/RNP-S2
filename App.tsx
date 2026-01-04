@@ -91,30 +91,36 @@ const GameContainer: React.FC = () => {
       // --- SIMULATION MODE ---
       if (simulationMode !== 'NONE') {
           return (
-              <div className="relative">
-                  {/* Exit Simulation Floating Button */}
-                  <div className="fixed top-4 right-4 z-50">
+              <div className="flex flex-col min-h-screen bg-slate-50">
+                  {/* SIMULATION HEADER BAR - High Z-Index to stay on top */}
+                  <div className="bg-red-600 text-white px-4 py-3 shadow-md z-[100] flex justify-between items-center sticky top-0">
+                      <div className="flex items-center gap-2">
+                          <EyeOff size={20}/>
+                          <span className="font-bold text-sm uppercase tracking-wide">Mode Simulation Étudiant</span>
+                      </div>
                       <button 
                         onClick={() => { setSimulationMode('NONE'); setSimulatedAgencyId(null); }}
-                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl shadow-red-600/40 flex items-center gap-2 animate-in slide-in-from-top-4"
+                        className="bg-white text-red-600 hover:bg-red-50 px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm"
                       >
-                          <EyeOff size={20}/> Quitter la Simulation
+                          Quitter
                       </button>
                   </div>
 
-                  {simulationMode === 'WAITING' ? (
-                      <WaitingScreen />
-                  ) : (
-                      simulatedAgencyId && (
-                          <Layout role="student" switchRole={() => {}}>
-                              <StudentAgencyView 
-                                agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} 
-                                allAgencies={agencies} 
-                                onUpdateAgency={updateAgency} 
-                              />
-                          </Layout>
-                      )
-                  )}
+                  <div className="flex-1 relative">
+                    {simulationMode === 'WAITING' ? (
+                        <WaitingScreen />
+                    ) : (
+                        simulatedAgencyId && (
+                            <Layout role="student" switchRole={() => {}}>
+                                <StudentAgencyView 
+                                    agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} 
+                                    allAgencies={agencies} 
+                                    onUpdateAgency={updateAgency} 
+                                />
+                            </Layout>
+                        )
+                    )}
+                  </div>
               </div>
           );
       }

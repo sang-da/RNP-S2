@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
-import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent } from 'lucide-react';
+import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent, Ruler } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminCrisisProps {
@@ -12,7 +12,7 @@ interface AdminCrisisProps {
 // Extension de l'interface locale pour gérer les pourcentages
 interface ExtendedPreset extends CrisisPreset {
     category: 'CRISIS' | 'REWARD';
-    isPercentage?: boolean; // Si true, deltaBudget est un multiplicateur (ex: 0.10 pour 10%)
+    isPercentage?: boolean; // Si true, augmente le taux de charge hebdomadaire
 }
 
 export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgency }) => {
@@ -34,14 +34,14 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
     // === CRISES & SANCTIONS ===
     { 
         label: "Inflation Matériaux Hebdo", 
-        description: "Hausse globale des coûts. Impact proportionnel à la trésorerie.", 
+        description: "Hausse globale des coûts. Impact sur les dépenses salariales.", 
         deltaVE: 0, deltaBudget: 0.10, // 10%
         isPercentage: true,
         icon: <Percent/>, category: 'CRISIS' 
     },
     { 
         label: "Taxe 'Pollueur-Payeur'", 
-        description: "Sanction écologique pour les agences à forte consommation.", 
+        description: "Sanction écologique : +5% de charges hebdos.", 
         deltaVE: -5, deltaBudget: 0.05, // 5%
         isPercentage: true,
         icon: <Banknote/>, category: 'CRISIS' 
@@ -65,10 +65,16 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
         icon: <Megaphone/>, category: 'CRISIS' 
     },
     { 
-        label: "Crash Serveur / Perte Data", 
-        description: "Perte de données. Frais de récupération technique.", 
-        deltaVE: -2, deltaBudget: -500, 
-        icon: <HardDrive/>, category: 'CRISIS' 
+        label: "Erreur de Côte / Échelle", 
+        description: "Catastrophe. Le mobilier dessiné ne passe pas la porte sur le plan d'exécution.", 
+        deltaVE: -12, deltaBudget: 0, 
+        icon: <Wrench/>, category: 'CRISIS' 
+    },
+    { 
+        label: "Rupture de Stock Matériau", 
+        description: "Le matériau spécifié n'est plus disponible à Cotonou. Changement forcé.", 
+        deltaVE: -5, deltaBudget: -300, 
+        icon: <Ban/>, category: 'CRISIS' 
     },
     { 
         label: "Amende Retard", 
@@ -78,6 +84,18 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
     },
 
     // === RÉCOMPENSES & BONUS ===
+    { 
+        label: "Rendu 'Photoréaliste'", 
+        description: "Le lighting est parfait du premier coup. L'image vend le projet toute seule.", 
+        deltaVE: +8, deltaBudget: 0, 
+        icon: <Star/>, category: 'REWARD' 
+    },
+    { 
+        label: "Détournement Génial", 
+        description: "Utilisation innovante d'un matériau pauvre (brique, bambou) qui rend 'Luxe'.", 
+        deltaVE: +10, deltaBudget: 0, 
+        icon: <Trophy/>, category: 'REWARD' 
+    },
     { 
         label: "Business Angel", 
         description: "Un investisseur croit en votre projet. Injection de capital.", 
@@ -126,8 +144,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
       const desc = selectedPreset ? selectedPreset.description : customDesc;
       let dVE = selectedPreset ? selectedPreset.deltaVE : customImpactVE;
       
-      // Note: dBudget sera calculé par agence si c'est un pourcentage
-      const baseBudgetVal = selectedPreset ? selectedPreset.deltaBudget : customImpactBudget;
+      const impactVal = selectedPreset ? selectedPreset.deltaBudget : customImpactBudget;
       const isPercentage = selectedPreset?.isPercentage || false;
 
       if (!title) {
@@ -138,9 +155,9 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
       // Prepare UI Message
       let impactMsg = `Impact VE: ${dVE > 0 ? '+' : ''}${dVE}`;
       if (isPercentage) {
-          impactMsg += `\nImpact Budget: -${baseBudgetVal * 100}% (Calculé sur Trésorerie)`;
+          impactMsg += `\nAugmentation des Charges: +${impactVal * 100}% sur la masse salariale (Permanent)`;
       } else {
-          impactMsg += `\nImpact Budget: ${baseBudgetVal > 0 ? '+' : ''}${baseBudgetVal} PiXi`;
+          impactMsg += `\nImpact Budget Immédiat: ${impactVal > 0 ? '+' : ''}${impactVal} PiXi`;
       }
 
       const confirmed = await confirm({
@@ -163,17 +180,17 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
           else if (selectedTarget === agency.id) shouldApply = true;
 
           if (shouldApply) {
-              // Calculate Dynamic Budget Impact
-              let appliedBudgetDelta = baseBudgetVal;
               let logDesc = desc;
+              let newBudget = agency.budget_real;
+              let newWeeklyTax = agency.weeklyTax || 0;
 
               if (isPercentage) {
-                  // Percentage logic (Inflation is usually negative impact)
-                  // If baseBudgetVal is 0.10 (10%), we remove 10% of current budget
-                  // Ensure we calculate mostly on positive budget to avoid punishing debt too hard (optional rule)
-                  const baseForCalc = Math.max(0, agency.budget_real); 
-                  appliedBudgetDelta = -Math.floor(baseForCalc * baseBudgetVal);
-                  logDesc = `${desc} (${baseBudgetVal * 100}% de ${baseForCalc} PiXi)`;
+                  // Increase Weekly Tax
+                  newWeeklyTax += impactVal;
+                  logDesc = `${desc} (Charges hebdos : ${(newWeeklyTax*100).toFixed(0)}%)`;
+              } else {
+                  // Immediate Budget Impact
+                  newBudget += impactVal;
               }
 
               const newEvent: GameEvent = {
@@ -183,15 +200,15 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                   label: title,
                   description: logDesc,
                   deltaVE: dVE,
-                  deltaBudgetReal: appliedBudgetDelta
+                  deltaBudgetReal: isPercentage ? 0 : impactVal
               };
 
-              const newBudget = agency.budget_real + appliedBudgetDelta;
               const newVE = Math.max(0, agency.ve_current + dVE); 
 
               onUpdateAgency({
                   ...agency,
                   budget_real: newBudget,
+                  weeklyTax: newWeeklyTax,
                   ve_current: newVE,
                   eventLog: [...agency.eventLog, newEvent]
               });
@@ -327,7 +344,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                                             ? 'bg-amber-100 text-amber-700 border-amber-200' 
                                             : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                         }`}>
-                                            {preset.isPercentage ? `-${preset.deltaBudget * 100}%` : `${preset.deltaBudget > 0 ? '+' : ''}${preset.deltaBudget}`} PiXi
+                                            {preset.isPercentage ? `+${preset.deltaBudget * 100}% Charges` : `${preset.deltaBudget > 0 ? '+' : ''}${preset.deltaBudget} PiXi`}
                                         </span>
                                     )}
                                 </div>
@@ -398,13 +415,13 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                                 </div>
                             </div>
                             <div>
-                                <span className="text-xs font-bold text-slate-400 uppercase">PiXi</span>
-                                <div className={`text-2xl font-bold ${
+                                <span className="text-xs font-bold text-slate-400 uppercase">Impact</span>
+                                <div className={`text-xl font-bold ${
                                     (selectedPreset?.category === 'CRISIS' || customImpactBudget < 0) ? 'text-red-400' : 'text-emerald-400'
                                 }`}>
                                     {selectedPreset?.isPercentage 
-                                     ? `-${(selectedPreset.deltaBudget * 100)}%` 
-                                     : `${(selectedPreset?.deltaBudget || customImpactBudget) > 0 ? '+' : ''}${selectedPreset?.deltaBudget || customImpactBudget}`
+                                     ? `+${(selectedPreset.deltaBudget * 100)}% Charges` 
+                                     : `${(selectedPreset?.deltaBudget || customImpactBudget) > 0 ? '+' : ''}${selectedPreset?.deltaBudget || customImpactBudget} PiXi`
                                     }
                                 </div>
                             </div>

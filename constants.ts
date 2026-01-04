@@ -348,6 +348,7 @@ const generateMockAgencies = (): Agency[] => {
           classId: team.classId,
           budget_real: 0,
           budget_valued: 0,
+          weeklyTax: 0,
           eventLog: [
              { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
           ],
@@ -382,6 +383,7 @@ const generateMockAgencies = (): Agency[] => {
       classId: 'ALL', 
       budget_real: 0,
       budget_valued: 0,
+      weeklyTax: 0,
       eventLog: [],
       members: [...unassignedMembersA, ...unassignedMembersB], // Merge everyone here
       peerReviews: [],

@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { Agency, GameEvent, MercatoRequest } from '../types';
-import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins } from 'lucide-react';
+import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminMercatoProps {
@@ -207,6 +208,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           classId: 'A', // Default to A, admin might change logic later
           budget_real: 5000,
           budget_valued: 0,
+          weeklyTax: 0,
           members: [],
           peerReviews: [],
           eventLog: [],
@@ -298,11 +300,18 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                                     <p className="font-bold text-slate-900 text-sm flex items-center gap-2">
                                         {req.studentName} 
                                         {req.type === 'HIRE' ? (
-                                            <span className="text-xs text-emerald-600 font-normal">rejoint {agency.name}</span>
+                                            <span className="text-xs text-emerald-600 font-normal">veut rejoindre {agency.name}</span>
                                         ) : (
-                                            <span className="text-xs text-red-600 font-normal">quitte {agency.name}</span>
+                                            <span className="text-xs text-red-600 font-normal">veut quitter {agency.name}</span>
                                         )}
                                     </p>
+                                    
+                                    {/* MOTIVATION TEXT */}
+                                    <div className="bg-slate-50 p-2 rounded-lg mt-2 flex gap-2">
+                                        <Quote size={12} className="text-slate-400 shrink-0"/>
+                                        <p className="text-xs text-slate-600 italic">"{req.motivation || 'Pas de motivation'}"</p>
+                                    </div>
+
                                     {req.type === 'FIRE' && (
                                         <div className="flex items-center gap-2 mt-2 text-xs">
                                             <span className="text-slate-500">Score:</span>

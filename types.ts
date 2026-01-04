@@ -100,6 +100,7 @@ export interface MercatoRequest {
   targetAgencyId: string; // L'agence concernée
   status: 'PENDING' | 'REJECTED';
   date: string;
+  motivation?: string; // Texte justificatif
 }
 
 // --- NEW TYPES FOR GAMIFICATION ---
@@ -132,6 +133,7 @@ export interface Agency {
   ve_current: number; // 0-100 (La note/valeur)
   budget_real: number; // En XOF ou €
   budget_valued: number; // En XOF ou €
+  weeklyTax: number; // Pourcentage de charges hebdo (0.1 = 10%)
   
   status: 'stable' | 'fragile' | 'critique';
   

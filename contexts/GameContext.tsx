@@ -235,21 +235,25 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
 
-            // 1. Salaires
-            const payrollCost = agency.members.reduce((acc, member) => {
+            // 1. Salaires Brut
+            const rawSalary = agency.members.reduce((acc, member) => {
                 return acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER);
             }, 0);
+
+            // 2. Charges Hebdo (Taxes)
+            const taxAmount = rawSalary * (agency.weeklyTax || 0);
+            const totalPayroll = rawSalary + taxAmount;
             
             const payrollEvent: GameEvent = {
                 id: `fin-pay-${Date.now()}-${agency.id}`,
                 date: today,
                 type: 'PAYROLL',
-                label: 'Prélèvement Salaires',
-                deltaBudgetReal: -payrollCost,
-                description: `Début de session : Paiement des ${agency.members.length} employés.`
+                label: 'Salaires + Charges',
+                deltaBudgetReal: -totalPayroll,
+                description: `Salaires (${rawSalary}) + Charges ${(agency.weeklyTax || 0)*100}% (${taxAmount})`
             };
 
-            // 2. Revenus
+            // 3. Revenus
             const revenue = GAME_RULES.REVENUE_BASE + (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const revenueEvent: GameEvent = {
                 id: `fin-rev-${Date.now()}-${agency.id}-2`,
@@ -260,10 +264,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 description: `Fin de session : Subvention (${GAME_RULES.REVENUE_BASE}) + Prime (${agency.ve_current} VE).`
             };
 
-            // 3. Calcul Budget
-            let newBudget = agency.budget_real - payrollCost + revenue;
+            // 4. Calcul Budget
+            let newBudget = agency.budget_real - totalPayroll + revenue;
 
-            // 4. Audit & Ajustement VE
+            // 5. Audit & Ajustement VE
             let veAdjustment = 0;
             let auditLabel = "Audit Trésorerie Neutre";
 
