@@ -140,7 +140,7 @@ const GameContainer: React.FC = () => {
           <>
             <AdminSidebar 
                 activeView={adminView} 
-                onNavigate={setAdminView} 
+                onNavigate={(view) => setAdminView(view as AdminViewType)}
                 onLogout={() => signOut(auth)}
                 isOpen={isSidebarOpen}
                 onClose={() => setIsSidebarOpen(false)}
@@ -165,6 +165,7 @@ const GameContainer: React.FC = () => {
                         onShuffleConstraints={shuffleConstraints}
                         onUpdateAgency={updateAgency}
                         onProcessWeek={processWeekFinance}
+                        onNavigate={(view: string) => setAdminView(view as AdminViewType)}
                     />
                 )}
                 {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} />}

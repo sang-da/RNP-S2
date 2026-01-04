@@ -42,11 +42,7 @@ export const LandingPage: React.FC = () => {
             {/* 2. MAIN VISUAL (CHART) */}
             <div className="flex-1 w-full relative flex flex-col justify-center items-center min-h-0 overflow-y-auto p-4">
                  
-                 {/* MASCOTTE HERO */}
-                 <div className="absolute top-10 left-10 md:left-20 z-0 opacity-10 md:opacity-100 pointer-events-none transition-opacity">
-                     <img src={MASCOTS.LANDING_HERO} className="w-32 md:w-48 animate-bounce-slow" />
-                 </div>
-
+                 {/* GRAPH CARD */}
                  <div className="w-full max-w-2xl opacity-90 pointer-events-none relative z-10">
                     <MarketOverview agency={startAgencies[0]} allAgencies={startAgencies} />
                  </div>

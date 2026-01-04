@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency } from '../types';
-import { Save, MapPin, Target, Zap, HelpCircle, PenTool } from 'lucide-react';
+import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List } from 'lucide-react';
 
 interface AdminProjectsProps {
   agencies: Agency[];
@@ -11,6 +11,8 @@ interface AdminProjectsProps {
 export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdateAgency }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ problem: '', target: '', location: '', gesture: '' });
+
+  const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
 
   const startEditing = (agency: Agency) => {
     setEditingId(agency.id);
@@ -29,14 +31,85 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-         <div className="mb-6">
-            <h2 className="text-3xl font-display font-bold text-slate-900">Définition des Projets</h2>
-            <p className="text-slate-500 text-sm">Consultez et affinez les projets soumis par les étudiants.</p>
+    <div className="animate-in fade-in duration-500 pb-20">
+         <div className="mb-8">
+            <h2 className="text-3xl font-display font-bold text-slate-900">Gestion des Projets & Agences</h2>
+            <p className="text-slate-500 text-sm">Vue d'ensemble des indicateurs (VE, Budget) et des définitions de projet.</p>
         </div>
 
+        {/* --- TABLEAU RÉCAPITULATIF (DÉPLACÉ DU DASHBOARD) --- */}
+        <div className="mb-10">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <List size={20}/> État des Lieux
+            </h3>
+            
+            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
+                        <tr>
+                            <th className="p-4">Agence</th>
+                            <th className="p-4 hidden md:table-cell">Statut</th>
+                            <th className="p-4 text-right">VE</th>
+                            <th className="p-4 text-right hidden md:table-cell">Budget</th>
+                            <th className="p-4 text-right">Membres</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {activeAgencies
+                            .sort((a,b) => b.ve_current - a.ve_current)
+                            .map(agency => (
+                            <tr key={agency.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="p-3 pl-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border ${
+                                            agency.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-purple-50 text-purple-600 border-purple-100'
+                                        }`}>
+                                            {agency.name.substring(0,2)}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-sm text-slate-900">{agency.name}</div>
+                                            <div className="text-[10px] text-slate-400">Classe {agency.classId}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="p-3 hidden md:table-cell">
+                                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                                        agency.status === 'stable' ? 'bg-emerald-50 text-emerald-600' : 
+                                        agency.status === 'fragile' ? 'bg-amber-50 text-amber-600' : 
+                                        'bg-red-50 text-red-600'
+                                    }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${
+                                            agency.status === 'stable' ? 'bg-emerald-500' : 
+                                            agency.status === 'fragile' ? 'bg-amber-500' : 
+                                            'bg-red-500'
+                                        }`}></span>
+                                        {agency.status}
+                                    </span>
+                                </td>
+                                <td className="p-3 text-right">
+                                    <span className="font-display font-bold text-lg text-slate-900">{agency.ve_current}</span>
+                                </td>
+                                <td className="p-3 text-right hidden md:table-cell">
+                                    <span className={`text-xs font-bold ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                                        {agency.budget_real} €
+                                    </span>
+                                </td>
+                                <td className="p-3 text-right">
+                                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{agency.members.length}</span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* --- CARTES PROJETS --- */}
+        <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Zap size={20}/> Détails Projets
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
-            {agencies.map(agency => (
+            {agencies.filter(a => a.id !== 'unassigned').map(agency => (
                 <div key={agency.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
                     {/* Header */}
                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">

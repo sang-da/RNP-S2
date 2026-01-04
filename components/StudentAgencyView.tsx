@@ -56,7 +56,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                             {projectedNet > 0 ? <TrendingUp size={18}/> : <TrendingDown size={18}/>}
                             {projectedNet > 0 ? '+' : ''}{projectedNet} PiXi
                         </div>
-                        <p className="text-[10px] text-slate-400">Burn Rate: -{projectedPayroll} PiXi</p>
+                        <p className="text-[10px] text-slate-400">Dépenses Hebdo: -{projectedPayroll} PiXi</p>
                     </div>
 
                     <div className="text-right">

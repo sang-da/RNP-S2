@@ -317,7 +317,8 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
                     <UserPlus size={20} className="text-emerald-500"/> Vivier de Talents
                 </h3>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded text-white ${agency.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}>
+                {/* MARGE AJOUTEE ICI POUR LA MASCOTTE (md:mr-24) */}
+                <span className={`text-[10px] font-bold px-2 py-1 rounded text-white md:mr-24 ${agency.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}>
                     CLASSE {agency.classId} UNIQUEMENT
                 </span>
             </div>

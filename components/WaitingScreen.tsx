@@ -4,6 +4,7 @@ import { Loader2, TrendingUp, Wallet, Users, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { MASCOTS } from '../constants';
 
 const ONBOARDING_SLIDES = [
     {
@@ -58,9 +59,13 @@ export const WaitingScreen: React.FC = () => {
             {/* Background Decoration */}
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
             
-            <div className="w-20 h-20 bg-white rounded-2xl shadow-xl flex items-center justify-center mb-8 relative animate-bounce-slow">
-                 <div className="absolute inset-0 bg-indigo-50 rounded-2xl animate-ping opacity-20"></div>
-                 <Loader2 size={32} className="text-indigo-600 animate-spin" />
+            {/* MASCOTTE WAITING (Cloud) */}
+            <div className="mb-8 relative animate-bounce-slow">
+                 <img src={MASCOTS.LANDING_HERO} className="w-48 drop-shadow-2xl" alt="En attente..." />
+                 {/* Petit loader discret intégré */}
+                 <div className="absolute bottom-2 right-10 bg-white p-1.5 rounded-full shadow-sm">
+                    <Loader2 size={16} className="text-indigo-600 animate-spin" />
+                 </div>
             </div>
             
             <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">

@@ -1,9 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
-import { Agency, Deliverable, GameEvent, WeekModule, CrisisPreset } from '../types';
-import { AlertTriangle, CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Ban, List, ChevronDown, ChevronUp, Siren, Trophy, XCircle, Calculator, Link as LinkIcon } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Agency, Deliverable, GameEvent, WeekModule } from '../types';
+import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, List, ChevronDown, ChevronUp, Trophy, ArrowRight, XCircle, Calculator, Link as LinkIcon, UserPlus, UserMinus, Loader2 } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 interface AdminDashboardProps {
   agencies: Agency[];
@@ -11,6 +13,7 @@ interface AdminDashboardProps {
   onShuffleConstraints: (id: string) => void;
   onUpdateAgency: (agency: Agency) => void;
   onProcessWeek: () => void;
+  onNavigate: (view: string) => void;
 }
 
 // --- ALGORITHMES DE DÉTECTION ---
@@ -26,13 +29,22 @@ const detectAnomalies = (agency: Agency): string[] => {
     return anomalies;
 };
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onProcessWeek }) => {
-  const { confirm, toast } = useUI();
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onProcessWeek, onNavigate }) => {
+  const { toast } = useUI();
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
   const [selectedClass, setSelectedClass] = useState<'ALL' | 'A' | 'B'>('ALL');
-  const [isCrisisModalOpen, setIsCrisisModalOpen] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
+
+  // 0. LISTENER SALLE D'ATTENTE
+  useEffect(() => {
+    const q = query(collection(db, "users"), where("role", "==", "pending"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        setPendingUsersCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // 1. FILTERING
   const activeAgencies = useMemo(() => {
@@ -41,6 +53,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
           (selectedClass === 'ALL' || a.classId === selectedClass)
       );
   }, [agencies, selectedClass]);
+
+  // 1b. PENDING LICENCIEMENTS (FIRE)
+  const pendingFires = useMemo(() => {
+      let count = 0;
+      activeAgencies.forEach(a => {
+          count += a.mercatoRequests.filter(r => r.type === 'FIRE' && r.status === 'PENDING').length;
+      });
+      return count;
+  }, [activeAgencies]);
 
   // 2. GLOBAL FEED
   const activityFeed = useMemo(() => {
@@ -53,7 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
       return allEvents.reverse(); 
   }, [activeAgencies]);
 
-  const visibleFeed = showAllActivity ? activityFeed : activityFeed.slice(0, 4);
+  const visibleFeed = showAllActivity ? activityFeed : activityFeed.slice(0, 5);
 
   // 3. PENDING REVIEWS
   const pendingReviews = useMemo(() => {
@@ -70,44 +91,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
     return reviews;
   }, [activeAgencies]);
 
-  const handleGlobalCrisis = async (preset: CrisisPreset) => {
-      const confirmed = await confirm({
-          title: "Confirmation de Crise Globale",
-          message: `Voulez-vous appliquer "${preset.label}" à TOUTES les agences de la classe ${selectedClass === 'ALL' ? 'A et B' : selectedClass} ?\n\nImpact : ${preset.deltaVE} VE / ${preset.deltaBudget} PiXi`,
-          confirmText: "Déclencher la Crise",
-          isDangerous: true
-      });
-
-      if (!confirmed) return;
-
-      const impactedAgencies = agencies.map(a => {
-          if (a.id === 'unassigned') return a;
-          if (selectedClass !== 'ALL' && a.classId !== selectedClass) return a;
-
-          const newEvent: GameEvent = {
-              id: `crisis-${Date.now()}-${a.id}`,
-              date: new Date().toISOString().split('T')[0],
-              type: 'CRISIS',
-              label: preset.label,
-              description: preset.description,
-              deltaVE: preset.deltaVE,
-              deltaBudgetReal: preset.deltaBudget
-          };
-
-          return {
-              ...a,
-              ve_current: Math.max(0, a.ve_current + preset.deltaVE),
-              budget_real: a.budget_real + preset.deltaBudget,
-              eventLog: [...a.eventLog, newEvent]
-          };
-      });
-
-      impactedAgencies.forEach(a => {
-          if(a.id !== 'unassigned') onUpdateAgency(a);
-      });
-      toast('success', `Crise "${preset.label}" déclenchée.`);
-      setIsCrisisModalOpen(false);
-  };
+  // 4. TOP & FLOP 3
+  const leaderboard = [...activeAgencies].sort((a,b) => b.ve_current - a.ve_current);
+  const top3 = leaderboard.slice(0, 3);
+  const flop3 = [...leaderboard].reverse().slice(0, 3);
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 font-sans pb-20">
@@ -125,10 +112,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         {/* Actions */}
         <div className="flex gap-2 w-full md:w-auto">
              <button 
-                onClick={() => setIsCrisisModalOpen(true)}
+                onClick={() => onNavigate('CRISIS')}
                 className="flex-1 md:flex-none justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl border border-red-700 font-bold text-sm flex items-center gap-2 transition-colors shadow-lg shadow-red-600/20"
              >
-                <Flame size={16} /> CRISE
+                <Flame size={16} /> ZONE CRISE
              </button>
              <button 
                 onClick={onProcessWeek}
@@ -141,16 +128,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         
-        {/* --- LEFT COL: ALERTS (PRIORITY) --- */}
-        <div className="xl:col-span-1 space-y-6">
+        {/* --- LEFT COL: ALERTS & WIDGETS --- */}
+        <div className="xl:col-span-1 space-y-4">
             
-            {/* 1. Pending Reviews - CRITICAL */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm ring-4 ring-indigo-50/50">
+            {/* WIDGET: PENDING USERS */}
+            <div 
+                onClick={() => onNavigate('ACCESS')}
+                className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${
+                pendingUsersCount > 0 ? 'bg-indigo-600 border-indigo-700 text-white ring-4 ring-indigo-200' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+            }`}>
+                <div className="flex items-center gap-3">
+                    <UserPlus size={20} className={pendingUsersCount > 0 ? "text-indigo-200" : "text-slate-400"}/>
+                    <div>
+                        <p className="text-xs font-bold uppercase opacity-80">Salle d'attente</p>
+                        <p className="font-bold text-lg leading-none">{pendingUsersCount} étudiants</p>
+                    </div>
+                </div>
+                {pendingUsersCount > 0 && <div className="animate-pulse w-3 h-3 bg-white rounded-full"></div>}
+            </div>
+
+            {/* WIDGET: PENDING FIRES */}
+            <div 
+                onClick={() => onNavigate('MERCATO')}
+                className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${
+                pendingFires > 0 ? 'bg-amber-500 border-amber-600 text-white ring-4 ring-amber-200' : 'bg-white border-slate-200 text-slate-500 hover:border-amber-300'
+            }`}>
+                <div className="flex items-center gap-3">
+                    <UserMinus size={20} className={pendingFires > 0 ? "text-amber-100" : "text-slate-400"}/>
+                    <div>
+                        <p className="text-xs font-bold uppercase opacity-80">Licenciements</p>
+                        <p className="font-bold text-lg leading-none">{pendingFires} demandes</p>
+                    </div>
+                </div>
+                <ArrowRight size={18} className="opacity-50"/>
+            </div>
+
+            {/* 1. Pending Reviews */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <CheckCircle2 size={18} className="text-indigo-500" />
+                    <CheckCircle2 size={18} className="text-emerald-500" />
                     À Corriger ({pendingReviews.length})
                 </h3>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
                     {pendingReviews.length === 0 ? (
                          <div className="text-center py-6 text-slate-400 text-xs italic border-2 border-dashed border-slate-100 rounded-xl">
                             Tout est à jour.
@@ -173,7 +192,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                 </div>
             </div>
 
-            {/* 2. HR Audits - CRITICAL */}
+            {/* 2. HR Audits */}
             <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <UserCog size={18} className="text-purple-500" />
@@ -198,85 +217,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                      ))}
                 </div>
             </div>
-
         </div>
 
-        {/* --- CENTER COL: COMPACT LIST --- */}
-        <div className="xl:col-span-2">
-            <h3 className="text-lg font-bold text-slate-900 mb-4 flex justify-between items-center">
-                <span className="flex items-center gap-2"><List size={20}/> État des Agences</span>
-                <span className="text-xs font-normal text-slate-400">
-                    {activeAgencies.length} actives
-                </span>
-            </h3>
+        {/* --- CENTER COL: PERFORMANCE --- */}
+        <div className="xl:col-span-2 space-y-6">
             
-            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
-                        <tr>
-                            <th className="p-4">Agence</th>
-                            <th className="p-4 hidden md:table-cell">Statut</th>
-                            <th className="p-4 text-right">VE</th>
-                            <th className="p-4 text-right hidden md:table-cell">Budget</th>
-                            <th className="p-4 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {activeAgencies
-                            .sort((a,b) => b.ve_current - a.ve_current)
-                            .map(agency => (
-                            <tr key={agency.id} className="hover:bg-slate-50 transition-colors group">
-                                <td className="p-3 pl-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border ${
-                                            agency.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-purple-50 text-purple-600 border-purple-100'
-                                        }`}>
-                                            {agency.name.substring(0,2)}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-sm text-slate-900">{agency.name}</div>
-                                            <div className="text-[10px] text-slate-400">{agency.members.length} membres</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-3 hidden md:table-cell">
-                                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                                        agency.status === 'stable' ? 'bg-emerald-50 text-emerald-600' : 
-                                        agency.status === 'fragile' ? 'bg-amber-50 text-amber-600' : 
-                                        'bg-red-50 text-red-600'
-                                    }`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${
-                                            agency.status === 'stable' ? 'bg-emerald-500' : 
-                                            agency.status === 'fragile' ? 'bg-amber-500' : 
-                                            'bg-red-500'
-                                        }`}></span>
-                                        {agency.status}
-                                    </span>
-                                </td>
-                                <td className="p-3 text-right">
-                                    <span className="font-display font-bold text-lg text-slate-900">{agency.ve_current}</span>
-                                </td>
-                                <td className="p-3 text-right hidden md:table-cell">
-                                    <span className={`text-xs font-bold ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                                        {agency.budget_real} €
-                                    </span>
-                                </td>
-                                <td className="p-3 text-right">
-                                    <button 
-                                        onClick={() => onSelectAgency(agency.id)}
-                                        className="text-xs font-bold bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 px-3 py-1.5 rounded-lg transition-all"
-                                    >
-                                        Gérer
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {/* TOP 3 */}
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl p-6 border border-emerald-100">
+                <h3 className="text-emerald-800 font-bold mb-4 flex items-center gap-2">
+                    <Trophy size={18} className="text-emerald-600"/> Top Performers (VE)
+                </h3>
+                <div className="space-y-3">
+                    {top3.map((agency, i) => (
+                        <div key={agency.id} className="bg-white/80 p-3 rounded-xl flex items-center justify-between shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm ${i===0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>#{i+1}</div>
+                                <div>
+                                    <p className="font-bold text-slate-900 text-sm">{agency.name}</p>
+                                    <span className={`text-[10px] font-bold px-1.5 rounded ${agency.classId === 'A' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>CLASSE {agency.classId}</span>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="block font-display font-bold text-xl text-emerald-600">{agency.ve_current}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">VE</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* FLOP 3 */}
+            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
+                <h3 className="text-slate-600 font-bold mb-4 flex items-center gap-2">
+                    <TrendingDown size={18} className="text-red-500"/> En Difficulté
+                </h3>
+                <div className="space-y-3">
+                    {flop3.map((agency) => (
+                         <div key={agency.id} className="bg-white p-3 rounded-xl flex items-center justify-between border border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <p className="font-bold text-slate-700 text-sm">{agency.name}</p>
+                                    <p className="text-[10px] text-red-500 font-bold">{agency.budget_real < 0 ? 'En Dette' : 'VE Faible'}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="block font-display font-bold text-xl text-red-500">{agency.ve_current}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">VE</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 text-center">
+                <p className="text-sm text-slate-500 mb-2">Pour voir la liste complète et gérer les statuts :</p>
+                <button 
+                    onClick={() => onNavigate('PROJECTS')}
+                    className="text-indigo-600 font-bold text-sm hover:underline flex items-center justify-center gap-1"
+                >
+                    Aller à Gestion Projets <ArrowRight size={14}/>
+                </button>
             </div>
         </div>
 
-        {/* --- RIGHT COL: LIVE FEED (CONDENSED) --- */}
+        {/* --- RIGHT COL: LIVE FEED --- */}
         <div className="xl:col-span-1 bg-slate-900 rounded-3xl p-5 text-slate-300 flex flex-col h-fit sticky top-32 shadow-xl shadow-slate-900/10">
              <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2 justify-between">
                 <div className="flex items-center gap-2">
@@ -309,7 +313,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                 ))}
             </div>
 
-            {activityFeed.length > 4 && (
+            {activityFeed.length > 5 && (
                 <button 
                     onClick={() => setShowAllActivity(!showAllActivity)}
                     className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -321,44 +325,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         </div>
 
       </div>
-
-      {/* --- MODALS --- */}
-      <Modal isOpen={isCrisisModalOpen} onClose={() => setIsCrisisModalOpen(false)} title="Centre de Crise Global">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <CrisisCard 
-                    title="Inflation Matériaux" 
-                    desc="-10% de budget sur toutes les agences. Cause: Pénurie mondiale."
-                    impact="Budget -500€"
-                    color="bg-amber-50 border-amber-200 hover:border-amber-400"
-                    icon={<TrendingDown className="text-amber-600"/>}
-                    onClick={() => handleGlobalCrisis({label: "Inflation", description: "Hausse des coûts matériaux.", deltaVE: 0, deltaBudget: -500, icon: null})}
-                />
-                <CrisisCard 
-                    title="Krach Boursier RNP" 
-                    desc="Perte de confiance des investisseurs. La VE s'effondre."
-                    impact="VE -10 pts"
-                    color="bg-red-50 border-red-200 hover:border-red-400"
-                    icon={<Flame className="text-red-600"/>}
-                    onClick={() => handleGlobalCrisis({label: "Krach Boursier", description: "Perte de confiance du marché.", deltaVE: -10, deltaBudget: 0, icon: null})}
-                />
-                 <CrisisCard 
-                    title="Grève des Transports" 
-                    desc="Retard généralisé sur les rendus. Aucun impact financier direct mais moral."
-                    impact="VE -2 pts"
-                    color="bg-slate-50 border-slate-200 hover:border-slate-400"
-                    icon={<Ban className="text-slate-600"/>}
-                    onClick={() => handleGlobalCrisis({label: "Grève Transports", description: "Retards logistiques.", deltaVE: -2, deltaBudget: 0, icon: null})}
-                />
-                 <CrisisCard 
-                    title="Subvention Exceptionnelle" 
-                    desc="Le ministère de la culture débloque des fonds."
-                    impact="Budget +1000€"
-                    color="bg-emerald-50 border-emerald-200 hover:border-emerald-400"
-                    icon={<Wallet className="text-emerald-600"/>}
-                    onClick={() => handleGlobalCrisis({label: "Subvention Culture", description: "Aide exceptionnelle de l'état.", deltaVE: +5, deltaBudget: 1000, icon: null})}
-                />
-            </div>
-      </Modal>
 
       {gradingItem && (
           <GradingModal 
@@ -382,17 +348,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
 };
 
 // --- SUB-COMPONENTS ---
-
-const CrisisCard: React.FC<{title: string, desc: string, impact: string, color: string, icon: any, onClick: () => void}> = ({title, desc, impact, color, icon, onClick}) => (
-    <button onClick={onClick} className={`p-4 rounded-xl border text-left transition-all ${color} group`}>
-        <div className="flex justify-between items-start mb-2">
-            <h4 className="font-bold text-slate-900 group-hover:underline">{title}</h4>
-            {icon}
-        </div>
-        <p className="text-xs text-slate-600 mb-3">{desc}</p>
-        <span className="text-[10px] font-bold uppercase bg-white/50 px-2 py-1 rounded">{impact}</span>
-    </button>
-);
 
 const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgency: (a: Agency) => void}> = ({agency, onClose, onUpdateAgency}) => {
     const { toast, confirm } = useUI();
@@ -474,7 +429,7 @@ const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgenc
                         onClick={handlePunish}
                         className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-bold rounded-xl hover:bg-red-100 transition-colors flex items-center gap-2"
                     >
-                        <Siren size={18}/>
+                        <Flame size={18}/>
                         Sanctionner (-15 VE)
                     </button>
                 </div>

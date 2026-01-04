@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Agency } from '../../types';
 import { TrendingUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -11,17 +11,48 @@ interface MarketOverviewProps {
 }
 
 export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies }) => {
-  // Mock Data generator for the chart
-  const generateComparisonData = () => {
-    const data = [
-      { name: '0', [agency.name]: 0, ...allAgencies.reduce((acc, a) => ({...acc, [a.name]: 0}), {}) },
-      { name: '1', [agency.name]: 50, ...allAgencies.reduce((acc, a) => ({...acc, [a.name]: 50}), {}) },
-      { name: '2', [agency.name]: 55, ...allAgencies.reduce((acc, a) => ({...acc, [a.name]: a.ve_current > 50 ? 55 : 45}), {}) },
-      { name: '3', [agency.name]: agency.ve_current, ...allAgencies.reduce((acc, a) => ({...acc, [a.name]: a.ve_current}), {}) },
-    ];
-    return data;
-  };
-  const comparisonData = generateComparisonData();
+  
+  // Génération dynamique des données basée sur l'historique réel (EventLog)
+  const comparisonData = useMemo(() => {
+    // 1. Récupérer toutes les dates uniques où il s'est passé quelque chose dans TOUTES les agences
+    const allDates = Array.from(new Set(
+        allAgencies.flatMap(a => a.eventLog.map(e => e.date))
+    )).sort();
+
+    // 2. Point de départ (Semaine 0 / Création)
+    const initialPoint = {
+        name: 'Départ',
+        date: '0000-00-00',
+        [agency.name]: 0, // On assume un départ à 0 ou 50 selon la config, ici recalculé
+        ...allAgencies.reduce((acc, a) => ({ ...acc, [a.name]: 0 }), {})
+    };
+
+    // 3. Construire les points pour chaque date d'événement
+    const historyPoints = allDates.map(date => {
+        const point: any = { 
+            name: new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), // Format DD/MM
+            date: date
+        };
+
+        // Pour chaque agence, on calcule sa VE cumulée jusqu'à cette date incluse
+        allAgencies.forEach(a => {
+            // Somme des deltaVE de tous les événements antérieurs ou égaux à la date
+            const veAtDate = a.eventLog
+                .filter(e => e.date <= date)
+                .reduce((sum, e) => sum + (e.deltaVE || 0), 0); // Départ à 0 + deltas
+            
+            // On s'assure que ça ne descend pas sous 0
+            point[a.name] = Math.max(0, veAtDate);
+        });
+
+        return point;
+    });
+
+    // S'il n'y a pas encore d'événements, on affiche au moins le départ
+    if (historyPoints.length === 0) return [initialPoint];
+
+    return [initialPoint, ...historyPoints];
+  }, [allAgencies, agency.name]);
 
   // Leaderboard logic
   const leaderboard = [...allAgencies].sort((a, b) => b.ve_current - a.ve_current);
@@ -64,7 +95,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                     <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} />
+                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 'auto']} />
                         <Tooltip 
                             contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', color: '#0f172a', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                             itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
@@ -80,6 +111,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                                 strokeOpacity={a.id === agency.id ? 1 : 0.2}
                                 dot={a.id === agency.id ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
                                 activeDot={{ r: 6 }}
+                                isAnimationActive={false} // Désactivé pour éviter les glitchs lors des updates rapides
                             />
                         ))}
                     </LineChart>
