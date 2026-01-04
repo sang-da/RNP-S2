@@ -2,54 +2,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- 1. SUPER ADMIN (GOD MODE) ---
-    // Seul l'email du fondateur a tous les droits, sans condition.
-    function isRootAdmin() {
-       return request.auth.token.email == 'ahme.sang@gmail.com';
-    }
-
-    // --- 2. ADMIN STANDARD (VIA DB) ---
-    // Un utilisateur est admin si son document Firestore dit 'role: admin'
-    function isDBAdmin() {
-       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // --- 3. COMBINAISON ---
-    function isAdmin() {
-      return isRootAdmin() || isDBAdmin();
-    }
+    // --- HELPER FUNCTIONS ---
 
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // --- RÈGLES PAR COLLECTION ---
-
-    // USERS : C'est ici que se joue l'inscription
-    match /users/{userId} {
-      // Tout le monde peut lire (nécessaire pour voir les profils, le mercato, etc.)
-      allow read: if isAuthenticated();
-      
-      // CRUCIAL : Un utilisateur doit pouvoir CRÉER et MODIFIER sa propre fiche
-      // C'est ce qui permet à un 'pending' d'envoyer ses métadatas à la DB.
-      // L'Admin peut évidemment tout modifier.
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    // "God Mode" Hardcodé : Cet email a TOUS les droits.
+    function isSuperAdmin() {
+       return request.auth.token.email == 'ahme.sang@gmail.com';
     }
 
-    // AGENCIES : Gestion du jeu
+    // Admin déclaré dans la DB (Attention, peut échouer si user n'existe pas)
+    function isDBAdmin() {
+       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || isDBAdmin();
+    }
+
+    // --- RÈGLES PAR COLLECTION ---
+
+    // USERS : C'est ici que ça bloquait
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      // CRITIQUE : Autoriser EXPLICITEMENT la création si c'est mon propre ID.
+      // On ne vérifie PAS "isAdmin" ici, car l'utilisateur n'existe pas encore !
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // UPDATE : Là on peut vérifier les rôles (car l'utilisateur existe déjà)
+      // Soit c'est moi, soit c'est un admin (qui veut changer mon rôle par exemple)
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      
+      allow delete: if isAdmin();
+    }
+
+    // AGENCIES : Ouvert pour le gameplay
     match /agencies/{agencyId} {
        allow read: if isAuthenticated();
-       allow create: if isAdmin();
-       allow delete: if isAdmin();
-       // Les étudiants doivent pouvoir écrire pour : Upload fichiers, Mercato, Chat...
+       allow create, delete: if isAdmin();
+       // Tout le monde peut mettre à jour (Upload, Join, Leave, etc.)
        allow update: if isAuthenticated();
     }
 
-    // WEEKS : Planning
+    // WEEKS : Lecture seule sauf Admin
     match /weeks/{weekId} {
        allow read: if isAuthenticated();
        allow write: if isAdmin();
+    }
+
+    // FALLBACK
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
   }
 }
