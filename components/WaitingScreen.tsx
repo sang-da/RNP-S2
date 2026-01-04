@@ -1,150 +1,111 @@
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, ShieldCheck, LogOut, RefreshCw, AlertTriangle, Database, UserPlus } from 'lucide-react';
+import { Loader2, TrendingUp, Wallet, Users, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db } from '../services/firebase';
-import { doc, onSnapshot, writeBatch, serverTimestamp } from 'firebase/firestore';
-import { MOCK_AGENCIES, INITIAL_WEEKS } from '../constants';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+const ONBOARDING_SLIDES = [
+    {
+        icon: <TrendingUp size={48} className="text-emerald-500" />,
+        title: "La VE est Reine",
+        text: "Votre Valeur d'Entreprise (VE) détermine votre note finale (40%). Elle fluctue selon la qualité de vos rendus et vos décisions."
+    },
+    {
+        icon: <Wallet size={48} className="text-amber-500" />,
+        title: "Gérez votre Cash",
+        text: "Chaque étudiant coûte un salaire. Gérez votre trésorerie (PiXi) pour éviter la faillite et le malus de VE."
+    },
+    {
+        icon: <Users size={48} className="text-indigo-500" />,
+        title: "L'Agence avant tout",
+        text: "La performance collective prime. Un bon élément dans une agence qui coule ne suffira pas à valider le semestre."
+    },
+    {
+        icon: <AlertTriangle size={48} className="text-red-500" />,
+        title: "Gérez les Crises",
+        text: "Le marché est instable. Attendez-vous à des imprévus (Inflation, Pénuries) et réagissez vite."
+    }
+];
 
 export const WaitingScreen: React.FC = () => {
-    const { userData, refreshProfile } = useAuth();
-    const [isWorking, setIsWorking] = useState(false);
+    const { userData } = useAuth();
+    const [currentSlide, setCurrentSlide] = useState(0);
 
+    // Auto-reload si le rôle change
     useEffect(() => {
         if (!userData?.uid) return;
         try {
             const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    if (data.role !== 'pending') {
-                        window.location.reload(); 
-                    }
+                if (doc.exists() && doc.data().role !== 'pending') {
+                    window.location.reload(); 
                 }
             });
             return () => unsub();
         } catch (e) { console.error(e); }
     }, [userData]);
 
-    const handleForceProfileCreation = async () => {
-        setIsWorking(true);
-        try {
-            await refreshProfile();
-            setTimeout(() => window.location.reload(), 1000);
-        } catch (e) {
-            console.error(e);
-            alert("Erreur de connexion à la base de données.");
-        } finally {
-            setIsWorking(false);
-        }
-    };
-
-    const handleAdminForceInit = async () => {
-        if (!userData) return;
-        if (userData.email !== 'ahme.sang@gmail.com') return;
-
-        setIsWorking(true);
-        try {
-            const batch = writeBatch(db);
-
-            // 1. Force Admin Profile (Safe Defaults to avoid undefined)
-            const userRef = doc(db, "users", userData.uid);
-            batch.set(userRef, {
-                uid: userData.uid,
-                email: userData.email || null,
-                displayName: userData.displayName || 'Super Admin',
-                photoURL: userData.photoURL || null,
-                role: 'admin',
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp()
-            });
-
-            // 2. Seed Agencies
-            MOCK_AGENCIES.forEach(agency => {
-                const ref = doc(db, "agencies", agency.id);
-                batch.set(ref, agency);
-            });
-
-            // 3. Seed Weeks
-            Object.values(INITIAL_WEEKS).forEach(week => {
-                const ref = doc(db, "weeks", week.id);
-                batch.set(ref, week);
-            });
-
-            await batch.commit();
-            alert("Succès ! Base de données initialisée.");
-            window.location.reload();
-
-        } catch (e: any) {
-            console.error(e);
-            alert(`Erreur critique : ${e.message}`);
-        } finally {
-            setIsWorking(false);
-        }
-    };
-
-    const isSuperAdminEmail = userData?.email === 'ahme.sang@gmail.com';
+    // Carousel Timer
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % ONBOARDING_SLIDES.length);
+        }, 5000);
+        return () => clearInterval(timer);
+    }, []);
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans">
-            <div className="w-24 h-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-8 relative animate-pulse">
-                 <Loader2 size={40} className="text-indigo-600 animate-spin" />
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans relative overflow-hidden">
+            {/* Background Decoration */}
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
+            
+            <div className="w-20 h-20 bg-white rounded-2xl shadow-xl flex items-center justify-center mb-8 relative animate-bounce-slow">
+                 <div className="absolute inset-0 bg-indigo-50 rounded-2xl animate-ping opacity-20"></div>
+                 <Loader2 size={32} className="text-indigo-600 animate-spin" />
             </div>
             
             <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">
-                Bonjour, {userData?.displayName}
+                Bienvenue, {userData?.displayName?.split(' ')[0]}
             </h1>
-            <p className="text-lg text-slate-500 max-w-md mb-8">
-                Vous êtes en <strong className="text-slate-900">Salle d'Attente</strong>.
-                <br/><span className="text-sm">Votre compte doit être validé par un enseignant.</span>
+            <p className="text-slate-500 mb-10">
+                Votre dossier est en cours de validation par l'administration.
             </p>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full text-left mb-8">
-                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <AlertTriangle size={18} className="text-amber-500"/>
-                    Diagnostic
-                </h3>
-                
-                <div className="space-y-3">
-                    <button 
-                        onClick={handleForceProfileCreation}
-                        disabled={isWorking}
-                        className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                        {isWorking ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>}
-                        Réessayer Connexion
-                    </button>
+            {/* Carousel Card */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm max-w-md w-full text-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="h-48 flex flex-col items-center justify-center transition-all duration-500">
+                    <div className="mb-6 p-4 bg-slate-50 rounded-full group-hover:scale-110 transition-transform duration-500">
+                        {ONBOARDING_SLIDES[currentSlide].icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">
+                        {ONBOARDING_SLIDES[currentSlide].title}
+                    </h3>
+                    <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
+                        {ONBOARDING_SLIDES[currentSlide].text}
+                    </p>
+                </div>
 
-                    {isSuperAdminEmail && (
-                        <div className="pt-4 mt-4 border-t border-slate-100">
-                             <p className="text-xs font-bold text-slate-400 uppercase mb-2">Zone Super Admin</p>
-                             <button 
-                                onClick={handleAdminForceInit}
-                                disabled={isWorking}
-                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors flex items-center justify-center gap-2"
-                            >
-                                {isWorking ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                                INITIALISER DATABASE
-                            </button>
-                            <p className="text-[10px] text-slate-400 mt-2 text-center">
-                                À utiliser si l'écran reste bloqué sur une base vide.
-                            </p>
-                        </div>
-                    )}
+                {/* Progress Indicators */}
+                <div className="flex justify-center gap-2 mt-8">
+                    {ONBOARDING_SLIDES.map((_, idx) => (
+                        <div 
+                            key={idx} 
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                                idx === currentSlide ? 'w-8 bg-indigo-600' : 'w-2 bg-slate-200'
+                            }`}
+                        />
+                    ))}
                 </div>
             </div>
 
-            <div className="flex gap-4">
-                <button 
-                    onClick={() => window.location.reload()}
-                    className="text-slate-500 hover:text-indigo-600 font-bold flex items-center gap-2 transition-colors px-4 py-2"
-                >
-                    <RefreshCw size={16} /> Actualiser
-                </button>
+            <div className="mt-12 flex flex-col gap-4">
+                <p className="text-xs text-slate-400 font-medium uppercase tracking-widest animate-pulse">
+                    En attente de connexion...
+                </p>
                 <button 
                     onClick={() => signOut(auth)}
-                    className="text-slate-400 hover:text-red-500 font-bold flex items-center gap-2 transition-colors px-4 py-2"
+                    className="text-slate-400 hover:text-red-500 font-bold text-sm transition-colors"
                 >
-                    <LogOut size={16} /> Déconnexion
+                    Annuler et se déconnecter
                 </button>
             </div>
         </div>

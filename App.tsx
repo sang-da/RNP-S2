@@ -9,15 +9,18 @@ import { AdminProjects } from './components/AdminProjects';
 import { AdminCrisis } from './components/AdminCrisis';
 import { AdminSchedule } from './components/AdminSchedule';
 import { AdminAccess } from './components/AdminAccess';
+import { AdminResources } from './components/AdminResources';
+import { AdminSettings } from './components/AdminSettings';
+import { AdminViews } from './components/AdminViews';
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu } from 'lucide-react';
+import { Menu, EyeOff } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 
-type AdminViewType = 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS';
+type AdminViewType = 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -35,6 +38,11 @@ const GameContainer: React.FC = () => {
 
   const [adminView, setAdminView] = useState<AdminViewType>('OVERVIEW');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Simulation Mode State
+  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY'>('NONE');
+  const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
+
   const touchStart = useRef(0);
   const touchEnd = useRef(0);
 
@@ -42,29 +50,20 @@ const GameContainer: React.FC = () => {
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = e.targetTouches[0].clientX;
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEnd.current = e.targetTouches[0].clientX;
   };
-
   const handleTouchEnd = () => {
     if (!touchStart.current || !touchEnd.current) return;
     const distance = touchStart.current - touchEnd.current;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
-
-    if (isRightSwipe && !isSidebarOpen) {
-        setIsSidebarOpen(true);
-    }
-    if (isLeftSwipe && isSidebarOpen) {
-        setIsSidebarOpen(false);
-    }
-    // Reset
-    touchStart.current = 0;
-    touchEnd.current = 0;
+    if (isRightSwipe && !isSidebarOpen) setIsSidebarOpen(true);
+    if (isLeftSwipe && isSidebarOpen) setIsSidebarOpen(false);
+    touchStart.current = 0; touchEnd.current = 0;
   };
 
-  // 1. LOADING STATE
+  // 1. LOADING
   if (loading) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -73,15 +72,12 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // 2. NOT LOGGED IN -> LANDING PAGE
+  // 2. LANDING
   if (!currentUser) {
       return <LandingPage />;
   }
 
-  // 3. WAITING ROOM (Logged in but no role/agency)
-  // If role is pending OR (role is student but no agency assigned yet)
-  // Note: We need to check if user is actually mapped to an agency in the `agencies` list or `userData`
-  // For now, we rely on userData.role. Admin sets role to 'student' ONLY when assigned.
+  // 3. WAITING ROOM (Normal Student)
   if (userData?.role === 'pending') {
       return <WaitingScreen />;
   }
@@ -90,7 +86,40 @@ const GameContainer: React.FC = () => {
   // ADMIN RENDER LOGIC
   // ------------------------------------------------------------------
   if (userData?.role === 'admin') {
-      // Admin Drill-down
+      
+      // --- SIMULATION MODE ---
+      if (simulationMode !== 'NONE') {
+          return (
+              <div className="relative">
+                  {/* Exit Simulation Floating Button */}
+                  <div className="fixed top-4 right-4 z-50">
+                      <button 
+                        onClick={() => { setSimulationMode('NONE'); setSimulatedAgencyId(null); }}
+                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl shadow-red-600/40 flex items-center gap-2 animate-in slide-in-from-top-4"
+                      >
+                          <EyeOff size={20}/> Quitter la Simulation
+                      </button>
+                  </div>
+
+                  {simulationMode === 'WAITING' ? (
+                      <WaitingScreen />
+                  ) : (
+                      simulatedAgencyId && (
+                          <Layout role="student" switchRole={() => {}}>
+                              <StudentAgencyView 
+                                agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} 
+                                allAgencies={agencies} 
+                                onUpdateAgency={updateAgency} 
+                              />
+                          </Layout>
+                      )
+                  )}
+              </div>
+          );
+      }
+
+      // --- STANDARD ADMIN DASHBOARD ---
+      // Drill-down specific agency from Dashboard list
       if (selectedAgencyId) {
         const agency = agencies.find(a => a.id === selectedAgencyId);
         if (!agency) return <div>Agence introuvable</div>;
@@ -138,34 +167,20 @@ const GameContainer: React.FC = () => {
                         onProcessWeek={processWeekFinance}
                     />
                 )}
-                {adminView === 'ACCESS' && (
-                    <AdminAccess 
+                {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
+                {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} />}
+                {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
+                {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} />}
+                {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} />}
+                
+                {/* NEW VIEWS */}
+                {adminView === 'RESOURCES' && <AdminResources agencies={agencies} />}
+                {adminView === 'SETTINGS' && <AdminSettings />}
+                {adminView === 'VIEWS' && (
+                    <AdminViews 
                         agencies={agencies} 
-                        onUpdateAgencies={updateAgenciesList}
-                    />
-                )}
-                {adminView === 'SCHEDULE' && (
-                    <AdminSchedule 
-                        weeksData={weeks} 
-                        onUpdateWeek={updateWeek}
-                    />
-                )}
-                {adminView === 'MERCATO' && (
-                    <AdminMercato 
-                        agencies={agencies} 
-                        onUpdateAgencies={updateAgenciesList} 
-                    />
-                )}
-                {adminView === 'PROJECTS' && (
-                    <AdminProjects 
-                        agencies={agencies}
-                        onUpdateAgency={updateAgency}
-                    />
-                )}
-                {adminView === 'CRISIS' && (
-                    <AdminCrisis 
-                        agencies={agencies} 
-                        onUpdateAgency={updateAgency} 
+                        onSimulateWaitingRoom={() => setSimulationMode('WAITING')}
+                        onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }}
                     />
                 )}
             </div>
@@ -176,29 +191,17 @@ const GameContainer: React.FC = () => {
   // ------------------------------------------------------------------
   // STUDENT RENDER LOGIC
   // ------------------------------------------------------------------
-  // Find the agency where the student is a member
-  // We match by name or by ID if we stored it in userData.
-  // Ideally, AdminAccess updates userData.agencyId in Firestore.
-  // Fallback: search in agencies members list by name/email comparison could be brittle, 
-  // so we rely on userData.agencyId if set, or just show Waiting Screen if not found.
-  
-  // NOTE: In the current mock data structure, students are objects inside Agency.members array.
-  // The AdminAccess component in this app assigns connectionStatus. 
-  // For this integration, we should assume the Admin has mapped the UID to the student in the agency.
-  
-  // Simple matching for now:
   const myAgency = agencies.find(a => a.members.some(m => m.id === userData?.uid)) || 
                    agencies.find(a => a.id === userData?.agencyId);
 
   if (userData?.role === 'student' && myAgency) {
       return (
-        <Layout role="student" switchRole={() => { /* No-op for students */ }}>
+        <Layout role="student" switchRole={() => {}}>
           <StudentAgencyView agency={myAgency} allAgencies={agencies} onUpdateAgency={updateAgency} />
         </Layout>
       );
   }
 
-  // Fallback if role is student but agency not found
   return <WaitingScreen />;
 };
 

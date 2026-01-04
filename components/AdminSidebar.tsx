@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, Sliders, X } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X } from 'lucide-react';
 
 interface AdminSidebarProps {
-  activeView: 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS';
+  activeView: string;
   onNavigate: (view: any) => void;
   onLogout: () => void;
   isOpen: boolean; // Mobile state
@@ -22,7 +22,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
 
   const secondaryItems = [
     { id: 'RESOURCES', label: 'Ressources', icon: <FolderOpen size={20} /> },
-    { id: 'SETTINGS', label: 'Paramètres', icon: <Sliders size={20} /> },
+    { id: 'VIEWS', label: 'Vues & Simulation', icon: <MonitorPlay size={20} /> },
+    { id: 'SETTINGS', label: 'Paramètres', icon: <Settings size={20} /> },
   ];
 
   return (
@@ -56,7 +57,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-8 overflow-y-auto">
+          <nav className="flex-1 p-4 space-y-8 overflow-y-auto custom-scrollbar">
             
             {/* Main Section */}
             <div className="space-y-2">
@@ -83,8 +84,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
                 {secondaryItems.map((item) => (
                     <button
                         key={item.id}
-                        onClick={() => { /* Placeholder for future features */ onClose(); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                        onClick={() => { onNavigate(item.id as any); onClose(); }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                            activeView === item.id 
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50 font-bold' 
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        }`}
                     >
                         {item.icon}
                         <span className="text-sm">{item.label}</span>
@@ -94,14 +99,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
 
           </nav>
 
-          {/* Footer */}
+          {/* Footer (Simplified as Logout is in Settings now, or keep just quick logout) */}
           <div className="p-4 border-t border-slate-800">
             <button 
                 onClick={onLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-900/20 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
             >
                 <LogOut size={20} />
-                <span className="text-sm font-bold">Mode Étudiant</span>
+                <span className="text-sm font-bold">Déconnexion</span>
             </button>
           </div>
         </div>
