@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -18,7 +18,16 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
+// Initialize Analytics safely (Async check to prevent crashes)
+let analytics = null;
+isSupported().then(yes => {
+  if (yes) {
+    analytics = getAnalytics(app);
+  }
+}).catch(err => {
+    console.log("Firebase Analytics non activé (environnement non supporté):", err);
+});
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

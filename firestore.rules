@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- FONCTIONS DE SÉCURITÉ ---
+
+    // 1. SUPER ADMIN (HARDCODED)
+    // Sécurité ultime : Si l'email correspond, c'est l'admin.
+    // Cette fonction ne dépend PAS de la lecture de la base de données,
+    // garantissant l'accès même si la collection 'users' est vide ou illisible.
+    function isSuperAdmin() {
+       return request.auth.token.email == 'ahme.sang@gmail.com';
+    }
+
+    // 2. ADMIN CLASSIQUE (VIA DB)
+    // Vérifie si le champ 'role' est défini à 'admin' dans le document utilisateur.
+    // Utilise 'exists' pour éviter de planter si le doc n'existe pas.
+    function isDBAdmin() {
+       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 3. VÉRIFICATION GLOBALE
+    function isAdmin() {
+      return isSuperAdmin() || isDBAdmin();
+    }
+
+    // 4. AUTHENTIFICATION STANDARD
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // --- RÈGLES PAR COLLECTION ---
+
+    // USERS : Profils utilisateurs
+    match /users/{userId} {
+      // Lecture : Tout le monde authentifié (Nécessaire pour l'Annuaire, le Mercato et l'Admin Access)
+      allow read: if isAuthenticated();
+      
+      // Écriture :
+      // - L'utilisateur lui-même (pour l'inscription/connexion)
+      // - L'Admin (pour assigner des rôles ou débloquer un compte)
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // AGENCIES : Cœur du jeu
+    match /agencies/{agencyId} {
+       // Lecture : Publique pour les connectés (Voir le classement, le marché)
+       allow read: if isAuthenticated();
+
+       // Création : Admin seulement (Pour le Reset DB ou créer de nouvelles équipes)
+       allow create: if isAdmin();
+       
+       // Suppression : Admin seulement
+       allow delete: if isAdmin();
+
+       // Modification (Update) :
+       // Crucial pour le fonctionnement de l'app. 
+       // Les étudiants doivent pouvoir modifier le doc Agence pour :
+       // 1. Uploader un livrable (champ 'progress')
+       // 2. Modifier la définition du projet (champ 'projectDef')
+       // 3. Faire une demande de transfert (champ 'mercatoRequests')
+       // L'Admin a aussi tous les droits ici.
+       allow update: if isAuthenticated();
+    }
+
+    // WEEKS : Calendrier et Contenu Pédagogique
+    match /weeks/{weekId} {
+       // Lecture : Tout le monde
+       allow read: if isAuthenticated();
+       
+       // Écriture : Admin seulement (Définir le planning, changer les objectifs)
+       allow write: if isAdmin();
+    }
+  }
+}

@@ -51,19 +51,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userSnap.exists()) {
                 // L'utilisateur existe déjà
                 const data = userSnap.data();
-                let finalRole = data.role;
+                
+                // FORCE ADMIN LOCALEMENT SI C'EST TOI
+                // On n'attend pas la réponse de la DB pour mettre à jour l'UI
+                const finalRole = isHardcodedAdmin ? 'admin' : data.role;
 
-                // --- AUTO-CORRECTION ROBUSTE ---
-                // On force le rôle localement d'abord pour ne pas bloquer l'UI
-                if (isHardcodedAdmin) {
-                    finalRole = 'admin';
-                    
-                    // On tente la mise à jour DB en arrière-plan sans attendre (fire & forget)
-                    if (data.role !== 'admin') {
-                        updateDoc(userRef, { role: 'admin' }).catch(err => 
-                            console.warn("La mise à jour Admin en DB a échoué (sans gravité pour l'accès local):", err)
-                        );
-                    }
+                if (isHardcodedAdmin && data.role !== 'admin') {
+                    // On tente la mise à jour en arrière-plan (Fire & Forget)
+                    updateDoc(userRef, { role: 'admin' }).catch(err => 
+                        console.warn("La mise à jour Admin en DB a échoué (Probablement Permissions):", err)
+                    );
                 }
 
                 setUserData({
@@ -71,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     email: user.email,
                     displayName: data.displayName || user.displayName,
                     photoURL: data.photoURL || user.photoURL,
-                    role: finalRole, // Utilise la valeur forcée
+                    role: finalRole, 
                     agencyId: data.agencyId
                 });
             } else {
@@ -87,25 +84,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     agencyId: undefined
                 };
 
+                // On met à jour l'état local IMMÉDIATEMENT avant d'essayer d'écrire
+                setUserData(newUserData);
+
                 await setDoc(userRef, {
                     ...newUserData,
                     createdAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
                 });
-
-                setUserData(newUserData);
             }
           } catch (err) {
-            console.error("Erreur critique AuthContext:", err);
+            console.error("Erreur critique AuthContext (Probablement Firestore Rules):", err);
             
             // --- FALLBACK DE SECURITÉ ---
-            // Même si Firestore plante complètement, si c'est toi, tu passes.
+            // Si Firestore plante complètement (Règles bloquantes), on te laisse passer quand même.
             setUserData({
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName,
                 photoURL: user.photoURL,
-                role: isHardcodedAdmin ? 'admin' : 'pending' // <--- LE FIX EST ICI
+                role: isHardcodedAdmin ? 'admin' : 'pending' 
             });
           }
       } else {

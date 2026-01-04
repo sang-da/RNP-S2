@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Loader2, ShieldCheck, LogOut, HelpCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, LogOut, HelpCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -12,17 +12,23 @@ export const WaitingScreen: React.FC = () => {
     useEffect(() => {
         if (!userData?.uid) return;
         
-        const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
-            if (doc.exists()) {
-                const data = doc.data();
-                // If role changes to 'student' or 'admin', the App.tsx logic will auto-rerender and redirect
-                // We force a page reload if needed, but Context updates should handle it.
-                if (data.role !== 'pending' && data.role !== userData.role) {
-                     window.location.reload(); 
+        // On écoute les changements, mais on gère les erreurs de permission silencieusement
+        // car AuthContext gère déjà le fallback admin
+        try {
+            const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    if (data.role !== 'pending' && data.role !== userData.role) {
+                        window.location.reload(); 
+                    }
                 }
-            }
-        });
-        return () => unsub();
+            }, (error) => {
+                console.log("WaitingScreen: Impossible d'écouter le profil (Permissions?)", error);
+            });
+            return () => unsub();
+        } catch (e) {
+            console.error(e);
+        }
     }, [userData]);
 
     return (
@@ -58,18 +64,29 @@ export const WaitingScreen: React.FC = () => {
                     </li>
                 </ul>
                 
-                <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-400 flex items-center gap-2">
-                    <HelpCircle size={14} />
-                    <span>Connecté en tant que : <strong className="text-slate-600">{userData?.email}</strong></span>
+                <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-400 space-y-1">
+                    <div className="flex items-center gap-2">
+                        <HelpCircle size={14} />
+                        <span>Compte : <strong className="text-slate-600">{userData?.email}</strong></span>
+                    </div>
+                    <div className="pl-6 font-mono text-[10px] opacity-50">UID: {userData?.uid}</div>
                 </div>
             </div>
 
-            <button 
-                onClick={() => signOut(auth)}
-                className="text-slate-400 hover:text-red-500 font-bold flex items-center gap-2 transition-colors"
-            >
-                <LogOut size={18} /> Se déconnecter
-            </button>
+            <div className="flex gap-4">
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-2 transition-colors px-4 py-2 rounded-xl hover:bg-indigo-50"
+                >
+                    <RefreshCw size={18} /> Actualiser
+                </button>
+                <button 
+                    onClick={() => signOut(auth)}
+                    className="text-slate-400 hover:text-red-500 font-bold flex items-center gap-2 transition-colors px-4 py-2 rounded-xl hover:bg-red-50"
+                >
+                    <LogOut size={18} /> Se déconnecter
+                </button>
+            </div>
         </div>
     );
 };
