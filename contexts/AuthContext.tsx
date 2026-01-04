@@ -10,14 +10,14 @@ interface UserData {
   displayName: string | null;
   photoURL: string | null;
   role: 'admin' | 'student' | 'pending';
-  agencyId?: string; // If student
+  agencyId?: string | null; // Allow null for Firestore
 }
 
 interface AuthContextType {
   currentUser: User | null;
   userData: UserData | null;
   loading: boolean;
-  refreshProfile: () => Promise<void>; // Nouvelle fonction exposée
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,10 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userSnap = await getDoc(userRef);
         
         if (userSnap.exists()) {
-            // --- UTILISATEUR EXISTANT ---
             const data = userSnap.data();
             
-            // Correction auto : Si c'est Ahme et qu'il n'est pas Admin en DB, on corrige.
             if (isRoot && data.role !== 'admin') {
                 await updateDoc(userRef, { role: 'admin' });
             }
@@ -58,25 +56,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 displayName: data.displayName || user.displayName,
                 photoURL: data.photoURL || user.photoURL,
                 role: isRoot ? 'admin' : data.role, 
-                agencyId: data.agencyId
+                agencyId: data.agencyId || null
             });
         } else {
-            // --- NOUVEL UTILISATEUR ---
-            console.log("Tentative de création de profil Firestore...");
+            console.log("Création de profil Firestore...");
             
+            // Correction : Utilisation de null au lieu de undefined
             const newUserData: UserData = {
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
                 photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
                 role: isRoot ? 'admin' : 'pending',
-                agencyId: undefined
+                agencyId: null 
             };
 
-            // On met à jour l'état LOCAL d'abord pour débloquer l'UI
             setUserData(newUserData);
 
-            // Puis on écrit (si ça échoue, l'UI est au moins débloquée pour l'admin)
             await setDoc(userRef, {
                 ...newUserData,
                 createdAt: serverTimestamp(),
@@ -84,14 +80,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
         }
     } catch (err) {
-        console.error("Erreur AuthContext (Firestore inaccessible ?):", err);
-        // Fallback UI : On laisse passer l'Admin même si la DB est cassée
+        console.error("Erreur AuthContext:", err);
         setUserData({
             uid: user.uid,
             email: user.email,
             displayName: user.displayName,
             photoURL: user.photoURL,
-            role: isRoot ? 'admin' : 'pending' 
+            role: isRoot ? 'admin' : 'pending',
+            agencyId: null
         });
     }
   };

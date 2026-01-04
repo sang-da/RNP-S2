@@ -10,7 +10,6 @@ export const WaitingScreen: React.FC = () => {
     const { userData, refreshProfile } = useAuth();
     const [isWorking, setIsWorking] = useState(false);
 
-    // Écoute temps réel passive
     useEffect(() => {
         if (!userData?.uid) return;
         try {
@@ -26,12 +25,10 @@ export const WaitingScreen: React.FC = () => {
         } catch (e) { console.error(e); }
     }, [userData]);
 
-    // Fonction manuelle pour les étudiants bloqués
     const handleForceProfileCreation = async () => {
         setIsWorking(true);
         try {
             await refreshProfile();
-            // Petit hack pour recharger la page proprement après
             setTimeout(() => window.location.reload(), 1000);
         } catch (e) {
             console.error(e);
@@ -41,7 +38,6 @@ export const WaitingScreen: React.FC = () => {
         }
     };
 
-    // Fonction spéciale ADMIN pour tout débloquer
     const handleAdminForceInit = async () => {
         if (!userData) return;
         if (userData.email !== 'ahme.sang@gmail.com') return;
@@ -50,19 +46,19 @@ export const WaitingScreen: React.FC = () => {
         try {
             const batch = writeBatch(db);
 
-            // 1. Force Admin Profile
+            // 1. Force Admin Profile (Safe Defaults to avoid undefined)
             const userRef = doc(db, "users", userData.uid);
             batch.set(userRef, {
                 uid: userData.uid,
-                email: userData.email,
+                email: userData.email || null,
                 displayName: userData.displayName || 'Super Admin',
-                photoURL: userData.photoURL,
+                photoURL: userData.photoURL || null,
                 role: 'admin',
                 createdAt: serverTimestamp(),
                 lastLogin: serverTimestamp()
             });
 
-            // 2. Seed Agencies (Si DB vide)
+            // 2. Seed Agencies
             MOCK_AGENCIES.forEach(agency => {
                 const ref = doc(db, "agencies", agency.id);
                 batch.set(ref, agency);
@@ -75,7 +71,7 @@ export const WaitingScreen: React.FC = () => {
             });
 
             await batch.commit();
-            alert("Succès ! Base de données initialisée et Compte Admin restauré.");
+            alert("Succès ! Base de données initialisée.");
             window.location.reload();
 
         } catch (e: any) {
@@ -102,11 +98,10 @@ export const WaitingScreen: React.FC = () => {
                 <br/><span className="text-sm">Votre compte doit être validé par un enseignant.</span>
             </p>
 
-            {/* ERROR HANDLING SECTION */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full text-left mb-8">
                 <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <AlertTriangle size={18} className="text-amber-500"/>
-                    Ça prend trop de temps ?
+                    Diagnostic
                 </h3>
                 
                 <div className="space-y-3">
@@ -116,7 +111,7 @@ export const WaitingScreen: React.FC = () => {
                         className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl border border-indigo-200 transition-colors flex items-center justify-center gap-2"
                     >
                         {isWorking ? <Loader2 className="animate-spin" size={18}/> : <UserPlus size={18}/>}
-                        Forcer la création de mon profil
+                        Réessayer Connexion
                     </button>
 
                     {isSuperAdminEmail && (
@@ -128,10 +123,10 @@ export const WaitingScreen: React.FC = () => {
                                 className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors flex items-center justify-center gap-2"
                             >
                                 {isWorking ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                                INITIALISER DATABASE & ADMIN
+                                INITIALISER DATABASE
                             </button>
                             <p className="text-[10px] text-slate-400 mt-2 text-center">
-                                À utiliser uniquement si la base de données est vide au premier lancement.
+                                À utiliser si l'écran reste bloqué sur une base vide.
                             </p>
                         </div>
                     )}

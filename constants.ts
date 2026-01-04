@@ -304,9 +304,9 @@ const generateMockAgencies = (): Agency[] => {
       role: 'Associé', // Rôle standardisé
       avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
       individualScore: 80,
-      cvUrl: undefined,
       classId: classId,
       connectionStatus: 'offline' // Default Status
+      // NOTE: Removed cvUrl: undefined to prevent Firestore Crash. It is optional.
     }));
   };
 
