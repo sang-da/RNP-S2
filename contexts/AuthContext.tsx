@@ -17,6 +17,7 @@ interface AuthContextType {
   currentUser: User | null;
   userData: UserData | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>; // Nouvelle fonction exposée
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,72 +33,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // SEUL AHME EST ROOT PAR DÉFAUT
   const ROOT_ADMIN_EMAIL = 'ahme.sang@gmail.com';
+
+  const fetchOrCreateProfile = async (user: User) => {
+    const email = user.email?.toLowerCase().trim() || '';
+    const isRoot = email === ROOT_ADMIN_EMAIL;
+    const userRef = doc(db, 'users', user.uid);
+
+    try {
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+            // --- UTILISATEUR EXISTANT ---
+            const data = userSnap.data();
+            
+            // Correction auto : Si c'est Ahme et qu'il n'est pas Admin en DB, on corrige.
+            if (isRoot && data.role !== 'admin') {
+                await updateDoc(userRef, { role: 'admin' });
+            }
+
+            setUserData({
+                uid: user.uid,
+                email: user.email,
+                displayName: data.displayName || user.displayName,
+                photoURL: data.photoURL || user.photoURL,
+                role: isRoot ? 'admin' : data.role, 
+                agencyId: data.agencyId
+            });
+        } else {
+            // --- NOUVEL UTILISATEUR ---
+            console.log("Tentative de création de profil Firestore...");
+            
+            const newUserData: UserData = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
+                photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                role: isRoot ? 'admin' : 'pending',
+                agencyId: undefined
+            };
+
+            // On met à jour l'état LOCAL d'abord pour débloquer l'UI
+            setUserData(newUserData);
+
+            // Puis on écrit (si ça échoue, l'UI est au moins débloquée pour l'admin)
+            await setDoc(userRef, {
+                ...newUserData,
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp()
+            });
+        }
+    } catch (err) {
+        console.error("Erreur AuthContext (Firestore inaccessible ?):", err);
+        // Fallback UI : On laisse passer l'Admin même si la DB est cassée
+        setUserData({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            role: isRoot ? 'admin' : 'pending' 
+        });
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
       if (user) {
           setCurrentUser(user);
-          
-          const email = user.email?.toLowerCase().trim() || '';
-          const isRoot = email === ROOT_ADMIN_EMAIL;
-          const userRef = doc(db, 'users', user.uid);
-          
-          try {
-            const userSnap = await getDoc(userRef);
-            
-            if (userSnap.exists()) {
-                // --- UTILISATEUR EXISTANT ---
-                const data = userSnap.data();
-                
-                // Sécurité : Si c'est Ahme et qu'il n'est pas noté admin dans la DB, on force la mise à jour
-                if (isRoot && data.role !== 'admin') {
-                    updateDoc(userRef, { role: 'admin' }).catch(console.error);
-                }
-
-                setUserData({
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: data.displayName || user.displayName,
-                    photoURL: data.photoURL || user.photoURL,
-                    role: isRoot ? 'admin' : data.role, 
-                    agencyId: data.agencyId
-                });
-            } else {
-                // --- NOUVEL UTILISATEUR (INSCRIPTION) ---
-                console.log("Création du profil utilisateur...");
-                
-                const newUserData: UserData = {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
-                    photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-                    role: isRoot ? 'admin' : 'pending', // Tout le monde est 'pending' sauf Ahme
-                    agencyId: undefined
-                };
-
-                // On écrit dans la DB. Grâce aux nouvelles règles, l'utilisateur a le droit d'écrire SA PROPRE fiche.
-                await setDoc(userRef, {
-                    ...newUserData,
-                    createdAt: serverTimestamp(),
-                    lastLogin: serverTimestamp()
-                });
-
-                setUserData(newUserData);
-            }
-          } catch (err) {
-            console.error("Erreur AuthContext:", err);
-            // Fallback UI si la DB plante, mais on garde le role par défaut
-            setUserData({
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName,
-                photoURL: user.photoURL,
-                role: isRoot ? 'admin' : 'pending' 
-            });
-          }
+          await fetchOrCreateProfile(user);
       } else {
         setCurrentUser(null);
         setUserData(null);
@@ -109,7 +113,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, userData, loading }}>
+    <AuthContext.Provider value={{ 
+        currentUser, 
+        userData, 
+        loading,
+        refreshProfile: async () => {
+            if(currentUser) await fetchOrCreateProfile(currentUser);
+        }
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

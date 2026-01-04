@@ -74,25 +74,25 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
     .sort((a,b) => a.student.name.localeCompare(b.student.name));
 
   const handleAssignStudent = async (firebaseUser: PendingUser, targetStudentId: string) => {
-      // Find target agency and student in Game State
-      let targetAgency: Agency | undefined;
-      let targetMemberIndex = -1;
+      // Find target agency in Game State
+      const targetAgency = agencies.find(a => a.members.some(m => m.id === targetStudentId));
 
-      for (const agency of agencies) {
-          const idx = agency.members.findIndex(m => m.id === targetStudentId);
-          if (idx !== -1) {
-              targetAgency = agency;
-              targetMemberIndex = idx;
-              break;
-          }
+      if (!targetAgency) {
+          toast('error', "Agence cible introuvable pour cet étudiant.");
+          return;
       }
 
-      if (!targetAgency || targetMemberIndex === -1) {
+      const oldMemberData = targetAgency.members.find(m => m.id === targetStudentId);
+      if (!oldMemberData) {
           toast('error', "Profil étudiant introuvable.");
           return;
       }
 
-      const oldMemberData = targetAgency.members[targetMemberIndex];
+      // Safety Check: Profil déjà pris ?
+      if (!oldMemberData.id.startsWith('s-')) {
+          toast('error', "Ce profil semble déjà occupé par un utilisateur réel.");
+          return;
+      }
 
       const confirmed = await confirm({
           title: "Lier le compte ?",
@@ -106,28 +106,37 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
           const batch = writeBatch(db);
 
           // 1. Update USER doc (Auth side) -> Gives them the role and access
+          // C'est ce qui débloque le WaitingScreen côté étudiant
           const userRef = doc(db, "users", firebaseUser.uid);
           batch.update(userRef, {
               role: 'student',
               agencyId: targetAgency.id,
-              linkedStudentId: targetStudentId,
-              studentProfileName: oldMemberData.name // Store for reference
+              linkedStudentId: targetStudentId, // Garde une trace de l'ID original (mock)
+              studentProfileName: oldMemberData.name, // Nom d'origine
+              lastLogin: new Date().toISOString()
           });
 
           // 2. Update AGENCY doc (Game side) -> Replaces the Mock ID with Real UID
-          const updatedMembers = [...targetAgency.members];
-          updatedMembers[targetMemberIndex] = {
-              ...oldMemberData,
-              id: firebaseUser.uid, // CRITICAL: This links the game entity to the auth user
-              avatarUrl: firebaseUser.photoURL || oldMemberData.avatarUrl,
-              connectionStatus: 'online'
-          };
+          // C'est ce qui permet au jeu de savoir que ce membre est un "vrai" joueur
+          const updatedMembers = targetAgency.members.map(member => {
+              if (member.id === targetStudentId) {
+                  return {
+                      ...member,
+                      id: firebaseUser.uid, // LE PLUS IMPORTANT : On remplace l'ID fictif par l'UID Firebase
+                      avatarUrl: firebaseUser.photoURL || member.avatarUrl,
+                      connectionStatus: 'online' as const, // Force le statut en ligne
+                      // On peut aussi stocker l'email pour référence admin facile
+                      email: firebaseUser.email 
+                  };
+              }
+              return member;
+          });
 
           const agencyRef = doc(db, "agencies", targetAgency.id);
           batch.update(agencyRef, { members: updatedMembers });
 
           await batch.commit();
-          toast('success', `${firebaseUser.displayName} est maintenant ${oldMemberData.name} !`);
+          toast('success', `${firebaseUser.displayName} est maintenant connecté au profil ${oldMemberData.name} !`);
 
       } catch (error) {
           console.error("Assign Error:", error);
@@ -141,7 +150,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
 
        const confirmed = await confirm({
            title: "Délier l'étudiant ?",
-           message: "Attention : L'étudiant perdra l'accès à ce profil. Le profil redeviendra un 'bot' inactif.",
+           message: "Attention : L'étudiant perdra l'accès à ce profil et retournera en salle d'attente.\nLe profil agence redeviendra un 'bot' inactif.",
            confirmText: "Délier / Réinitialiser",
            isDangerous: true
        });
@@ -151,18 +160,27 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
        try {
            const batch = writeBatch(db);
 
-           // 1. Reset Agency Member to Mock ID style (or keep UID but mark offline? Better to generate new ID to allow re-link)
            const agency = agencies.find(a => a.id === agencyId);
            if (!agency) return;
 
-           const newMockId = `s-reset-${Date.now()}`;
+           // 1. Reset Agency Member to a NEW Mock ID
+           // Cela libère le "slot" pour qu'il réapparaisse dans la liste déroulante "availableSlots"
+           const newMockId = `s-reset-${Date.now()}`; 
+           
            const updatedMembers = agency.members.map(m => 
-               m.id === student.id ? { ...m, id: newMockId, connectionStatus: 'offline' as const } : m
+               m.id === student.id ? { 
+                   ...m, 
+                   id: newMockId, // Nouvel ID Mock
+                   connectionStatus: 'offline' as const,
+                   avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newMockId}` // Reset avatar
+               } : m
            );
+           
            const agencyRef = doc(db, "agencies", agencyId);
            batch.update(agencyRef, { members: updatedMembers });
 
            // 2. Reset User Doc to Pending
+           // L'utilisateur retourne dans la liste "Salle d'Attente"
            const userRef = doc(db, "users", student.id);
            batch.update(userRef, { 
                role: 'pending', 
@@ -171,7 +189,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
            });
 
            await batch.commit();
-           toast('success', "Liaison supprimée.");
+           toast('success', "Liaison supprimée. L'utilisateur est retourné en attente.");
        } catch (e) {
            console.error(e);
            toast('error', "Erreur lors du déliage.");
