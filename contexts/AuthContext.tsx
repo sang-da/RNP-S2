@@ -32,35 +32,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // SEUL AHME EST ROOT PAR DÉFAUT
+  const ROOT_ADMIN_EMAIL = 'ahme.sang@gmail.com';
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
       if (user) {
           setCurrentUser(user);
           
-          // --- SÉCURITÉ ADMIN ---
-          // Normalisation de l'email pour éviter les soucis de casse ou d'espaces
           const email = user.email?.toLowerCase().trim() || '';
-          const isHardcodedAdmin = email === 'ahme.sang@gmail.com'; 
-
+          const isRoot = email === ROOT_ADMIN_EMAIL;
           const userRef = doc(db, 'users', user.uid);
           
           try {
             const userSnap = await getDoc(userRef);
             
             if (userSnap.exists()) {
-                // L'utilisateur existe déjà
+                // --- UTILISATEUR EXISTANT ---
                 const data = userSnap.data();
                 
-                // FORCE ADMIN LOCALEMENT SI C'EST TOI
-                // On n'attend pas la réponse de la DB pour mettre à jour l'UI
-                const finalRole = isHardcodedAdmin ? 'admin' : data.role;
-
-                if (isHardcodedAdmin && data.role !== 'admin') {
-                    // On tente la mise à jour en arrière-plan (Fire & Forget)
-                    updateDoc(userRef, { role: 'admin' }).catch(err => 
-                        console.warn("La mise à jour Admin en DB a échoué (Probablement Permissions):", err)
-                    );
+                // Sécurité : Si c'est Ahme et qu'il n'est pas noté admin dans la DB, on force la mise à jour
+                if (isRoot && data.role !== 'admin') {
+                    updateDoc(userRef, { role: 'admin' }).catch(console.error);
                 }
 
                 setUserData({
@@ -68,42 +62,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     email: user.email,
                     displayName: data.displayName || user.displayName,
                     photoURL: data.photoURL || user.photoURL,
-                    role: finalRole, 
+                    role: isRoot ? 'admin' : data.role, 
                     agencyId: data.agencyId
                 });
             } else {
-                // NOUVEL UTILISATEUR
-                console.log("Nouvel utilisateur détecté, création du profil...");
+                // --- NOUVEL UTILISATEUR (INSCRIPTION) ---
+                console.log("Création du profil utilisateur...");
                 
                 const newUserData: UserData = {
                     uid: user.uid,
                     email: user.email,
                     displayName: user.displayName || user.email?.split('@')[0] || 'Étudiant',
                     photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-                    role: isHardcodedAdmin ? 'admin' : 'pending',
+                    role: isRoot ? 'admin' : 'pending', // Tout le monde est 'pending' sauf Ahme
                     agencyId: undefined
                 };
 
-                // On met à jour l'état local IMMÉDIATEMENT avant d'essayer d'écrire
-                setUserData(newUserData);
-
+                // On écrit dans la DB. Grâce aux nouvelles règles, l'utilisateur a le droit d'écrire SA PROPRE fiche.
                 await setDoc(userRef, {
                     ...newUserData,
                     createdAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
                 });
+
+                setUserData(newUserData);
             }
           } catch (err) {
-            console.error("Erreur critique AuthContext (Probablement Firestore Rules):", err);
-            
-            // --- FALLBACK DE SECURITÉ ---
-            // Si Firestore plante complètement (Règles bloquantes), on te laisse passer quand même.
+            console.error("Erreur AuthContext:", err);
+            // Fallback UI si la DB plante, mais on garde le role par défaut
             setUserData({
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName,
                 photoURL: user.photoURL,
-                role: isHardcodedAdmin ? 'admin' : 'pending' 
+                role: isRoot ? 'admin' : 'pending' 
             });
           }
       } else {

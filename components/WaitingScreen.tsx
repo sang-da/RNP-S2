@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Loader2, ShieldCheck, LogOut, HelpCircle, RefreshCw } from 'lucide-react';
+import { Loader2, ShieldCheck, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -8,22 +8,21 @@ import { doc, onSnapshot } from 'firebase/firestore';
 export const WaitingScreen: React.FC = () => {
     const { userData } = useAuth();
 
-    // LISTEN TO ROLE CHANGE IN REAL-TIME
+    // Écoute en temps réel si le rôle change (ex: Admin valide le compte)
     useEffect(() => {
         if (!userData?.uid) return;
         
-        // On écoute les changements, mais on gère les erreurs de permission silencieusement
-        // car AuthContext gère déjà le fallback admin
         try {
             const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
-                    if (data.role !== 'pending' && data.role !== userData.role) {
+                    // Si on n'est plus 'pending', on recharche pour entrer dans l'app
+                    if (data.role !== 'pending') {
                         window.location.reload(); 
                     }
                 }
             }, (error) => {
-                console.log("WaitingScreen: Impossible d'écouter le profil (Permissions?)", error);
+                console.log("Attente validation...", error);
             });
             return () => unsub();
         } catch (e) {
@@ -52,25 +51,17 @@ export const WaitingScreen: React.FC = () => {
                 <ul className="space-y-3 text-sm text-slate-600">
                     <li className="flex gap-3">
                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">1</div>
-                        L'administrateur a été notifié de votre arrivée.
+                        L'enseignant a été notifié de votre arrivée.
                     </li>
                     <li className="flex gap-3">
                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">2</div>
-                        Il va vous assigner à votre Agence et transformer votre profil "invité" en profil étudiant officiel.
+                        Il va vous assigner à votre Agence et valider votre profil étudiant.
                     </li>
                     <li className="flex gap-3">
                         <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">3</div>
-                        Cette page s'actualisera automatiquement dès que votre rôle sera validé.
+                        Cette page s'actualisera automatiquement dès validation.
                     </li>
                 </ul>
-                
-                <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-400 space-y-1">
-                    <div className="flex items-center gap-2">
-                        <HelpCircle size={14} />
-                        <span>Compte : <strong className="text-slate-600">{userData?.email}</strong></span>
-                    </div>
-                    <div className="pl-6 font-mono text-[10px] opacity-50">UID: {userData?.uid}</div>
-                </div>
             </div>
 
             <div className="flex gap-4">
