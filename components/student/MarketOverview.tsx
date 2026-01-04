@@ -3,6 +3,7 @@ import React from 'react';
 import { Agency } from '../../types';
 import { TrendingUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { MASCOTS } from '../../constants';
 
 interface MarketOverviewProps {
   agency: Agency;
@@ -25,11 +26,24 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   // Leaderboard logic
   const leaderboard = [...allAgencies].sort((a, b) => b.ve_current - a.ve_current);
 
+  // Mascotte Logic based on VE
+  const getMascot = () => {
+      if (agency.ve_current >= 60) return MASCOTS.MARKET_RICH;
+      if (agency.ve_current <= 30) return MASCOTS.MARKET_POOR;
+      return MASCOTS.MARKET_STABLE;
+  };
+
   return (
     <div className="animate-in fade-in zoom-in duration-500 h-full w-full">
         {/* The Graph Card */}
         <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-8 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+            
+            {/* MASCOTTE DECORATION */}
+            <div className="absolute -right-4 -bottom-6 md:-right-6 md:-bottom-8 w-32 md:w-48 z-10 pointer-events-none opacity-90 transition-all duration-500">
+                <img src={getMascot()} alt="Agency Status Mascot" className="drop-shadow-2xl"/>
+            </div>
+
+            <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0 z-20">
                 <h3 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
                     <TrendingUp className="text-yellow-500" size={20} /> <span className="hidden xs:inline">Market Overview</span><span className="xs:hidden">Marché</span>
                 </h3>
@@ -45,7 +59,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
             </div>
             
             {/* Responsive Height: Smaller on mobile to fit Landing Page */}
-            <div className="h-[260px] xs:h-[300px] md:h-[400px] w-full shrink-0">
+            <div className="h-[260px] xs:h-[300px] md:h-[400px] w-full shrink-0 z-20">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />

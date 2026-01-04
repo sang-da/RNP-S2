@@ -1,5 +1,7 @@
+
 import React from 'react';
 import { LayoutDashboard, LogOut, Moon, Sun, Menu } from 'lucide-react';
+import { MASCOTS } from '../constants';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,8 +17,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, role, switchRole }) =>
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-md shadow-yellow-400/20">
-                     <div className="w-4 h-4 bg-white rounded-full border-2 border-slate-100"></div>
+                {/* LOGO IMAGE REPLACEMENT */}
+                <div className="w-10 h-10 flex items-center justify-center">
+                     <img src={MASCOTS.LOGO} alt="RNP Logo" className="w-full h-full object-contain" />
                 </div>
                 <h1 className="text-xl font-display font-bold tracking-tight text-slate-900 leading-none">
                   RNP<span className="text-slate-400">Manager</span>

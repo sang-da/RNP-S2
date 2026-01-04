@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Agency, Student, MercatoRequest } from '../../types';
 import { Briefcase, UserPlus, UserMinus, FileText, Upload, Clock, UserX, Coins, FileSearch, Loader2 } from 'lucide-react';
 import { Modal } from '../Modal';
-import { GAME_RULES } from '../../constants';
+import { GAME_RULES, MASCOTS } from '../../constants';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
@@ -323,13 +323,19 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             </div>
             
             {myClassUnemployed.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400">
+                <div className="relative text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 overflow-hidden">
+                    {/* MASCOTTE EMPTY STATE */}
+                    <img src={MASCOTS.MERCATO_SEARCH} className="w-24 absolute right-4 bottom-0 opacity-40 grayscale" />
+
                     <Briefcase size={32} className="mx-auto mb-2 opacity-50"/>
                     <p className="font-bold text-sm">Aucun candidat disponible.</p>
                     <p className="text-xs">Le marché de la Classe {agency.classId} est vide.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                    {/* Decoration */}
+                    <img src={MASCOTS.MERCATO_SEARCH} className="w-24 absolute -right-6 -top-16 opacity-100 z-10 drop-shadow-lg hidden md:block" />
+
                     {myClassUnemployed.map(student => {
                         const isPending = agency.mercatoRequests.some(r => r.type === 'HIRE' && r.studentId === student.id && r.status === 'PENDING');
                         const salaryCost = student.individualScore * GAME_RULES.SALARY_MULTIPLIER;

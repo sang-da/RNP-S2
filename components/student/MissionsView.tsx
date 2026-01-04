@@ -6,6 +6,7 @@ import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
+import { MASCOTS } from '../../constants';
 
 interface MissionsViewProps {
   agency: Agency;
@@ -163,12 +164,15 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         />
         
         {/* Cycle Info */}
-        <div className="bg-indigo-900 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-indigo-900/20">
-            <div>
+        <div className="bg-indigo-900 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg shadow-indigo-900/20 relative overflow-hidden">
+            {/* MASCOTTE CREATIVE */}
+            <img src={MASCOTS.LOGO} className="absolute -right-4 -bottom-8 w-32 opacity-20 rotate-12" />
+
+            <div className="relative z-10">
                 <span className="text-indigo-300 text-xs font-bold uppercase tracking-widest">Cycle Actuel</span>
                 <h3 className="font-display font-bold text-xl">{agency.currentCycle}</h3>
             </div>
-            <div className="text-right text-xs text-indigo-200">
+            <div className="text-right text-xs text-indigo-200 relative z-10">
                 {visibleWeeks.length} semaines
             </div>
         </div>

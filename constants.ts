@@ -1,6 +1,26 @@
 
 import { Agency, CycleType, WeekModule, GameEvent, Student } from './types';
 
+// --- ASSETS / MASCOTTES ---
+// Base URL pointing to the main branch to ensure we get the renamed files
+const ASSET_BASE = "https://raw.githubusercontent.com/sang-da/svg/main";
+
+export const MASCOTS = {
+    // Landing Page
+    LANDING_HERO: `${ASSET_BASE}/PiXi_Cloud.png`,
+    
+    // Market Overview (Santé financière)
+    MARKET_RICH: `${ASSET_BASE}/PiXi_Extremely_Rich.png`,
+    MARKET_STABLE: `${ASSET_BASE}/Pixi_Moderately_Wealthy.png`, // Attention au P majuscule/minuscule selon ton repo, je garde tel que demandé
+    MARKET_POOR: `${ASSET_BASE}/Pixi_Struggling.png`,
+    
+    // Mercato
+    MERCATO_SEARCH: `${ASSET_BASE}/PiXi_Searching.png`,
+    
+    // Global Utility (Logo, Favicon, Soumission)
+    LOGO: `${ASSET_BASE}/PiXi_2.png`, 
+};
+
 // --- GAME RULES / BALANCING ---
 export const GAME_RULES = {
     // REVENUS

@@ -5,7 +5,7 @@ import { useGame } from '../contexts/GameContext';
 import { LoginPage } from './LoginPage';
 import { LogIn, Loader2 } from 'lucide-react';
 import { Modal } from './Modal';
-import { MOCK_AGENCIES } from '../constants';
+import { MOCK_AGENCIES, MASCOTS } from '../constants';
 
 export const LandingPage: React.FC = () => {
     const { agencies } = useGame();
@@ -23,7 +23,8 @@ export const LandingPage: React.FC = () => {
     }));
 
     return (
-        <div className="h-[100dvh] w-full bg-slate-50 flex flex-col overflow-hidden font-sans">
+        <div className="h-[100dvh] w-full bg-slate-50 flex flex-col overflow-hidden font-sans relative">
+            
             {/* 1. HEADER SIMPLE */}
             <header className="px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 z-10 shrink-0">
                 <div>
@@ -40,7 +41,13 @@ export const LandingPage: React.FC = () => {
 
             {/* 2. MAIN VISUAL (CHART) */}
             <div className="flex-1 w-full relative flex flex-col justify-center items-center min-h-0 overflow-y-auto p-4">
-                 <div className="w-full max-w-2xl opacity-90 pointer-events-none">
+                 
+                 {/* MASCOTTE HERO */}
+                 <div className="absolute top-10 left-10 md:left-20 z-0 opacity-10 md:opacity-100 pointer-events-none transition-opacity">
+                     <img src={MASCOTS.LANDING_HERO} className="w-32 md:w-48 animate-bounce-slow" />
+                 </div>
+
+                 <div className="w-full max-w-2xl opacity-90 pointer-events-none relative z-10">
                     <MarketOverview agency={startAgencies[0]} allAgencies={startAgencies} />
                  </div>
             </div>
