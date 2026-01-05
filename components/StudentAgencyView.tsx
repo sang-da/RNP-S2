@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Agency, BrandColor } from '../types';
 import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, TrendingDown, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, AlertCircle } from 'lucide-react';
@@ -13,6 +14,7 @@ import { GAME_RULES, BADGE_DEFINITIONS } from '../constants';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StudentViewProps {
   agency: Agency;
@@ -34,6 +36,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string, border: strin
 
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -48,10 +51,13 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
   // Calculs Financiers
   const rawSalary = agency.members.reduce((acc, member) => acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
-  const weeklyCharges = rawSalary * (1 + (agency.weeklyTax || 0));
+  const weeklyCharges = rawSalary * (1 + (agency.weeklyTax || 0)) + GAME_RULES.AGENCY_RENT;
   const veRevenue = agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER;
   const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
   const netWeekly = weeklyRevenue - weeklyCharges;
+
+  // Personal Wallet Access
+  const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
 
   // --- HANDLERS ---
   const handleColorChange = (color: BrandColor) => {
@@ -139,7 +145,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
                              <span className="text-red-400">- {weeklyCharges.toFixed(0)}</span>
                         </div>
-                        <p className="text-[10px] text-slate-400">Salaires + Taxes</p>
+                        <p className="text-[10px] text-slate-400">Rent ({GAME_RULES.AGENCY_RENT}) + Salaires</p>
                     </div>
 
                     {/* REVENUES */}
@@ -150,6 +156,17 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         </div>
                         <p className="text-[10px] text-slate-400">Base + VE + Bonus</p>
                     </div>
+                    
+                    {/* PERSONAL WALLET */}
+                    {myMemberProfile && (
+                        <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
+                            <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1">Mon Portefeuille</span>
+                            <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
+                                <Wallet size={16} className="text-yellow-400"/>
+                                <span className="text-yellow-400">{myMemberProfile.wallet || 0}</span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* NET & VE */}
                     <div className="flex items-center justify-between md:justify-start gap-6 pl-2">

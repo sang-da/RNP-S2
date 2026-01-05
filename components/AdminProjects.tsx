@@ -6,9 +6,10 @@ import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List } from 'lucide-rea
 interface AdminProjectsProps {
   agencies: Agency[];
   onUpdateAgency: (agency: Agency) => void;
+  readOnly?: boolean;
 }
 
-export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdateAgency }) => {
+export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdateAgency, readOnly }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ problem: '', target: '', location: '', gesture: '' });
 
@@ -122,7 +123,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                 <p className="text-xs text-slate-400">{agency.members.length} membres</p>
                             </div>
                         </div>
-                        {editingId !== agency.id && (
+                        {editingId !== agency.id && !readOnly && (
                              <button onClick={() => startEditing(agency)} className="text-indigo-600 p-2 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
                                 <PenTool size={14} /> Éditer
                             </button>

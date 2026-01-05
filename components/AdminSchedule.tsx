@@ -6,9 +6,10 @@ import { Calendar, CheckSquare, GraduationCap, Target, Clock, Edit2, Save, X } f
 interface AdminScheduleProps {
     weeksData: { [key: string]: WeekModule };
     onUpdateWeek: (weekId: string, updatedWeek: WeekModule) => void;
+    readOnly?: boolean;
 }
 
-export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdateWeek }) => {
+export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdateWeek, readOnly }) => {
   const weeks: WeekModule[] = Object.values(weeksData);
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   
@@ -96,12 +97,14 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                              </div>
                              
                              {editingWeekId !== week.id ? (
+                                 !readOnly && (
                                  <button 
                                     onClick={() => startEditing(week)}
                                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors self-start md:self-auto"
                                  >
                                      <Edit2 size={16}/> Gérer Planning
                                  </button>
+                                 )
                              ) : (
                                 <div className="flex gap-2 self-start md:self-auto">
                                     <button onClick={() => setEditingWeekId(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={20}/></button>

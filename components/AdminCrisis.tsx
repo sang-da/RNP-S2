@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo } from 'react';
-import { Agency, CrisisPreset, GameEvent, CycleAwardDefinition } from '../types';
-import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent, Ruler, Crown, Compass, Mic, Eye, Info } from 'lucide-react';
+import { Agency, CrisisPreset, GameEvent, CycleAwardDefinition, Student } from '../types';
+import { Flame, TrendingDown, Ban, Wallet, Target, Send, ShieldAlert, AlertTriangle, AlertOctagon, Banknote, Megaphone, Wrench, HardDrive, Gift, Trophy, Star, HeartHandshake, Percent, Ruler, Crown, Compass, Mic, Eye, Info, User, ArrowRightLeft, PlusCircle } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { CYCLE_AWARDS } from '../constants';
 
@@ -28,11 +29,32 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
   const [customImpactVE, setCustomImpactVE] = useState(0);
   const [customImpactBudget, setCustomImpactBudget] = useState(0);
 
+  // New Actions Panel State
+  const [rightPanelMode, setRightPanelMode] = useState<'SUMMARY' | 'INJECTION' | 'TRANSFER' | 'INDIVIDUAL'>('SUMMARY');
+  
+  // States for Specific Actions
+  const [injectionAmount, setInjectionAmount] = useState(0);
+  const [transferSourceId, setTransferSourceId] = useState('');
+  const [transferTargetId, setTransferTargetId] = useState('');
+  const [transferAmount, setTransferAmount] = useState(0);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [individualBonusScore, setIndividualBonusScore] = useState(0);
+  const [individualBonusWallet, setIndividualBonusWallet] = useState(0);
+
   // Ceremony State
   const [selectedAward, setSelectedAward] = useState<CycleAwardDefinition | null>(null);
   const [awardWinnerId, setAwardWinnerId] = useState<string>('');
 
   const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
+  
+  // Flatten students for Individual tools
+  const allStudents = useMemo(() => {
+      const list: {student: Student, agencyName: string}[] = [];
+      agencies.forEach(a => {
+          a.members.forEach(m => list.push({student: m, agencyName: a.name}));
+      });
+      return list.sort((a,b) => a.student.name.localeCompare(b.student.name));
+  }, [agencies]);
 
   // --- CATALOGUE DES ÉVÉNEMENTS ---
   const PRESETS: ExtendedPreset[] = [
@@ -143,7 +165,9 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
       return PRESETS.filter(p => p.category === activeTab);
   }, [activeTab]);
 
-  const handleApply = async () => {
+  // --- ACTIONS LOGIC ---
+
+  const handleApplyPreset = async () => {
       // Determine Payload
       const title = selectedPreset ? selectedPreset.label : customTitle;
       const desc = selectedPreset ? selectedPreset.description : customDesc;
@@ -222,6 +246,126 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
       
       toast('success', activeTab === 'CRISIS' ? "Crise déclenchée." : "Récompense envoyée.");
       setSelectedPreset(null);
+  };
+
+  const handleInjection = async () => {
+      if (injectionAmount === 0) return;
+      if (selectedTarget === 'ALL' || selectedTarget === 'CLASS_A' || selectedTarget === 'CLASS_B') {
+          toast('warning', 'Veuillez sélectionner une agence spécifique pour l\'injection.');
+          return;
+      }
+      const agency = agencies.find(a => a.id === selectedTarget);
+      if (!agency) return;
+
+      const confirmed = await confirm({
+          title: "Injection de Fonds",
+          message: `Verser ${injectionAmount} PiXi à l'agence "${agency.name}" ?`,
+          confirmText: "Injecter"
+      });
+      if (!confirmed) return;
+
+      const newEvent: GameEvent = {
+          id: `inj-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'REVENUE',
+          label: 'Injection de Fonds (Admin)',
+          deltaBudgetReal: injectionAmount,
+          description: "Subvention exceptionnelle ou prêt administratif."
+      };
+
+      onUpdateAgency({
+          ...agency,
+          budget_real: agency.budget_real + injectionAmount,
+          eventLog: [...agency.eventLog, newEvent]
+      });
+      toast('success', 'Fonds injectés.');
+      setInjectionAmount(0);
+      setRightPanelMode('SUMMARY');
+  };
+
+  const handleTransfer = async () => {
+      if (!transferSourceId || !transferTargetId || transferAmount <= 0) return;
+      const source = agencies.find(a => a.id === transferSourceId);
+      const target = agencies.find(a => a.id === transferTargetId);
+      if (!source || !target) return;
+
+      const confirmed = await confirm({
+          title: "Transfert de Fonds",
+          message: `Transférer ${transferAmount} PiXi de "${source.name}" vers "${target.name}" ?\n\n(Exemple: Investissement ou Rachat)`,
+          confirmText: "Transférer"
+      });
+      if (!confirmed) return;
+
+      // Update Source
+      const eventSource: GameEvent = {
+          id: `tr-out-${Date.now()}`, date: new Date().toISOString().split('T')[0],
+          type: 'BUDGET_DELTA', label: `Transfert vers ${target.name}`,
+          deltaBudgetReal: -transferAmount, description: "Investissement ou soutien."
+      };
+      onUpdateAgency({ ...source, budget_real: source.budget_real - transferAmount, eventLog: [...source.eventLog, eventSource] });
+
+      // Update Target
+      const eventTarget: GameEvent = {
+          id: `tr-in-${Date.now()}`, date: new Date().toISOString().split('T')[0],
+          type: 'REVENUE', label: `Reçu de ${source.name}`,
+          deltaBudgetReal: transferAmount, description: "Fonds reçus."
+      };
+      // Important: Fetch fresh target state if possible, but here using memory ref should be ok if updateAgency handles it
+      // Actually we must update target based on current memory
+      // Since updateAgency updates Firestore, we should trigger it for target too.
+      // But wait, updateAgency only accepts one arg.
+      // We can call it sequentially.
+      
+      // HACK: Small delay to ensure DB writes don't overlap too much if async issues (rare with Firestore batching usually)
+      setTimeout(() => {
+          onUpdateAgency({ ...target, budget_real: target.budget_real + transferAmount, eventLog: [...target.eventLog, eventTarget] });
+      }, 100);
+
+      toast('success', 'Transfert effectué.');
+      setRightPanelMode('SUMMARY');
+  };
+
+  const handleIndividualAward = async () => {
+      if (!selectedStudentId) return;
+      // Find student and agency
+      let foundAgency: Agency | undefined;
+      let foundStudent: Student | undefined;
+      
+      agencies.forEach(a => {
+          const s = a.members.find(m => m.id === selectedStudentId);
+          if (s) { foundAgency = a; foundStudent = s; }
+      });
+
+      if (!foundAgency || !foundStudent) return;
+
+      const confirmed = await confirm({
+          title: "Récompense Individuelle",
+          message: `Récompenser ${foundStudent.name} ?\n\nScore: +${individualBonusScore}\nWallet: +${individualBonusWallet} PiXi`,
+          confirmText: "Appliquer"
+      });
+      if (!confirmed) return;
+
+      const updatedMembers = foundAgency.members.map(m => 
+          m.id === foundStudent!.id 
+          ? { ...m, individualScore: Math.min(100, m.individualScore + individualBonusScore), wallet: (m.wallet || 0) + individualBonusWallet } 
+          : m
+      );
+
+      // Add Log to Agency (so it's visible)
+      const newEvent: GameEvent = {
+          id: `ind-award-${Date.now()}`, date: new Date().toISOString().split('T')[0],
+          type: 'INFO', label: `🏆 Récompense : ${foundStudent.name}`,
+          description: `Bonus individuel accordé (+${individualBonusScore} Score, +${individualBonusWallet} Wallet).`
+      };
+
+      onUpdateAgency({
+          ...foundAgency,
+          members: updatedMembers,
+          eventLog: [...foundAgency.eventLog, newEvent]
+      });
+
+      toast('success', 'Récompense appliquée.');
+      setRightPanelMode('SUMMARY');
   };
 
   const handleAwardGrandPrix = async () => {
@@ -382,7 +526,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                 </div>
             </div>
         ) : (
-            /* EXISTING CRISIS/REWARD UI */
+            /* CRISIS/REWARD + ACTIONS UI */
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* LEFT: CONFIGURATION */}
                 <div className="xl:col-span-2 space-y-8">
@@ -435,7 +579,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                             {filteredPresets.map((preset, idx) => (
                                 <div 
                                     key={idx}
-                                    onClick={() => { setSelectedPreset(preset); setCustomTitle(''); }}
+                                    onClick={() => { setSelectedPreset(preset); setCustomTitle(''); setRightPanelMode('SUMMARY'); }}
                                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden group ${
                                         selectedPreset === preset 
                                         ? (activeTab === 'CRISIS' ? 'border-red-500 bg-red-50 shadow-md scale-[1.02]' : 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.02]')
@@ -474,7 +618,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                                                 ? 'bg-amber-100 text-amber-700 border-amber-200' 
                                                 : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                             }`}>
-                                                {preset.isPercentage ? `+${preset.deltaBudget * 100}% Charges` : `${preset.deltaBudget > 0 ? '+' : ''}${preset.deltaBudget} PiXi`}
+                                                {preset.isPercentage ? `+${(preset.deltaBudget * 100)}% Charges` : `${preset.deltaBudget > 0 ? '+' : ''}${preset.deltaBudget} PiXi`}
                                             </span>
                                         )}
                                     </div>
@@ -492,7 +636,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                                     type="text" 
                                     placeholder="Titre de l'événement..."
                                     value={customTitle}
-                                    onChange={e => { setCustomTitle(e.target.value); setSelectedPreset(null); }}
+                                    onChange={e => { setCustomTitle(e.target.value); setSelectedPreset(null); setRightPanelMode('SUMMARY'); }}
                                     className="w-full p-3 border border-slate-300 rounded-xl font-bold bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                                 <textarea 
@@ -517,59 +661,179 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
 
                 </div>
 
-                {/* RIGHT: SUMMARY & ACTION */}
+                {/* RIGHT: SUMMARY & ACTIONS PANEL */}
                 <div className="xl:col-span-1">
-                    <div className={`p-6 rounded-3xl sticky top-24 shadow-2xl transition-colors ${
-                        activeTab === 'CRISIS' ? 'bg-slate-900 text-white shadow-slate-900/20' : 'bg-emerald-900 text-white shadow-emerald-900/20'
-                    }`}>
-                        <h3 className="font-display font-bold text-2xl mb-6">Récapitulatif</h3>
-                        
-                        <div className="space-y-4 mb-8">
-                            <div>
-                                <span className="text-xs font-bold text-slate-400 uppercase">Cible</span>
-                                <div className={`text-lg font-bold ${activeTab === 'CRISIS' ? 'text-indigo-400' : 'text-emerald-300'}`}>
-                                    {selectedTarget === 'ALL' ? 'Toutes les Agences' : selectedTarget === 'CLASS_A' ? 'Classe A' : selectedTarget === 'CLASS_B' ? 'Classe B' : 'Une seule agence'}
-                                </div>
-                            </div>
-                            <div>
-                                <span className="text-xs font-bold text-slate-400 uppercase">Événement</span>
-                                <div className="text-lg font-bold text-white leading-tight">
-                                    {selectedPreset ? selectedPreset.label : customTitle || '...'}
-                                </div>
-                            </div>
-                            <div className="flex gap-4 pt-4 border-t border-white/10">
-                                <div>
-                                    <span className="text-xs font-bold text-slate-400 uppercase">VE</span>
-                                    <div className={`text-2xl font-bold ${(selectedPreset?.deltaVE || customImpactVE) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                        {(selectedPreset?.deltaVE || customImpactVE) > 0 ? '+' : ''}{selectedPreset?.deltaVE || customImpactVE}
-                                    </div>
-                                </div>
-                                <div>
-                                    <span className="text-xs font-bold text-slate-400 uppercase">Impact</span>
-                                    <div className={`text-xl font-bold ${
-                                        (selectedPreset?.category === 'CRISIS' || customImpactBudget < 0) ? 'text-red-400' : 'text-emerald-400'
-                                    }`}>
-                                        {selectedPreset?.isPercentage 
-                                        ? `+${(selectedPreset.deltaBudget * 100)}% Charges` 
-                                        : `${(selectedPreset?.deltaBudget || customImpactBudget) > 0 ? '+' : ''}${selectedPreset?.deltaBudget || customImpactBudget} PiXi`
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button 
-                            onClick={handleApply}
-                            className={`w-full py-4 font-bold rounded-xl flex items-center justify-center gap-3 transition-colors shadow-lg ${
-                                activeTab === 'CRISIS' 
-                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/30' 
-                                : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/30'
-                            }`}
-                        >
-                            <Send size={20}/>
-                            {activeTab === 'CRISIS' ? 'DÉCLENCHER LA CRISE' : 'ENVOYER LA RÉCOMPENSE'}
+                    
+                    {/* NEW ACTION BUTTONS ROW */}
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                        <button onClick={() => setRightPanelMode('INJECTION')} className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 font-bold text-[10px] uppercase transition-all ${rightPanelMode === 'INJECTION' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:border-indigo-300'}`}>
+                            <PlusCircle size={20}/> Injection
                         </button>
-                        <p className="text-center text-xs text-slate-400 mt-3 opacity-60">Action irréversible. Sera inscrit dans l'historique.</p>
+                        <button onClick={() => setRightPanelMode('TRANSFER')} className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 font-bold text-[10px] uppercase transition-all ${rightPanelMode === 'TRANSFER' ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:border-purple-300'}`}>
+                            <ArrowRightLeft size={20}/> Transfert
+                        </button>
+                        <button onClick={() => setRightPanelMode('INDIVIDUAL')} className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 font-bold text-[10px] uppercase transition-all ${rightPanelMode === 'INDIVIDUAL' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-500 border hover:border-amber-300'}`}>
+                            <User size={20}/> Individuel
+                        </button>
+                    </div>
+
+                    <div className={`p-6 rounded-3xl sticky top-24 shadow-2xl transition-colors ${
+                        activeTab === 'CRISIS' && rightPanelMode === 'SUMMARY' ? 'bg-slate-900 text-white shadow-slate-900/20' : 
+                        rightPanelMode === 'SUMMARY' ? 'bg-emerald-900 text-white shadow-emerald-900/20' :
+                        'bg-white text-slate-900 border border-slate-200 shadow-sm'
+                    }`}>
+                        
+                        {/* --- MODE SUMMARY (Default) --- */}
+                        {rightPanelMode === 'SUMMARY' && (
+                            <>
+                                <h3 className="font-display font-bold text-2xl mb-6">Récapitulatif</h3>
+                                
+                                <div className="space-y-4 mb-8">
+                                    <div>
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Cible</span>
+                                        <div className={`text-lg font-bold ${activeTab === 'CRISIS' ? 'text-indigo-400' : 'text-emerald-300'}`}>
+                                            {selectedTarget === 'ALL' ? 'Toutes les Agences' : selectedTarget === 'CLASS_A' ? 'Classe A' : selectedTarget === 'CLASS_B' ? 'Classe B' : 'Une seule agence'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Événement</span>
+                                        <div className="text-lg font-bold text-white leading-tight">
+                                            {selectedPreset ? selectedPreset.label : customTitle || '...'}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4 pt-4 border-t border-white/10">
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-400 uppercase">VE</span>
+                                            <div className={`text-2xl font-bold ${(selectedPreset?.deltaVE || customImpactVE) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                {(selectedPreset?.deltaVE || customImpactVE) > 0 ? '+' : ''}{selectedPreset?.deltaVE || customImpactVE}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-400 uppercase">Impact</span>
+                                            <div className={`text-xl font-bold ${
+                                                (selectedPreset?.category === 'CRISIS' || customImpactBudget < 0) ? 'text-red-400' : 'text-emerald-400'
+                                            }`}>
+                                                {selectedPreset?.isPercentage 
+                                                ? `+${(selectedPreset.deltaBudget * 100)}% Charges` 
+                                                : `${(selectedPreset?.deltaBudget || customImpactBudget) > 0 ? '+' : ''}${selectedPreset?.deltaBudget || customImpactBudget} PiXi`
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={handleApplyPreset}
+                                    className={`w-full py-4 font-bold rounded-xl flex items-center justify-center gap-3 transition-colors shadow-lg ${
+                                        activeTab === 'CRISIS' 
+                                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/30' 
+                                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/30'
+                                    }`}
+                                >
+                                    <Send size={20}/>
+                                    {activeTab === 'CRISIS' ? 'DÉCLENCHER LA CRISE' : 'ENVOYER LA RÉCOMPENSE'}
+                                </button>
+                                <p className="text-center text-xs text-slate-400 mt-3 opacity-60">Action irréversible. Sera inscrit dans l'historique.</p>
+                            </>
+                        )}
+
+                        {/* --- MODE INJECTION --- */}
+                        {rightPanelMode === 'INJECTION' && (
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-lg text-indigo-700 flex items-center gap-2 mb-4">
+                                    <PlusCircle size={20}/> Injection de Fonds
+                                </h3>
+                                <p className="text-xs text-slate-500 mb-2">Ajoutez du cash directement dans la trésorerie de l'agence sélectionnée à gauche.</p>
+                                
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Agence Cible</span>
+                                    <div className="font-bold text-slate-900">
+                                        {selectedTarget === 'ALL' || selectedTarget.startsWith('CLASS') ? <span className="text-red-500">Sélectionnez une agence unique à gauche</span> : agencies.find(a => a.id === selectedTarget)?.name}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Montant (PiXi)</label>
+                                    <input type="number" value={injectionAmount} onChange={e => setInjectionAmount(Number(e.target.value))} className="w-full p-3 border-2 border-indigo-100 rounded-xl font-bold text-xl text-indigo-600 focus:outline-none focus:border-indigo-500" placeholder="0"/>
+                                </div>
+
+                                <button onClick={handleInjection} disabled={injectionAmount <= 0} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                                    <Wallet size={18}/> Verser les Fonds
+                                </button>
+                                <button onClick={() => setRightPanelMode('SUMMARY')} className="w-full py-2 text-slate-400 hover:text-slate-600 text-xs font-bold">Annuler</button>
+                            </div>
+                        )}
+
+                        {/* --- MODE TRANSFER --- */}
+                        {rightPanelMode === 'TRANSFER' && (
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-lg text-purple-700 flex items-center gap-2 mb-4">
+                                    <ArrowRightLeft size={20}/> Transfert Inter-Agences
+                                </h3>
+                                
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Source (Débiteur)</label>
+                                    <select value={transferSourceId} onChange={e => setTransferSourceId(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700">
+                                        <option value="">-- Choisir --</option>
+                                        {activeAgencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Cible (Bénéficiaire)</label>
+                                    <select value={transferTargetId} onChange={e => setTransferTargetId(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700">
+                                        <option value="">-- Choisir --</option>
+                                        {activeAgencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Montant (PiXi)</label>
+                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(Number(e.target.value))} className="w-full p-3 border-2 border-purple-100 rounded-xl font-bold text-xl text-purple-600 focus:outline-none focus:border-purple-500"/>
+                                </div>
+
+                                <button onClick={handleTransfer} disabled={!transferSourceId || !transferTargetId || transferAmount <= 0} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                                    <ArrowRightLeft size={18}/> Exécuter le Virement
+                                </button>
+                                <button onClick={() => setRightPanelMode('SUMMARY')} className="w-full py-2 text-slate-400 hover:text-slate-600 text-xs font-bold">Annuler</button>
+                            </div>
+                        )}
+
+                        {/* --- MODE INDIVIDUAL --- */}
+                        {rightPanelMode === 'INDIVIDUAL' && (
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-lg text-amber-600 flex items-center gap-2 mb-4">
+                                    <User size={20}/> Action Individuelle
+                                </h3>
+                                
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Étudiant</label>
+                                    <select value={selectedStudentId} onChange={e => setSelectedStudentId(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700">
+                                        <option value="">-- Choisir un élève --</option>
+                                        {allStudents.map(item => (
+                                            <option key={item.student.id} value={item.student.id}>{item.student.name} ({item.agencyName})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Bonus Score</label>
+                                        <input type="number" value={individualBonusScore} onChange={e => setIndividualBonusScore(Number(e.target.value))} className="w-full p-2 border border-slate-200 rounded-lg text-sm"/>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Bonus Wallet</label>
+                                        <input type="number" value={individualBonusWallet} onChange={e => setIndividualBonusWallet(Number(e.target.value))} className="w-full p-2 border border-slate-200 rounded-lg text-sm"/>
+                                    </div>
+                                </div>
+
+                                <button onClick={handleIndividualAward} disabled={!selectedStudentId} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                                    <Gift size={18}/> Récompenser
+                                </button>
+                                <button onClick={() => setRightPanelMode('SUMMARY')} className="w-full py-2 text-slate-400 hover:text-slate-600 text-xs font-bold">Annuler</button>
+                            </div>
+                        )}
+
                     </div>
                 </div>
             </div>

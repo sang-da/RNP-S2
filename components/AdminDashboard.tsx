@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, GameEvent, WeekModule } from '../types';
-import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Filter } from 'lucide-react';
+import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Filter, Star } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -14,6 +15,7 @@ interface AdminDashboardProps {
   onUpdateAgency: (agency: Agency) => void;
   onProcessWeek: () => void;
   onNavigate: (view: string) => void;
+  readOnly?: boolean;
 }
 
 // --- ALGORITHMES DE DÉTECTION ---
@@ -29,7 +31,7 @@ const detectAnomalies = (agency: Agency): string[] => {
     return anomalies;
 };
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onProcessWeek, onNavigate }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onProcessWeek, onNavigate, readOnly }) => {
   const { toast } = useUI();
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
@@ -121,6 +123,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         </div>
 
         {/* Actions */}
+        {!readOnly && (
         <div className="flex gap-2 w-full md:w-auto">
              <button 
                 onClick={() => onNavigate('CRISIS')}
@@ -135,6 +138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                 <Wallet size={16} /> Paye Hebdo
              </button>
         </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -189,8 +193,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                         pendingReviews.map((item) => (
                             <div 
                                 key={`${item.agency.id}-${item.deliverable.id}`}
-                                onClick={() => setGradingItem({agencyId: item.agency.id, weekId: item.weekId, deliverable: item.deliverable})}
-                                className="p-3 bg-white hover:bg-indigo-50 border border-indigo-100 hover:border-indigo-300 rounded-xl cursor-pointer transition-all group shadow-sm"
+                                onClick={() => !readOnly && setGradingItem({agencyId: item.agency.id, weekId: item.weekId, deliverable: item.deliverable})}
+                                className={`p-3 bg-white border rounded-xl transition-all shadow-sm ${readOnly ? 'cursor-default opacity-70 border-slate-100' : 'cursor-pointer hover:bg-indigo-50 border-indigo-100 hover:border-indigo-300 group'}`}
                             >
                                 <div className="flex justify-between mb-1">
                                     <span className="font-bold text-slate-700 text-xs">{item.agency.name}</span>
@@ -364,7 +368,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         </div>
       </div>
 
-      {gradingItem && (
+      {gradingItem && !readOnly && (
           <GradingModal 
             isOpen={!!gradingItem} 
             onClose={() => setGradingItem(null)}
@@ -379,16 +383,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
             agency={auditAgency} 
             onClose={() => setAuditAgency(null)} 
             onUpdateAgency={onUpdateAgency}
+            readOnly={readOnly}
           />
       )}
     </div>
   );
 };
 
-// --- SUB-COMPONENTS (AuditRHModal & GradingModal stay the same, assuming they are defined below in the original file, I'll keep them for completeness of the file update) ---
-// (Copying existing sub-components to ensure full file replacement works)
+// --- SUB-COMPONENTS ---
 
-const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgency: (a: Agency) => void}> = ({agency, onClose, onUpdateAgency}) => {
+const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgency: (a: Agency) => void, readOnly?: boolean}> = ({agency, onClose, onUpdateAgency, readOnly}) => {
     const { toast, confirm } = useUI();
 
     const handlePunish = async () => {
@@ -464,6 +468,7 @@ const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgenc
                     <button onClick={onClose} className="px-4 py-2 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
                         Fermer
                     </button>
+                    {!readOnly && (
                     <button 
                         onClick={handlePunish}
                         className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 font-bold rounded-xl hover:bg-red-100 transition-colors flex items-center gap-2"
@@ -471,6 +476,7 @@ const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgenc
                         <Flame size={18}/>
                         Sanctionner (-15 VE)
                     </button>
+                    )}
                 </div>
             </div>
         </Modal>
@@ -497,22 +503,20 @@ interface GradingModalProps {
 }
 
 const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agencies, onUpdateAgency }) => {
-    // (Existing Logic for Grading Modal)
-    // To keep file clean I am assuming previous logic stands.
-    // Re-implementing briefly for XML completeness.
     const { toast } = useUI();
     const [quality, setQuality] = useState<'A' | 'B' | 'C'>('B');
     const [daysLate, setDaysLate] = useState<number>(0);
     const [constraintBroken, setConstraintBroken] = useState<boolean>(false);
     const [feedback, setFeedback] = useState(item.deliverable.feedback || "");
+    const [mvpId, setMvpId] = useState<string>("");
 
+    const agency = agencies.find(a => a.id === item.agencyId);
     const baseScore = quality === 'A' ? 10 : quality === 'B' ? 4 : 0;
     const penaltyLate = daysLate * 5;
     const penaltyConstraint = constraintBroken ? 10 : 0;
     const totalDelta = baseScore - penaltyLate - penaltyConstraint;
 
     const handleValidate = () => {
-        const agency = agencies.find(a => a.id === item.agencyId);
         if(!agency) return;
 
         const currentWeek = agency.progress[item.weekId];
@@ -530,7 +534,8 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
                     quality,
                     daysLate,
                     constraintBroken,
-                    finalDelta: totalDelta
+                    finalDelta: totalDelta,
+                    mvpId: mvpId || undefined
                 }
               }
             : d
@@ -541,13 +546,21 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
              updatedProjectDef = { ...agency.projectDef, isLocked: false };
         }
 
+        // Apply MVP Bonus if Grade is A and MVP selected
+        let updatedMembers = agency.members;
+        if (quality === 'A' && mvpId) {
+            updatedMembers = agency.members.map(m => 
+                m.id === mvpId ? { ...m, individualScore: Math.min(100, m.individualScore + 5) } : m
+            );
+        }
+
         const newEvent: GameEvent = {
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
             type: 'VE_DELTA',
             label: isRejected ? `Rejet: ${item.deliverable.name}` : `Correction: ${item.deliverable.name}`,
             deltaVE: totalDelta,
-            description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate})`
+            description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate})${mvpId ? ' | MVP Bonus attribué' : ''}`
         };
 
         const updatedAgency = {
@@ -555,6 +568,7 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
             ve_current: Math.max(0, Math.min(100, agency.ve_current + totalDelta)),
             projectDef: updatedProjectDef,
             eventLog: [...agency.eventLog, newEvent],
+            members: updatedMembers,
             progress: {
                 ...agency.progress,
                 [item.weekId]: {
@@ -572,26 +586,65 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Correction de Livrable">
             <div className="space-y-6">
-                {/* Simplified form */}
-                <div className="p-4 bg-slate-50 rounded-xl">
-                    <h4 className="font-bold text-lg">{item.deliverable.name}</h4>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <h4 className="font-bold text-lg text-slate-800">{item.deliverable.name}</h4>
+                    {item.deliverable.fileUrl && (
+                        <a href={item.deliverable.fileUrl} target="_blank" className="text-sm text-indigo-600 font-bold hover:underline block mt-1">Voir le fichier rendu</a>
+                    )}
                 </div>
                  <div className="space-y-5">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">Qualité du rendu</label>
                         <div className="grid grid-cols-3 gap-2">
-                            <button onClick={() => setQuality('A')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm ${quality === 'A' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100'}`}>A (Excellence)</button>
-                            <button onClick={() => setQuality('B')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm ${quality === 'B' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-100'}`}>B (Standard)</button>
-                            <button onClick={() => setQuality('C')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm ${quality === 'C' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-100'}`}>C (Rejet)</button>
+                            <button onClick={() => setQuality('A')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm transition-all ${quality === 'A' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-100 hover:border-emerald-200'}`}>A (Excellence)</button>
+                            <button onClick={() => setQuality('B')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm transition-all ${quality === 'B' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-100 hover:border-amber-200'}`}>B (Standard)</button>
+                            <button onClick={() => setQuality('C')} className={`py-3 px-2 rounded-xl border-2 font-bold text-sm transition-all ${quality === 'C' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-100 hover:border-red-200'}`}>C (Rejet)</button>
                         </div>
                     </div>
-                    {/* (Other Inputs omitted for brevity but would be here as per original) */}
+                    
+                    {/* MVP SELECTION */}
+                    {quality === 'A' && agency && (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                            <label className="block text-sm font-bold text-emerald-700 mb-2 flex items-center gap-2">
+                                <Star size={16} fill="currentColor"/> Lead / MVP du Rendu (+5 Score)
+                            </label>
+                            <select 
+                                className="w-full p-2 border border-emerald-200 rounded-lg bg-emerald-50 text-emerald-900 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                                value={mvpId}
+                                onChange={e => setMvpId(e.target.value)}
+                            >
+                                <option value="">-- Sélectionner un étudiant --</option>
+                                {agency.members.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                             <label className="block text-sm font-bold text-slate-700 mb-2">Jours de Retard</label>
+                             <input type="number" min="0" value={daysLate} onChange={e => setDaysLate(parseInt(e.target.value))} className="w-full p-3 border border-slate-200 rounded-xl"/>
+                        </div>
+                        <div className="flex items-end">
+                             <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl w-full hover:bg-slate-50">
+                                 <input type="checkbox" checked={constraintBroken} onChange={e => setConstraintBroken(e.target.checked)} className="w-5 h-5 accent-red-500"/>
+                                 <span className="text-sm font-bold text-slate-700">Contrainte non respectée</span>
+                             </label>
+                        </div>
+                    </div>
                      <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">Commentaire</label>
-                        <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-white" />
+                        <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-white" placeholder="Feedback constructif..." />
                     </div>
                  </div>
-                 <button onClick={handleValidate} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold">Valider</button>
+                 
+                 <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <div className="font-bold">
+                        Impact VE: <span className={`${totalDelta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{totalDelta > 0 ? '+' : ''}{totalDelta}</span>
+                    </div>
+                    <button onClick={handleValidate} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">Valider</button>
+                 </div>
             </div>
         </Modal>
     );

@@ -7,9 +7,10 @@ import { useUI } from '../contexts/UIContext';
 
 interface AdminResourcesProps {
   agencies: Agency[];
+  readOnly?: boolean;
 }
 
-export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies }) => {
+export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies, readOnly }) => {
   const { resources, addResource, deleteResource } = useGame();
   const { confirm } = useUI();
   const [viewMode, setViewMode] = useState<'UPLOADS' | 'WIKI'>('UPLOADS');
@@ -205,6 +206,7 @@ export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies }) => {
             /* WIKI MANAGEMENT */
             <div className="space-y-6">
                 {/* ADD FORM */}
+                {!readOnly && (
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Plus size={20} className="text-cyan-600"/> Ajouter une ressource</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -240,6 +242,7 @@ export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies }) => {
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* LIST */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -266,9 +269,11 @@ export const AdminResources: React.FC<AdminResourcesProps> = ({ agencies }) => {
                                 </div>
                             </div>
                             <a href={res.url} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-cyan-600"><ExternalLink size={18}/></a>
+                            {!readOnly && (
                             <button onClick={() => handleDeleteWiki(res.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-500 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-500 hover:text-white">
                                 <Trash2 size={14}/>
                             </button>
+                            )}
                         </div>
                     ))}
                 </div>

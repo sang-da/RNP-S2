@@ -1,15 +1,17 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { Agency, Student, StudentHistoryEntry } from '../types';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, ArrowRight, UserX, Briefcase, Eye } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext'; 
+import { Modal } from './Modal';
 
 interface AdminAccessProps {
   agencies: Agency[];
   onUpdateAgencies: (agencies: Agency[]) => void;
+  readOnly?: boolean;
 }
 
 interface PendingUser {
@@ -20,12 +22,13 @@ interface PendingUser {
     role: string;
 }
 
-export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgencies }) => {
+export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgencies, readOnly }) => {
   const { toast, confirm } = useUI();
   const { resetGame } = useGame();
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [isResetting, setIsResetting] = useState(false);
+  const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
 
   // 1. REAL-TIME LISTENER FOR PENDING USERS
   useEffect(() => {
@@ -74,6 +77,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
     .sort((a,b) => a.student.name.localeCompare(b.student.name));
 
   const handleAssignStudent = async (firebaseUser: PendingUser, targetStudentId: string) => {
+      if(readOnly) return;
       // Find target agency in Game State
       const targetAgency = agencies.find(a => a.members.some(m => m.id === targetStudentId));
 
@@ -144,7 +148,32 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       }
   };
 
+  const handlePromoteSupervisor = async (firebaseUser: PendingUser) => {
+      if(readOnly) return;
+      const confirmed = await confirm({
+          title: "Nommer Superviseur ?",
+          message: `Voulez-vous accorder le rôle de SUPERVISEUR à ${firebaseUser.displayName} ?\n\nCe rôle permet de consulter TOUTES les données (Admin + Étudiant) mais sans pouvoir de modification.`,
+          confirmText: "Nommer Superviseur",
+          isDangerous: false
+      });
+
+      if (!confirmed) return;
+
+      try {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          await updateDoc(userRef, {
+              role: 'supervisor',
+              lastLogin: new Date().toISOString()
+          });
+          toast('success', `${firebaseUser.displayName} est maintenant Superviseur.`);
+      } catch (e) {
+          console.error(e);
+          toast('error', "Erreur promotion superviseur");
+      }
+  };
+
   const handleForceOffline = async (student: Student, agencyId: string) => {
+       if(readOnly) return;
        // Only allows unlinking if it's a real user (not a mock id starting with s-)
        if (student.id.startsWith('s-')) return;
 
@@ -197,6 +226,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   };
 
   const handleResetDatabase = async () => {
+      if(readOnly) return;
       const confirmed = await confirm({
           title: "Réinitialiser la Base de Données ?",
           message: "ATTENTION : Ceci va écraser les données actuelles avec les équipes par défaut.\n\nUtile si votre base est vide ou corrompue.",
@@ -227,14 +257,16 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                 <p className="text-slate-500 text-sm mt-1">Liez les comptes Google entrants aux profils étudiants pré-existants.</p>
             </div>
             
-            <button 
-                onClick={handleResetDatabase}
-                disabled={isResetting}
-                className="text-xs font-bold text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-                {isResetting ? <Loader2 className="animate-spin" size={14}/> : <Database size={14}/>}
-                Restaurer / Initialiser
-            </button>
+            {!readOnly && (
+                <button 
+                    onClick={handleResetDatabase}
+                    disabled={isResetting}
+                    className="text-xs font-bold text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                    {isResetting ? <Loader2 className="animate-spin" size={14}/> : <Database size={14}/>}
+                    Restaurer / Initialiser
+                </button>
+            )}
         </div>
 
         {/* SECTION 1: GATEKEEPER (Real Pending Connections) */}
@@ -266,27 +298,38 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-3 w-full xl:w-auto bg-white p-2 rounded-xl border border-indigo-100 shadow-sm">
-                                <span className="text-xs font-bold text-slate-400 uppercase hidden xl:inline whitespace-nowrap px-2">Lier à :</span>
-                                <select 
-                                    className="flex-1 w-full xl:w-64 p-2 rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 border-none cursor-pointer"
-                                    onChange={(e) => {
-                                        if(e.target.value) handleAssignStudent(user, e.target.value);
-                                    }}
-                                    defaultValue=""
+                            {!readOnly && (
+                            <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
+                                <button 
+                                    onClick={() => handlePromoteSupervisor(user)}
+                                    className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap"
                                 >
-                                    <option value="" disabled>Choisir un profil libre...</option>
-                                    {availableSlots.length > 0 ? (
-                                        availableSlots.map(({student, agency}) => (
-                                            <option key={student.id} value={student.id}>
-                                                {student.name} ({agency.name})
-                                            </option>
-                                        ))
-                                    ) : (
-                                        <option disabled>Aucun profil libre</option>
-                                    )}
-                                </select>
+                                    <Eye size={14}/> Nommer Superviseur
+                                </button>
+
+                                <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-indigo-100 shadow-sm w-full">
+                                    <span className="text-xs font-bold text-slate-400 uppercase hidden xl:inline whitespace-nowrap px-2">Lier à :</span>
+                                    <select 
+                                        className="flex-1 w-full xl:w-64 p-2 rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 border-none cursor-pointer"
+                                        onChange={(e) => {
+                                            if(e.target.value) handleAssignStudent(user, e.target.value);
+                                        }}
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Choisir un profil libre...</option>
+                                        {availableSlots.length > 0 ? (
+                                            availableSlots.map(({student, agency}) => (
+                                                <option key={student.id} value={student.id}>
+                                                    {student.name} ({agency.name})
+                                                </option>
+                                            ))
+                                        ) : (
+                                            <option disabled>Aucun profil libre</option>
+                                        )}
+                                    </select>
+                                </div>
                             </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -370,15 +413,25 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                         )}
                                     </td>
                                     <td className="p-4 text-right">
-                                        {isLinked && (
+                                        <div className="flex gap-2 justify-end">
                                             <button 
-                                                onClick={() => handleForceOffline(student, agency.id)}
-                                                className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
-                                                title="Délier / Réinitialiser (Attention)"
+                                                onClick={() => setSelectedStudentForHistory(student)}
+                                                className="text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-indigo-100 transition-all flex items-center gap-2"
+                                                title="Voir l'historique"
                                             >
-                                                <WifiOff size={14}/>
+                                                <FileClock size={14}/>
                                             </button>
-                                        )}
+                                            
+                                            {isLinked && !readOnly && (
+                                                <button 
+                                                    onClick={() => handleForceOffline(student, agency.id)}
+                                                    className="text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-200 transition-all"
+                                                    title="Délier / Réinitialiser (Attention)"
+                                                >
+                                                    <WifiOff size={14}/>
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )})}
@@ -392,15 +445,79 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                         <p className="text-lg font-bold text-slate-500">Aucune donnée trouvée.</p>
                         <p className="text-sm">La base de données semble vide ou inaccessible.</p>
                     </div>
-                    <button 
-                        onClick={handleResetDatabase}
-                        className="mt-4 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
-                    >
-                        Initialiser les données par défaut
-                    </button>
+                    {!readOnly && (
+                        <button 
+                            onClick={handleResetDatabase}
+                            className="mt-4 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
+                        >
+                            Initialiser les données par défaut
+                        </button>
+                    )}
                 </div>
             )}
         </div>
+
+        {/* MODAL HISTORIQUE */}
+        <Modal isOpen={!!selectedStudentForHistory} onClose={() => setSelectedStudentForHistory(null)} title="Historique de Carrière">
+            <div className="space-y-6">
+                {selectedStudentForHistory && (
+                    <>
+                        <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <img src={selectedStudentForHistory.avatarUrl} className="w-16 h-16 rounded-xl bg-slate-200"/>
+                            <div>
+                                <h4 className="font-bold text-slate-900 text-lg">{selectedStudentForHistory.name}</h4>
+                                <p className="text-sm text-slate-500">
+                                    Actuellement : {filteredStudents.find(fs => fs.student.id === selectedStudentForHistory.id)?.agency.name}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* TIMELINE */}
+                        <div className="relative border-l-2 border-slate-200 ml-4 space-y-6 py-2">
+                            {(!selectedStudentForHistory.history || selectedStudentForHistory.history.length === 0) && (
+                                <div className="pl-6 text-sm text-slate-400 italic">Aucun mouvement enregistré.</div>
+                            )}
+                            
+                            {[...(selectedStudentForHistory.history || [])].reverse().map((entry, idx) => (
+                                <div key={idx} className="relative pl-6">
+                                    <div className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-4 border-white ${
+                                        entry.action === 'FIRED' ? 'bg-red-500' : 
+                                        entry.action === 'JOINED' ? 'bg-emerald-500' :
+                                        entry.action === 'LEFT' ? 'bg-amber-500' : 'bg-slate-400'
+                                    }`}></div>
+                                    
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-start">
+                                            <span className="text-xs font-bold text-slate-400">{entry.date}</span>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                                entry.action === 'FIRED' ? 'bg-red-100 text-red-700' : 
+                                                entry.action === 'JOINED' ? 'bg-emerald-100 text-emerald-700' :
+                                                'bg-amber-100 text-amber-700'
+                                            }`}>{entry.action === 'JOINED' ? 'Rejoint' : entry.action === 'FIRED' ? 'Licencié' : 'Départ'}</span>
+                                        </div>
+                                        
+                                        <p className="font-bold text-slate-800 text-sm">{entry.agencyName}</p>
+                                        
+                                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs mt-1">
+                                            {entry.reason && <p className="text-slate-600 mb-2 italic">"{entry.reason}"</p>}
+                                            <div className="flex gap-2">
+                                                <span className={`font-bold px-1.5 rounded ${entry.contextVE < 40 ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-600'}`}>
+                                                    VE: {entry.contextVE}
+                                                </span>
+                                                <span className={`font-bold px-1.5 rounded ${entry.contextBudget < 0 ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-600'}`}>
+                                                    Tréso: {entry.contextBudget}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+                <button onClick={() => setSelectedStudentForHistory(null)} className="w-full py-3 bg-slate-100 font-bold text-slate-600 rounded-xl hover:bg-slate-200">Fermer</button>
+            </div>
+        </Modal>
     </div>
   );
 };

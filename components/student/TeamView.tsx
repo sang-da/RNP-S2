@@ -1,7 +1,8 @@
 
+
 import React, { useState } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 
@@ -14,7 +15,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   const [selectedMember, setSelectedMember] = useState<Student | null>(null);
   const [reviewMode, setReviewMode] = useState<Student | null>(null);
 
-  // Pour la démo, on considère que l'utilisateur courant est le 1er de la liste
+  // Pour la démo, on considère que l'utilisateur courant est le 1er de la liste (ou logique à adapter selon Auth)
   const currentUser = agency.members[0];
 
   const handlePeerReview = (review: PeerReview) => {
@@ -32,7 +33,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
         <div className="flex justify-between items-center mb-6">
              <h3 className="text-xl font-bold text-slate-900">Membres du Studio</h3>
              <div className="flex gap-2">
-                <span className="text-xs text-slate-400 self-center hidden md:block">Connecté en tant que <strong>{currentUser.name}</strong></span>
+                <span className="text-xs text-slate-400 self-center hidden md:block">Connecté en tant que <strong>{currentUser?.name || 'Visiteur'}</strong></span>
              </div>
         </div>
 
@@ -50,7 +51,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                             <div className="flex-1">
                                 <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
                                     {member.name}
-                                    {member.id === currentUser.id && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 rounded-full">Moi</span>}
+                                    {member.id === currentUser?.id && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 rounded-full">Moi</span>}
                                 </h3>
                                 
                                 {/* SALARY BADGE */}
@@ -58,13 +59,18 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{member.role}</span>
                                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-xs font-bold text-red-600">
                                         <Coins size={12} />
-                                        -{salary} € / sem
+                                        -{salary} PiXi / sem
                                     </span>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <span className="block text-4xl font-display font-bold text-indigo-600">{member.individualScore}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Score</span>
+                            <div className="text-right flex flex-col items-end gap-1">
+                                <div>
+                                    <span className="block text-4xl font-display font-bold text-indigo-600 leading-none">{member.individualScore}</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Score</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-100">
+                                    <Wallet size={10}/> {member.wallet || 0}
+                                </div>
                             </div>
                         </div>
 
@@ -76,7 +82,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                             >
                                 Voir Bulletin
                             </button>
-                            {member.id !== currentUser.id && (
+                            {member.id !== currentUser?.id && (
                                 <button 
                                     onClick={() => setReviewMode(member)}
                                     className="flex-1 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
@@ -99,7 +105,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                         <div>
                             <h4 className="text-xl font-bold text-slate-900">{selectedMember.name}</h4>
                             <p className="text-slate-500 text-sm">{selectedMember.role}</p>
-                            <p className="text-red-500 font-bold text-xs mt-1">Coût salarial: {selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER} € / sem</p>
+                            <p className="text-red-500 font-bold text-xs mt-1">Coût salarial: {selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi / sem</p>
                         </div>
                         <div className="ml-auto text-center">
                             <span className="block text-3xl font-display font-bold text-indigo-600">{selectedMember.individualScore}</span>
@@ -108,6 +114,16 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                     </div>
 
                     <div className="space-y-4">
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                             <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
+                                    <Wallet size={16} className="text-yellow-500" /> Portefeuille Personnel
+                                </div>
+                                <span className="font-bold text-yellow-600">{selectedMember.wallet || 0} PiXi</span>
+                             </div>
+                             <p className="text-xs text-slate-400 italic">Accumulé via salaires et bonus.</p>
+                        </div>
+
                         {/* Mock Breakdown Data for visualization */}
                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                              <div className="flex justify-between items-center mb-2">
@@ -150,7 +166,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
         </Modal>
 
         {/* MODAL: Peer Review Form */}
-        {reviewMode && (
+        {reviewMode && currentUser && (
             <PeerReviewForm 
                 reviewer={currentUser}
                 target={reviewMode}
@@ -181,7 +197,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClo
     const handleSubmit = () => {
         const review: PeerReview = {
             id: `rev-${Date.now()}`,
-            weekId: "1", // Hardcoded for demo, normally from context
+            weekId: "1", // Hardcoded for demo, normally from context or active week
             date: new Date().toISOString().split('T')[0],
             reviewerId: reviewer.id,
             reviewerName: reviewer.name,

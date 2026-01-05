@@ -1,4 +1,5 @@
 
+
 export enum CycleType {
   MARQUE_BRIEF = "Cycle 1: Marque & Brief",
   NARRATION_IA = "Cycle 2: Narration & IA",
@@ -37,6 +38,7 @@ export interface Deliverable {
     daysLate: number;
     constraintBroken: boolean;
     finalDelta: number;
+    mvpId?: string; // NEW: The student who carried the task
   }
 }
 
@@ -59,15 +61,29 @@ export interface WeekModule {
   };
 }
 
+// --- NEW: STUDENT HISTORY ---
+export interface StudentHistoryEntry {
+    date: string;
+    agencyId: string;
+    agencyName: string;
+    action: 'JOINED' | 'LEFT' | 'FIRED' | 'RESIGNED';
+    contextVE: number;      // VE de l'agence au moment du départ/arrivée
+    contextBudget: number;  // Tréso de l'agence au moment du départ/arrivée
+    reason?: string;        // Motif (ex: "Licenciement économique", "Démission")
+}
+
 export interface Student {
   id: string;
   name: string;
   role: string; // Standardisé (ex: "Associé")
   avatarUrl: string;
   individualScore: number; // 0-100
+  wallet: number; // NEW: Personal Funds in PiXi
+  streak?: number; // NEW: Consecutive weeks with good grade
   cvUrl?: string; // URL vers le PDF du CV
   classId: 'A' | 'B'; // Gestion des deux promotions
-  connectionStatus?: 'online' | 'offline' | 'pending'; // Nouveau champ
+  connectionStatus?: 'online' | 'offline' | 'pending';
+  history?: StudentHistoryEntry[]; // Parcours professionnel
 }
 
 export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE';

@@ -17,7 +17,7 @@ import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff, ChevronRight, Home } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home, Eye } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
@@ -84,10 +84,12 @@ const GameContainer: React.FC = () => {
   }
 
   // ------------------------------------------------------------------
-  // ADMIN RENDER LOGIC
+  // ADMIN & SUPERVISOR RENDER LOGIC
   // ------------------------------------------------------------------
-  if (userData?.role === 'admin') {
+  if (userData?.role === 'admin' || userData?.role === 'supervisor') {
       
+      const isReadOnly = userData.role === 'supervisor';
+
       // --- SIMULATION MODE ---
       if (simulationMode !== 'NONE') {
           return (
@@ -115,7 +117,7 @@ const GameContainer: React.FC = () => {
                                 <StudentAgencyView 
                                     agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} 
                                     allAgencies={agencies} 
-                                    onUpdateAgency={updateAgency} 
+                                    onUpdateAgency={updateAgency} // Still passed but might need protection inside if deep editing allowed
                                 />
                             </Layout>
                         )
@@ -143,7 +145,7 @@ const GameContainer: React.FC = () => {
                  </div>
                  
                  <div className="p-4 md:p-8">
-                     <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={updateAgency} />
+                     <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={isReadOnly ? () => {} : updateAgency} />
                  </div>
             </div>
         );
@@ -166,6 +168,13 @@ const GameContainer: React.FC = () => {
             >
                 <NewsTicker />
                 
+                {/* SUPERVISOR BANNER */}
+                {isReadOnly && (
+                    <div className="bg-purple-600 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2">
+                        <Eye size={14}/> Mode Superviseur (Lecture Seule)
+                    </div>
+                )}
+
                 <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
                     <button 
                         onClick={() => setIsSidebarOpen(true)}
@@ -182,17 +191,18 @@ const GameContainer: React.FC = () => {
                             onUpdateAgency={updateAgency}
                             onProcessWeek={processWeekFinance}
                             onNavigate={(view: string) => setAdminView(view as AdminViewType)}
+                            readOnly={isReadOnly}
                         />
                     )}
-                    {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
-                    {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} />}
-                    {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} />}
-                    {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} />}
-                    {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} />}
+                    {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
+                    {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
+                    {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
+                    {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
+                    {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
                     
                     {/* NEW VIEWS */}
-                    {adminView === 'RESOURCES' && <AdminResources agencies={agencies} />}
-                    {adminView === 'SETTINGS' && <AdminSettings />}
+                    {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isReadOnly} />}
+                    {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
                     {adminView === 'VIEWS' && (
                         <AdminViews 
                             agencies={agencies} 

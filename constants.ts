@@ -1,4 +1,5 @@
 
+
 import { Agency, CycleType, WeekModule, GameEvent, Student, Badge, CycleAwardDefinition } from './types';
 
 // --- ASSETS / MASCOTTES ---
@@ -29,6 +30,16 @@ export const GAME_RULES = {
     
     // DÉPENSES
     SALARY_MULTIPLIER: 10, // Score 80 = 800 PiXi/semaine.
+    AGENCY_RENT: 500, // Charges fixes hebdomadaires (Loyer)
+
+    // CRÉATION D'ENTREPRISE
+    CREATION_COST_PIXI: 2000,
+    CREATION_COST_SCORE: 20,
+
+    // PLAFONDS DE VERRE (VE CAPS)
+    VE_CAP_1_MEMBER: 60,
+    VE_CAP_2_3_MEMBERS: 80,
+    VE_CAP_4_PLUS_MEMBERS: 100,
 };
 
 // --- BADGE DEFINITIONS ---
@@ -370,8 +381,10 @@ const generateMockAgencies = (): Agency[] => {
       role: 'Associé', // Rôle standardisé
       avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
       individualScore: 80,
+      wallet: 0, // NEW: Initial Wallet
       classId: classId,
-      connectionStatus: 'offline'
+      connectionStatus: 'offline',
+      history: []
     }));
   };
 

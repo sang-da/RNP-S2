@@ -145,8 +145,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateAgency = async (updatedAgency: Agency) => {
     try {
+        // Enforce VE Caps logic here as well
+        let veCap = 100;
+        const memberCount = updatedAgency.members.length;
+        if (memberCount === 1) veCap = GAME_RULES.VE_CAP_1_MEMBER;
+        else if (memberCount <= 3) veCap = GAME_RULES.VE_CAP_2_3_MEMBERS;
+        else veCap = GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
+
+        const finalVE = Math.min(updatedAgency.ve_current, veCap);
+
         const agencyRef = doc(db, "agencies", updatedAgency.id);
-        await updateDoc(agencyRef, { ...updatedAgency });
+        await updateDoc(agencyRef, { ...updatedAgency, ve_current: finalVE });
     } catch (e) {
         console.error("Error updating agency", e);
         toast('error', 'Erreur de sauvegarde (Droits insuffisants ?)');
@@ -219,9 +228,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const processWeekFinance = async () => {
       const confirmed = await confirm({
-          title: "Clôture Hebdomadaire",
-          message: "Vous allez déclencher la paye des salaires et le versement des subventions pour TOUTES les agences.\n\nCette action est irréversible.",
-          confirmText: "Déclencher la Paye",
+          title: "Clôture Hebdomadaire & Paie",
+          message: "Actions déclenchées :\n1. Prélèvement Loyer (500 PiXi)\n2. Calcul auto des notes (Scaling Agressif)\n3. Paiement Salaires -> Portefeuilles\n4. Versement Subventions\n\nIrréversible.",
+          confirmText: "Exécuter la Paye",
           isDangerous: false
       });
 
@@ -235,78 +244,179 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
 
-            // 1. Salaires Brut
-            const rawSalary = agency.members.reduce((acc, member) => {
-                return acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER);
-            }, 0);
+            let currentBudget = agency.budget_real;
+            let logEvents: GameEvent[] = [];
 
-            // 2. Charges Hebdo (Taxes)
-            const taxAmount = rawSalary * (agency.weeklyTax || 0);
-            const totalPayroll = rawSalary + taxAmount;
+            // 1. DÉDUCTION LOYER FIXE (RENT)
+            currentBudget -= GAME_RULES.AGENCY_RENT;
+            logEvents.push({
+                id: `fin-rent-${Date.now()}-${agency.id}`,
+                date: today,
+                type: 'CRISIS', // Technical crisis for negative flow
+                label: 'Loyer Agence',
+                deltaBudgetReal: -GAME_RULES.AGENCY_RENT,
+                description: `Charges fixes hebdomadaires (-${GAME_RULES.AGENCY_RENT} PiXi).`
+            });
+
+            // 2. MISE À JOUR DES NOTES INDIVIDUELLES (PEER REVIEW) + STREAK
+            const updatedMembers = agency.members.map(member => {
+                const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
+                if (reviews.length === 0) return member;
+
+                const totalScore = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0);
+                const avg = totalScore / reviews.length;
+                
+                let scoreDelta = 0;
+                let newStreak = member.streak || 0;
+
+                // NOUVELLE LOGIQUE DE SCALING (AGRESSIVE)
+                // > 4.5 : +10 (Win Streak)
+                // >= 4.0 : +5
+                // < 1.5 : -10 (Lose Streak)
+                // Standard : +2 / -2
+
+                if (avg > 4.5) {
+                    scoreDelta = 10;
+                    newStreak++; 
+                } else if (avg >= 4.0) {
+                    scoreDelta = 5;
+                    newStreak++;
+                } else if (avg < 1.5) {
+                    scoreDelta = -10;
+                    newStreak = 0; // Reset positive streak
+                } else if (avg <= 2.5) {
+                    scoreDelta = -2;
+                    newStreak = 0;
+                } else {
+                    // Moyenne standard (2.5 à 4.0)
+                    scoreDelta = 2;
+                    newStreak = 0; // On ne casse pas la série, mais on ne l'incrémente pas pour le "Bonus Streak"
+                }
+
+                if (scoreDelta !== 0) {
+                     const newScore = Math.max(0, Math.min(100, member.individualScore + scoreDelta));
+                     return { ...member, individualScore: newScore, streak: newStreak };
+                }
+                return { ...member, streak: newStreak };
+            });
             
-            const payrollEvent: GameEvent = {
+            // 3. PAIEMENT DES SALAIRES
+            let totalSalaryCost = 0;
+            
+            const membersAfterPay = updatedMembers.map(member => {
+                const salary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                totalSalaryCost += salary;
+                
+                let payment = salary;
+                let walletDelta = salary;
+
+                // Si l'agence est à sec (après loyer), on ne paie pas le salaire complet
+                if (currentBudget < 0) {
+                     // La dette de loyer est partagée
+                     const debtShare = Math.abs(currentBudget) / updatedMembers.length;
+                     // Le salaire est annulé et on prélève la dette
+                     walletDelta = -debtShare; 
+                     payment = 0; // Pas de sortie de cash agence pour salaire
+                }
+
+                // Update Personal Wallet
+                return { ...member, wallet: (member.wallet || 0) + walletDelta };
+            });
+
+            if (currentBudget >= 0) {
+                currentBudget -= totalSalaryCost;
+            }
+
+            logEvents.push({
                 id: `fin-pay-${Date.now()}-${agency.id}`,
                 date: today,
                 type: 'PAYROLL',
-                label: 'Salaires + Charges',
-                deltaBudgetReal: -totalPayroll,
-                description: `Salaires (${rawSalary}) + Charges ${(agency.weeklyTax || 0)*100}% (${taxAmount})`
-            };
+                label: currentBudget < 0 ? 'Défaut de Paiement' : 'Salaires Versés',
+                deltaBudgetReal: currentBudget < 0 ? 0 : -totalSalaryCost,
+                description: currentBudget < 0 
+                    ? `Agence en dette. Salaires suspendus et contribution solidaire prélevée sur wallets.`
+                    : `Salaires versés aux membres (${totalSalaryCost} PiXi).`
+            });
 
-            // 3. Revenus (Base + VE + Bonus Awards)
+            // 4. REVENUS (Subvention + VE)
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const bonuses = agency.weeklyRevenueModifier || 0;
             const revenue = GAME_RULES.REVENUE_BASE + revenueVE + bonuses;
             
-            const revenueEvent: GameEvent = {
+            currentBudget += revenue;
+
+            logEvents.push({
                 id: `fin-rev-${Date.now()}-${agency.id}-2`,
                 date: today,
                 type: 'REVENUE',
                 label: 'Rentrée Subvention Hebdo',
                 deltaBudgetReal: revenue,
                 description: `Base (${GAME_RULES.REVENUE_BASE}) + VE (${revenueVE}) + Bonus (${bonuses}).`
-            };
+            });
 
-            // 4. Calcul Budget
-            let newBudget = agency.budget_real - totalPayroll + revenue;
-
-            // 5. Audit & Ajustement VE
+            // 5. SUCCESS PRIME & VE ADJUSTMENT
             let veAdjustment = 0;
-            let auditLabel = "Audit Trésorerie Neutre";
+            let successBonus = false;
 
-            if (newBudget >= 1000) {
-                const bonus = Math.floor(newBudget / 1000) * 2;
-                veAdjustment = bonus;
-                auditLabel = `Bonus Trésorerie (+${bonus} VE)`;
-            } else if (newBudget < 0) {
-                const debt = Math.abs(newBudget);
-                const malus = Math.ceil(debt / 1000) * 5;
-                veAdjustment = -malus;
-                auditLabel = `Dette Critique (-${malus} VE)`;
+            if (agency.ve_current >= 60 && agency.status !== 'stable') {
+                successBonus = true; 
+                logEvents.push({
+                    id: `bonus-stable-${Date.now()}`,
+                    date: today,
+                    type: 'VE_DELTA',
+                    label: 'Passage Statut Stable',
+                    deltaVE: 0,
+                    description: "L'agence devient pérenne. Bonus +2 Score pour tous."
+                });
             }
 
-            const auditEvent: GameEvent = {
+            // Audit Tréso pour VE
+            if (currentBudget >= 1000) {
+                const bonus = Math.floor(currentBudget / 1000) * 2;
+                veAdjustment += bonus;
+            } else if (currentBudget < 0) {
+                const debt = Math.abs(currentBudget);
+                const malus = Math.ceil(debt / 1000) * 5;
+                veAdjustment -= malus;
+            }
+
+            logEvents.push({
                  id: `fin-audit-${Date.now()}-${agency.id}`,
                  date: today,
                  type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS',
-                 label: auditLabel,
+                 label: 'Audit Trésorerie',
                  deltaVE: veAdjustment,
-                 description: `Ajustement VE basé sur le solde de ${newBudget} PiXi.`
-            };
+                 description: `Ajustement VE basé sur le solde de ${currentBudget} PiXi.`
+            });
 
-            const newEvents = [...agency.eventLog, payrollEvent, revenueEvent, auditEvent];
-            const newVE = Math.max(0, agency.ve_current + veAdjustment);
+            const finalMembers = membersAfterPay.map(m => {
+                if (successBonus) return { ...m, individualScore: Math.min(100, m.individualScore + 2) };
+                return m;
+            });
 
+            // 6. VE CAPS (Plafond de Verre)
+            let rawVE = Math.max(0, agency.ve_current + veAdjustment);
+            let veCap = 100;
+            const memberCount = agency.members.length;
+            if (memberCount === 1) veCap = GAME_RULES.VE_CAP_1_MEMBER;
+            else if (memberCount <= 3) veCap = GAME_RULES.VE_CAP_2_3_MEMBERS;
+            else veCap = GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
+            
+            const finalVE = Math.min(rawVE, veCap);
+
+            // Update Doc
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
-                budget_real: newBudget,
-                eventLog: newEvents,
-                ve_current: newVE
+                budget_real: currentBudget,
+                eventLog: [...agency.eventLog, ...logEvents],
+                ve_current: finalVE,
+                members: finalMembers,
+                status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'
             });
         });
 
         await batch.commit();
-        toast('success', 'Comptabilité hebdomadaire effectuée avec succès.');
+        toast('success', 'Clôture hebdomadaire et paie effectuées.');
       } catch(e) {
           console.error(e);
           toast('error', "Erreur lors de la clôture (Droits ?)");

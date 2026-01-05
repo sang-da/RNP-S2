@@ -9,7 +9,7 @@ interface UserData {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
-  role: 'admin' | 'student' | 'pending';
+  role: 'admin' | 'student' | 'pending' | 'supervisor';
   agencyId?: string | null; // Allow null for Firestore
 }
 

@@ -1,14 +1,18 @@
+
+
 import React, { useState, useMemo } from 'react';
-import { Agency, GameEvent, MercatoRequest } from '../types';
-import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote } from 'lucide-react';
+import { Agency, GameEvent, MercatoRequest, StudentHistoryEntry } from '../types';
+import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote, User } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
+import { GAME_RULES } from '../constants';
 
 interface AdminMercatoProps {
   agencies: Agency[];
   onUpdateAgencies: (agencies: Agency[]) => void;
+  readOnly?: boolean;
 }
 
-export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAgencies }) => {
+export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAgencies, readOnly }) => {
   const { confirm, toast } = useUI();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [targetAgencyId, setTargetAgencyId] = useState<string | null>(null);
@@ -48,22 +52,57 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       return -25;                  // Critical loss (Huge penalty)
   };
 
-  const executeTransfer = (studentId: string, sourceAgencyId: string, targetAgencyId: string, transferType: 'HIRE' | 'FIRE' | 'TRANSFER') => {
+  const executeTransfer = (studentId: string, sourceAgencyId: string, targetAgencyId: string, transferType: 'HIRE' | 'FIRE' | 'TRANSFER', reason?: string) => {
     const sourceAgency = agencies.find(a => a.id === sourceAgencyId);
     const targetAgency = agencies.find(a => a.id === targetAgencyId);
     const student = sourceAgency?.members.find(m => m.id === studentId);
 
     if (!sourceAgency || !targetAgency || !student) return;
 
+    // --- HISTORY RECORDING ---
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 1. Record Leaving the Source (if applicable)
+    const newHistory: StudentHistoryEntry[] = [...(student.history || [])];
+    
+    if (sourceAgencyId !== 'unassigned') {
+        newHistory.push({
+            date: today,
+            agencyId: sourceAgency.id,
+            agencyName: sourceAgency.name,
+            action: transferType === 'FIRE' ? 'FIRED' : 'LEFT',
+            contextVE: sourceAgency.ve_current,
+            contextBudget: sourceAgency.budget_real,
+            reason: reason || (transferType === 'FIRE' ? "Licenciement" : "Départ")
+        });
+    }
+
+    // 2. Record Joining the Target (if applicable)
+    if (targetAgencyId !== 'unassigned') {
+        newHistory.push({
+            date: today,
+            agencyId: targetAgency.id,
+            agencyName: targetAgency.name,
+            action: 'JOINED',
+            contextVE: targetAgency.ve_current,
+            contextBudget: targetAgency.budget_real,
+            reason: reason || "Recrutement"
+        });
+    }
+
+    // Update student object with new history
+    const updatedStudent = { ...student, history: newHistory };
+
+    // --- MEMBER SWAP ---
     // 1. Remove from Source
     const updatedSourceMembers = sourceAgency.members.filter(m => m.id !== student.id);
     const updatedSource = { ...sourceAgency, members: updatedSourceMembers };
 
     // 2. Add to Target
-    const updatedTargetMembers = [...targetAgency.members, student];
+    const updatedTargetMembers = [...targetAgency.members, updatedStudent];
     const updatedTarget = { ...targetAgency, members: updatedTargetMembers };
 
-    // 3. Events Logic
+    // --- EVENTS LOGIC ---
     let eventSource: GameEvent | null = null;
     let eventTarget: GameEvent | null = null;
     let sourceVEDelta = 0;
@@ -71,20 +110,13 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
 
     if (transferType === 'FIRE') {
         sourceVEDelta = calculateFiringVEDelta(student.individualScore);
-        
-        let label = "Départ";
-        let desc = "";
-        
-        if(sourceVEDelta > 0) {
-            label = "Restructuration";
-            desc = `Départ validé de ${student.name} (Score ${student.individualScore}). Optimisation structurelle.`;
-        } else {
-            label = "Perte Compétence";
-            desc = `Départ de ${student.name} (Score ${student.individualScore}). Perte de capital humain.`;
-        }
+        let label = sourceVEDelta > 0 ? "Restructuration" : "Perte Compétence";
+        let desc = sourceVEDelta > 0 
+            ? `Départ validé de ${student.name} (Score ${student.individualScore}). Optimisation structurelle.`
+            : `Départ de ${student.name} (Score ${student.individualScore}). Perte de capital humain.`;
 
         eventSource = {
-            id: `evt-${Date.now()}-1`, date: new Date().toISOString().split('T')[0],
+            id: `evt-${Date.now()}-1`, date: today,
             type: sourceVEDelta > 0 ? 'VE_DELTA' : 'CRISIS',
             label: label, 
             deltaVE: sourceVEDelta,
@@ -94,7 +126,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
     } else if (transferType === 'HIRE') {
         targetVEDelta = -5;
         eventTarget = {
-            id: `evt-${Date.now()}-2`, date: new Date().toISOString().split('T')[0],
+            id: `evt-${Date.now()}-2`, date: today,
             type: 'VE_DELTA', label: 'Recrutement Ext.', deltaVE: targetVEDelta,
             description: `${student.name} rejoint l'équipe depuis le vivier. Coût d'intégration.`
         };
@@ -103,12 +135,12 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
          sourceVEDelta = -5;
          targetVEDelta = -2;
          eventSource = {
-            id: `evt-${Date.now()}-1`, date: new Date().toISOString().split('T')[0],
+            id: `evt-${Date.now()}-1`, date: today,
             type: 'VE_DELTA', label: 'Transfert Sortant', deltaVE: sourceVEDelta,
             description: `${student.name} quitte l'agence.`
         };
         eventTarget = {
-            id: `evt-${Date.now()}-2`, date: new Date().toISOString().split('T')[0],
+            id: `evt-${Date.now()}-2`, date: today,
             type: 'VE_DELTA', label: 'Transfert Entrant', deltaVE: targetVEDelta,
             description: `${student.name} rejoint l'agence.`
         };
@@ -131,6 +163,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
   }
 
   const handleManualTransfer = async () => {
+     if(readOnly) return;
      if (!selectedStudentId || !targetAgencyId) return;
      const sourceData = findStudentData(selectedStudentId);
      if (!sourceData) return;
@@ -158,7 +191,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
 
      if (!confirmed) return;
 
-     const newAgencies = executeTransfer(selectedStudentId, sourceData.agency.id, targetAgencyId, type);
+     const newAgencies = executeTransfer(selectedStudentId, sourceData.agency.id, targetAgencyId, type, "Transfert Administratif");
      if(newAgencies) {
          onUpdateAgencies(newAgencies);
          toast('success', `Transfert effectué : ${student.name}`);
@@ -168,12 +201,13 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
   };
 
   const handleApproveRequest = (request: MercatoRequest, requestAgency: Agency) => {
+      if(readOnly) return;
       let newAgencies: Agency[] | undefined;
 
       if (request.type === 'FIRE') {
-          newAgencies = executeTransfer(request.studentId, request.targetAgencyId, 'unassigned', 'FIRE');
+          newAgencies = executeTransfer(request.studentId, request.targetAgencyId, 'unassigned', 'FIRE', request.motivation);
       } else if (request.type === 'HIRE') {
-          newAgencies = executeTransfer(request.studentId, 'unassigned', request.targetAgencyId, 'HIRE');
+          newAgencies = executeTransfer(request.studentId, 'unassigned', request.targetAgencyId, 'HIRE', request.motivation);
       }
 
       if (newAgencies) {
@@ -189,6 +223,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
   };
 
   const handleRejectRequest = (request: MercatoRequest, requestAgency: Agency) => {
+      if(readOnly) return;
       const updatedAgency = {
           ...requestAgency,
           mercatoRequests: requestAgency.mercatoRequests.filter(r => r.id !== request.id)
@@ -197,21 +232,50 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       toast('info', 'Demande rejetée.');
   };
 
-  const handleCreateAgency = () => {
+  const handleCreateAgency = async () => {
+      if(readOnly) return;
+
+      // PROMPT: Selectionner un fondateur s'il y a un étudiant selectionné dans le chômage
+      let founderId = selectedStudentId && findStudentData(selectedStudentId)?.agency.id === 'unassigned' ? selectedStudentId : null;
+      let founder = founderId ? findStudentData(founderId)?.student : null;
+
+      if (!founderId) {
+          // If no student selected from unassigned, ask if user wants to just create an empty shell (Admin Mode)
+          const proceed = await confirm({
+              title: "Création Agence (Admin)",
+              message: "Vous n'avez sélectionné aucun étudiant du vivier pour fonder cette agence.\n\nCréer une coquille vide ?",
+              confirmText: "Créer Vide",
+              isDangerous: false
+          });
+          if (!proceed) return;
+      } else if (founder) {
+          // Founder logic with penalties
+          const costMsg = `Coût création : -${GAME_RULES.CREATION_COST_PIXI} PiXi (Portefeuille) et -${GAME_RULES.CREATION_COST_SCORE} pts (Score)`;
+          const proceed = await confirm({
+              title: "Fonder une Agence",
+              message: `Vous allez créer une agence avec ${founder.name} comme fondateur.\n\n${costMsg}.\n\nConfirmer ?`,
+              confirmText: "Payer et Créer",
+              isDangerous: true
+          });
+          if (!proceed) return;
+      }
+
+      // 1. Create Agency
+      const newAgencyId = `a-${Date.now()}`;
       const newAgency: Agency = {
-          id: `a-${Date.now()}`,
+          id: newAgencyId,
           name: "Nouvelle Agence",
           tagline: "En construction...",
           ve_current: 50,
           status: 'stable',
-          classId: 'A', // Default to A, admin might change logic later
-          budget_real: 5000,
+          classId: founder ? founder.classId : 'A', // Inherit from founder or default A
+          budget_real: 3000, // Starting Budget lower than initial 5000 of big teams
           budget_valued: 0,
           weeklyTax: 0,
-          weeklyRevenueModifier: 0, // NEW FIELD
+          weeklyRevenueModifier: 0,
           members: [],
           peerReviews: [],
-          eventLog: [],
+          eventLog: [{ id: `e-${newAgencyId}-1`, date: new Date().toISOString().split('T')[0], type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte." }],
           currentCycle: agencies[0].currentCycle,
           constraints: { space: "À définir", style: "À définir", client: "À définir" },
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
@@ -220,8 +284,36 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           branding: { color: 'indigo' },
           badges: [],
       };
-      onUpdateAgencies([...agencies, newAgency]);
-      toast('success', 'Nouvelle agence créée.');
+
+      let updatedAgencies = [...agencies, newAgency];
+
+      // 2. If founder, move them + apply penalty
+      if (founder && founderId) {
+         // Move Logic
+         const unassigned = agencies.find(a => a.id === 'unassigned');
+         if (unassigned) {
+             const updatedFounder = {
+                 ...founder,
+                 wallet: (founder.wallet || 0) - GAME_RULES.CREATION_COST_PIXI,
+                 individualScore: Math.max(0, founder.individualScore - GAME_RULES.CREATION_COST_SCORE)
+             };
+             
+             // Update Agencies Array manually to reflect move immediately
+             updatedAgencies = updatedAgencies.map(a => {
+                 if (a.id === 'unassigned') {
+                     return { ...a, members: a.members.filter(m => m.id !== founderId) };
+                 }
+                 if (a.id === newAgencyId) {
+                     return { ...a, members: [updatedFounder] };
+                 }
+                 return a;
+             });
+         }
+      }
+
+      onUpdateAgencies(updatedAgencies);
+      toast('success', founder ? `Agence créée par ${founder.name} (Coûts appliqués)` : 'Agence vide créée.');
+      setSelectedStudentId(null);
   };
 
   // UI Helpers
@@ -249,12 +341,14 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                 <h2 className="text-3xl font-display font-bold text-slate-900">Mercato & RH</h2>
                 <p className="text-slate-500 text-sm">Gérez les effectifs. Transferts limités par Classe (A/B).</p>
             </div>
+            {!readOnly && (
             <button 
                 onClick={handleCreateAgency}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors shadow-lg shadow-indigo-600/20"
             >
-                <Plus size={18} /> Créer un Groupe
+                <Plus size={18} /> {selectedStudentId && findStudentData(selectedStudentId)?.agency.id === 'unassigned' ? "Fonder Agence (Sélection)" : "Créer un Groupe"}
             </button>
+            )}
         </div>
 
         {/* --- SECTION: PENDING REQUESTS --- */}
@@ -280,6 +374,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                                         <span className="text-xs text-slate-400">{req.date}</span>
                                         <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded border border-slate-200 font-bold">Classe {student?.classId}</span>
                                     </div>
+                                    {!readOnly && (
                                     <div className="flex gap-1">
                                         <button 
                                             onClick={() => handleRejectRequest(req, agency)}
@@ -294,6 +389,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                                             <Check size={16}/>
                                         </button>
                                     </div>
+                                    )}
                                 </div>
 
                                 <div className="mt-1">
@@ -341,12 +437,13 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                      <div className="flex justify-between items-center mb-4">
                          <p className="text-sm text-slate-500 italic">Étudiants sans affectation. Attention à la Classe (A/B) lors du recrutement.</p>
                          <button 
-                            onClick={() => setTargetAgencyId('unassigned')}
+                            onClick={() => !readOnly && setTargetAgencyId('unassigned')}
+                            disabled={readOnly}
                             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                                 targetAgencyId === 'unassigned' 
                                 ? 'bg-red-600 text-white ring-2 ring-red-300' 
                                 : 'bg-white text-slate-600 border border-slate-200 hover:border-red-300 hover:text-red-500'
-                            }`}
+                            } ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                          >
                             Définir comme Destination (Licenciement)
                          </button>
@@ -356,12 +453,12 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                         {unassignedAgency.members.map(student => (
                             <div 
                                 key={student.id}
-                                onClick={() => setSelectedStudentId(student.id)}
-                                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border-2 transition-all relative overflow-hidden ${
+                                onClick={() => !readOnly && setSelectedStudentId(student.id)}
+                                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all relative overflow-hidden ${
                                     selectedStudentId === student.id 
                                     ? 'bg-white border-indigo-500 shadow-md transform scale-105' 
                                     : 'bg-white border-slate-200 hover:border-indigo-300'
-                                }`}
+                                } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                             >
                                 <div className={`absolute left-0 top-0 bottom-0 w-1 ${student.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}></div>
                                 <img src={student.avatarUrl} className="w-8 h-8 rounded-full bg-slate-200 grayscale" />
@@ -372,6 +469,10 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${student.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}>
                                             CLASSE {student.classId}
                                         </span>
+                                    </div>
+                                    <div className="text-[9px] text-slate-400 mt-1 flex items-center gap-1">
+                                        <User size={10} /> {student.individualScore} pts
+                                        <Coins size={10} className="ml-1"/> {student.wallet || 0}
                                     </div>
                                 </div>
                             </div>
@@ -393,8 +494,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                             <div className={`absolute top-0 left-0 right-0 h-1 ${agency.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}></div>
                             
                             <div 
-                                onClick={() => setTargetAgencyId(agency.id)}
-                                className={`p-4 border-b border-slate-100 flex justify-between items-center cursor-pointer rounded-t-2xl mt-1 transition-colors ${targetAgencyId === agency.id ? 'bg-indigo-50' : 'bg-slate-50 hover:bg-slate-100'}`}
+                                onClick={() => !readOnly && setTargetAgencyId(agency.id)}
+                                className={`p-4 border-b border-slate-100 flex justify-between items-center rounded-t-2xl mt-1 transition-colors ${targetAgencyId === agency.id ? 'bg-indigo-50' : 'bg-slate-50 hover:bg-slate-100'} ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                             >
                                 <div>
                                     <h4 className={`font-bold ${targetAgencyId === agency.id ? 'text-indigo-700' : 'text-slate-700'}`}>{agency.name}</h4>
@@ -408,12 +509,12 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                                 {agency.members.map(student => (
                                     <div 
                                         key={student.id}
-                                        onClick={(e) => { e.stopPropagation(); setSelectedStudentId(student.id); }}
-                                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+                                        onClick={(e) => { e.stopPropagation(); if(!readOnly) setSelectedStudentId(student.id); }}
+                                        className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
                                             selectedStudentId === student.id 
                                             ? 'bg-indigo-600 text-white shadow-md' 
                                             : 'hover:bg-slate-50 text-slate-700'
-                                        }`}
+                                        } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
                                     >
                                         <img src={student.avatarUrl} className={`w-8 h-8 rounded-full ${selectedStudentId === student.id ? 'bg-indigo-500' : 'bg-slate-200'}`} />
                                         <div className="flex-1">
@@ -433,6 +534,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
         </div>
         
         {/* Floating Action Bar */}
+        {!readOnly && (
         <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 md:ml-32 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 transition-all duration-300 z-50 ${selectedStudentId && targetAgencyId ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0 pointer-events-none'}`}>
             <div className="flex items-center gap-3">
                  <div className="text-right">
@@ -456,6 +558,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                 {getActionLabel()} (Force)
             </button>
         </div>
+        )}
     </div>
   );
 };

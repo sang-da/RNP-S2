@@ -7,7 +7,11 @@ import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2 } from 'lucide-react';
 
-export const AdminSettings: React.FC = () => {
+interface AdminSettingsProps {
+    readOnly?: boolean;
+}
+
+export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
     const { userData, currentUser } = useAuth();
     const { resetGame } = useGame();
     const { confirm, toast } = useUI();
@@ -17,6 +21,7 @@ export const AdminSettings: React.FC = () => {
     const [isResetting, setIsResetting] = useState(false);
 
     const handleUpdateProfile = async () => {
+        if(readOnly) return;
         if (!currentUser) return;
         setIsSaving(true);
         try {
@@ -30,6 +35,7 @@ export const AdminSettings: React.FC = () => {
     };
 
     const handleResetDB = async () => {
+        if(readOnly) return;
         const confirmed = await confirm({
             title: "Zone de Danger : Réinitialisation",
             message: "Êtes-vous ABSOLUMENT sûr de vouloir réinitialiser toute la base de données ?\n\nToutes les agences, notes, et budgets seront écrasés par les valeurs par défaut.",
@@ -80,9 +86,11 @@ export const AdminSettings: React.FC = () => {
                                 <input 
                                     value={displayName} 
                                     onChange={e => setDisplayName(e.target.value)}
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    disabled={readOnly}
+                                    className={`w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 />
                             </div>
+                            {!readOnly && (
                             <button 
                                 onClick={handleUpdateProfile}
                                 disabled={isSaving}
@@ -91,11 +99,13 @@ export const AdminSettings: React.FC = () => {
                                 {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
                                 Enregistrer
                             </button>
+                            )}
                          </div>
                     </div>
                 </div>
 
                 {/* DANGER ZONE */}
+                {!readOnly && (
                 <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
                     <h3 className="font-bold text-red-800 mb-4 flex items-center gap-2">
                         <AlertTriangle size={20}/> Zone Super Admin
@@ -115,6 +125,7 @@ export const AdminSettings: React.FC = () => {
                         </button>
                     </div>
                 </div>
+                )}
 
                 {/* LOGOUT */}
                 <div className="pt-8 border-t border-slate-200">
