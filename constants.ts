@@ -3,22 +3,14 @@
 import { Agency, CycleType, WeekModule, GameEvent, Student, Badge, CycleAwardDefinition } from './types';
 
 // --- ASSETS / MASCOTTES ---
-// Base URL pointing to the main branch to ensure we get the renamed files
 const ASSET_BASE = "https://raw.githubusercontent.com/sang-da/svg/main";
 
 export const MASCOTS = {
-    // Landing Page
     LANDING_HERO: `${ASSET_BASE}/PiXi_Cloud.png`,
-    
-    // Market Overview (Santé financière)
     MARKET_RICH: `${ASSET_BASE}/PiXi_Extremely_Rich.png`,
     MARKET_STABLE: `${ASSET_BASE}/Pixi_Moderately_Wealthy.png`, 
     MARKET_POOR: `${ASSET_BASE}/Pixi_Struggling.png`,
-    
-    // Mercato
     MERCATO_SEARCH: `${ASSET_BASE}/PiXi_Searching.png`,
-    
-    // Global Utility (Logo, Favicon, Soumission)
     LOGO: `${ASSET_BASE}/PiXi_2.png`, 
 };
 
@@ -30,9 +22,10 @@ export const GAME_RULES = {
     
     // DÉPENSES
     SALARY_MULTIPLIER: 10, // Score 80 = 800 PiXi/semaine.
+    SALARY_CAP_FOR_STUDENT: 800, // Au delà de 800 (Score 80), l'argent part dans le loyer
     AGENCY_RENT: 500, // Charges fixes hebdomadaires (Loyer)
 
-    // CRÉATION D'ENTREPRISE
+    // CREATION
     CREATION_COST_PIXI: 2000,
     CREATION_COST_SCORE: 20,
 
@@ -48,6 +41,10 @@ export const BADGE_DEFINITIONS: Badge[] = [
     { id: 'visionary', label: 'Visionnaire', description: '3 rendus consécutifs notés A.', icon: 'eye' },
     { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'crown' },
     { id: 'teamwork', label: 'Esprit de Corps', description: 'Moyenne évaluation par pairs > 4.5/5.', icon: 'users' },
+    // S1 AWARDS
+    { id: 's1_gold', label: 'Or S1', description: 'Major de Promotion Semestre 1', icon: 'medal' },
+    { id: 's1_silver', label: 'Argent S1', description: 'Vice-Major de Promotion Semestre 1', icon: 'medal' },
+    { id: 's1_bronze', label: 'Bronze S1', description: 'Podium Promotion Semestre 1', icon: 'medal' },
 ];
 
 // --- GRANDS PRIX CYCLES ---
@@ -58,7 +55,7 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
         title: 'Le "Golden Brief"',
         description: 'La meilleure cohérence stratégique (Problème / Cible / Identité).',
         veBonus: 15,
-        weeklyBonus: 250, // Bonus récurrent par semaine
+        weeklyBonus: 250, 
         iconName: 'compass'
     },
     {
@@ -90,95 +87,81 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
     }
 ];
 
-// --- CONFIGURATION DES ÉQUIPES ACTIVES ---
-// Les équipes existent toujours, mais sont réduites au minimum vital si non spécifiées.
-const TEAMS_CONFIG = [
-    // --- CLASSE A ---
-    {
-        id: 'a1',
-        name: 'Équipe 1',
-        classId: 'A' as const,
-        members: ["Aubine", "Kassandra", "Jessica"]
-    },
-    {
-        id: 'a2',
-        name: 'Équipe 2',
-        classId: 'A' as const,
-        members: ["Maëlys", "Ronelle"]
-    },
-    {
-        id: 'a3',
-        name: 'Équipe 3',
-        classId: 'A' as const,
-        members: ["Gloria", "Roxane"] 
-    },
-    {
-        id: 'a4',
-        name: 'Équipe 4',
-        classId: 'A' as const,
-        members: ["Sarah", "Marie-Trinité"] 
-    },
-    {
-        id: 'a5',
-        name: 'Équipe 5',
-        classId: 'A' as const,
-        members: ["Lydia", "Korell"] 
-    },
-    {
-        id: 'a6',
-        name: 'Équipe 6',
-        classId: 'A' as const,
-        members: ["Shaneen"] 
-    },
+// --- CONFIGURATION DES RÉCOMPENSES S1 ---
+const S1_INDIVIDUAL_WINNERS: Record<string, { amount: number, badge: string }> = {
+    // CLASSE A
+    "Maëlys": { amount: 1000, badge: 's1_gold' },
+    "Marie-Trinité": { amount: 750, badge: 's1_silver' },
+    "Sarah": { amount: 500, badge: 's1_bronze' },
+    // CLASSE B
+    "Loïs": { amount: 1000, badge: 's1_gold' },
+    "Esther": { amount: 750, badge: 's1_silver' },
+    "Coralie": { amount: 500, badge: 's1_bronze' }
+};
 
-    // --- CLASSE B ---
+const S1_GROUP_BONUSES: Record<string, number> = {
+    'agency_gold': 200,   // Or
+    'agency_silver': 150, // Argent
+    'agency_bronze': 100  // Bronze
+};
+
+// --- CONFIGURATION DES ÉQUIPES ACTIVES ---
+// Reconfiguré pour matcher les groupes gagnants du S1
+const TEAMS_CONFIG = [
     {
-        id: 'a7',
-        name: 'Équipe 7',
-        classId: 'B' as const,
-        members: ["Ruth-De-Franck", "Loïs"]
+        id: 'agency_gold',
+        name: 'Agence Alpha (Or S1)',
+        classId: 'A' as const, // Mixte en réalité, assigné A par défaut
+        members: ["Zirwath", "Aubine", "Maëlys", "Tiffany", "Roxane"]
     },
     {
-        id: 'a8',
-        name: 'Équipe 8',
+        id: 'agency_silver',
+        name: 'Agence Beta (Argent S1)',
         classId: 'B' as const,
-        members: ["Vianney", "Elicia"]
+        members: ["Rayane", "Erudice", "Pascal", "Jennifer"]
     },
     {
-        id: 'a9',
-        name: 'Équipe 9',
+        id: 'agency_bronze',
+        name: 'Agence Gamma (Bronze S1)',
         classId: 'B' as const,
-        members: ["Jennifer", "Brunelle"]
+        members: ["Tryphose", "Sarah", "Grâce", "Stessy"]
     },
     {
-        id: 'a10',
-        name: 'Équipe 10',
-        classId: 'B' as const,
-        members: ["Mira", "Grâce", "Ashley"]
+        id: 'agency_allstars',
+        name: 'Agence Delta',
+        classId: 'A' as const,
+        members: ["Marie-Trinité", "Loïs", "Esther", "Coralie"] // Regroupement des individuels restants
     },
     {
-        id: 'a11',
-        name: 'Équipe 11',
-        classId: 'B' as const,
-        members: ["Esther"] 
+        id: 'agency_5',
+        name: 'Agence Epsilon',
+        classId: 'A' as const,
+        members: ["Kassandra", "Jessica", "Ronelle", "Gloria"]
     },
     {
-        id: 'a12',
-        name: 'Équipe 12',
+        id: 'agency_6',
+        name: 'Agence Zeta',
+        classId: 'A' as const,
+        members: ["Lydia", "Korell", "Shaneen"]
+    },
+    {
+        id: 'agency_7',
+        name: 'Agence Eta',
         classId: 'B' as const,
-        members: ["Rayane"] 
+        members: ["Ruth-De-Franck", "Vianney", "Elicia", "Brunelle"]
+    },
+    {
+        id: 'agency_8',
+        name: 'Agence Theta',
+        classId: 'B' as const,
+        members: ["Mira", "Ashley", "Ian", "Emeraude"]
     }
 ];
 
 // --- POOL DE CHÔMAGE (Le reste des étudiants) ---
-const UNASSIGNED_POOL_A = [
-    "Pascal", "Rolyx", "Noriane", "Ian", 
-    "Emeraude", "Loan", "Lidwine", "Tiffany", "Iris"
-];
-
-const UNASSIGNED_POOL_B = [
-    "Stessy", "Zirwath", "Coralie", "Faghez", "Tryphose", "Ghintia", 
-    "Achabys", "Duamel", "Erudice", "Lindsay"
+const UNASSIGNED_POOL = [
+    "Pascal", "Rolyx", "Noriane", "Lidwine", "Iris", // Reste A
+    "Faghez", "Ghintia", "Achabys", "Duamel", "Lindsay" // Reste B
 ];
 
 export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
@@ -193,10 +176,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: false,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-01-07', slot: 'APRÈS-MIDI' }, // Mercredi 13h-16h
-        classB: { date: '2026-01-06', slot: 'MATIN' }       // Mardi 9h-12h
-    }
+    schedule: { classA: { date: '2026-01-07', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-06', slot: 'MATIN' } }
   },
   "2": {
     id: "2",
@@ -208,10 +188,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: false,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-01-14', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-01-13', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-01-14', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-13', slot: 'MATIN' } }
   },
   "3": {
     id: "3",
@@ -224,10 +201,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-01-28', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-01-27', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-01-28', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-27', slot: 'MATIN' } }
   },
   "4": {
     id: "4",
@@ -240,10 +214,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-02-03', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-03', slot: 'MATIN' } }
   },
   "5": {
     id: "5",
@@ -256,10 +227,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-02-11', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-02-10', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-02-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-10', slot: 'MATIN' } }
   },
   "6": {
     id: "6",
@@ -272,10 +240,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-02-17', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-17', slot: 'MATIN' } }
   },
   "7": {
     id: "7",
@@ -288,10 +253,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-03-04', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-03-03', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-03-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-03', slot: 'MATIN' } }
   },
   "8": {
     id: "8",
@@ -304,10 +266,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-03-11', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-03-10', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-03-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-10', slot: 'MATIN' } }
   },
   "9": {
     id: "9",
@@ -320,10 +279,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-03-18', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-03-17', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-03-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-17', slot: 'MATIN' } }
   },
   "10": {
     id: "10",
@@ -336,10 +292,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { 
-        classA: { date: '2026-03-25', slot: 'APRÈS-MIDI' },
-        classB: { date: '2026-03-24', slot: 'MATIN' }
-    }
+    schedule: { classA: { date: '2026-03-25', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-24', slot: 'MATIN' } }
   },
   "11": {
     id: "11",
@@ -371,62 +324,96 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
 
 const generateMockAgencies = (): Agency[] => {
   const agencies: Agency[] = [];
-  let globalStudentIndex = 0; // Unique ID generator
+  let globalStudentIndex = 0;
 
-  // Helper to create member objects
   const createMembers = (names: string[], classId: 'A' | 'B'): Student[] => {
-    return names.map((name, i) => ({
-      id: `s-${globalStudentIndex++}`,
-      name: name,
-      role: 'Associé', // Rôle standardisé
-      avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
-      individualScore: 80,
-      wallet: 0, // NEW: Initial Wallet
-      classId: classId,
-      connectionStatus: 'offline',
-      history: []
-    }));
+    return names.map((name) => {
+      // Check for Individual Awards
+      const award = S1_INDIVIDUAL_WINNERS[name];
+      
+      return {
+        id: `s-${globalStudentIndex++}`,
+        name: name,
+        role: 'Associé',
+        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
+        individualScore: 80,
+        wallet: award ? award.amount : 0, // INJECTION CASH PRIZE
+        classId: classId,
+        connectionStatus: 'offline',
+        history: award ? [{
+            date: "2024-02-01",
+            agencyId: "system",
+            agencyName: "RNP Awards",
+            action: "JOINED",
+            contextVE: 0,
+            contextBudget: 0,
+            reason: `Prix S1 ${award.badge.includes('gold') ? 'OR' : award.badge.includes('silver') ? 'ARGENT' : 'BRONZE'} (+${award.amount} PiXi)`
+        }] : []
+      };
+    });
   };
 
   // Generate Agencies from TEAMS_CONFIG
   TEAMS_CONFIG.forEach(team => {
       const members = createMembers(team.members, team.classId);
+      
+      // Check for Group Awards
+      const revenueBonus = S1_GROUP_BONUSES[team.id] || 0;
+      
+      // Add Badges to Winners
+      const agencyBadges: Badge[] = [];
+      members.forEach(m => {
+          const award = S1_INDIVIDUAL_WINNERS[m.name];
+          if(award) {
+             const def = BADGE_DEFINITIONS.find(b => b.id === award.badge);
+             if(def) agencyBadges.push(def); // Note: In real app, badges belong to students, but here we only have Agency Badges structure in types currently? 
+             // Actually, looking at types.ts, badges are on Agency. 
+             // Ideally we should have student badges. 
+             // For now, let's not break types, assume the prompt implies we reward the student with Cash, and maybe the Agency gets a badge if it's a group award.
+          }
+      });
+      
+      // Add Group Badge to Agency
+      if (team.id === 'agency_gold') agencyBadges.push({ id: 's1_gold_group', label: 'Agence Or S1', description: 'Meilleure Agence S1 (+200/sem)', icon: 'crown' });
+      if (team.id === 'agency_silver') agencyBadges.push({ id: 's1_silver_group', label: 'Agence Argent S1', description: 'Top Agence S1 (+150/sem)', icon: 'crown' });
+      if (team.id === 'agency_bronze') agencyBadges.push({ id: 's1_bronze_group', label: 'Agence Bronze S1', description: 'Top Agence S1 (+100/sem)', icon: 'crown' });
 
       agencies.push({
           id: team.id,
           name: team.name,
-          tagline: "En attente de définition...",
-          ve_current: 0,
-          status: 'fragile',
+          tagline: revenueBonus > 0 ? "Lauréat S1 - Excellence RNP" : "En attente de définition...",
+          ve_current: revenueBonus > 0 ? 60 : 50, // Bonus start VE for winners
+          status: 'stable',
           classId: team.classId,
           budget_real: 0,
           budget_valued: 0,
           weeklyTax: 0,
-          weeklyRevenueModifier: 0, // NEW FIELD
+          weeklyRevenueModifier: revenueBonus, // INJECTION REVENU RÉCURRENT
           eventLog: [
-             { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
+             { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." },
+             ...(revenueBonus > 0 ? [{ id: `e-${team.id}-2`, date: "2024-02-01", type: "INFO", label: "Bonus S1", deltaVE: 10, description: `Bonus récurrent activé: +${revenueBonus} PiXi/sem.` } as GameEvent] : [])
           ],
           members: members,
           peerReviews: [],
           currentCycle: CycleType.MARQUE_BRIEF,
-          projectDef: {
-            problem: "",
-            target: "",
-            location: "",
-            gesture: "",
-            isLocked: false
-          },
+          projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
           constraints: { space: "", style: "", client: "" },
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
-          branding: { color: 'indigo' },
-          badges: []
+          branding: { color: revenueBonus > 0 ? 'amber' : 'indigo' },
+          badges: agencyBadges
       });
   });
 
-  // Add the "Unassigned" Agency (Chômage Pool)
-  const unassignedMembersA = createMembers(UNASSIGNED_POOL_A, 'A');
-  const unassignedMembersB = createMembers(UNASSIGNED_POOL_B, 'B');
+  // Add the "Unassigned" Agency
+  const unassignedMembers = createMembers(UNASSIGNED_POOL, 'A'); // Default class A for pool, mixed later
+  // Fix classIds for pool
+  unassignedMembers.forEach(m => {
+      // Very basic heuristic since pool is mixed in array but we need strict class
+      if (['Stessy', 'Zirwath', 'Coralie', 'Faghez', 'Tryphose', 'Ghintia', 'Achabys', 'Duamel', 'Erudice', 'Lindsay'].includes(m.name)) {
+          m.classId = 'B';
+      }
+  });
 
   agencies.push({
       id: 'unassigned',
@@ -440,7 +427,7 @@ const generateMockAgencies = (): Agency[] => {
       weeklyTax: 0,
       weeklyRevenueModifier: 0,
       eventLog: [],
-      members: [...unassignedMembersA, ...unassignedMembersB], // Merge everyone here
+      members: unassignedMembers,
       peerReviews: [],
       currentCycle: CycleType.MARQUE_BRIEF,
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },
@@ -457,7 +444,7 @@ const generateMockAgencies = (): Agency[] => {
 export const MOCK_AGENCIES: Agency[] = generateMockAgencies();
 
 export const CONSTRAINTS_POOL = {
-  space: [],
-  style: [],
-  client: []
+  space: ["Hall de Gare", "Friche Industrielle", "Parvis Église", "Toit Terrasse", "Parking Souterrain", "Kiosque Abandonné"],
+  style: ["Cyberpunk", "Art Déco", "Brutalisme Végétal", "Minimalisme Japonais", "Steampunk", "Bauhaus"],
+  client: ["Marque de Luxe", "ONG Humanitaire", "Collectif d'Artistes", "Mairie de Quartier", "Start-up Tech", "Festival de Musique"]
 };

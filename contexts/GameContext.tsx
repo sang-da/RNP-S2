@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Agency, WeekModule, GameEvent, WikiResource, Student } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
@@ -221,24 +222,24 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const totalScore = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0);
                 const avg = totalScore / reviews.length;
                 
-                // SCALING LOGIC: HIGH RISK / HIGH REWARD
+                // SCALING LOGIC
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
 
                 if (avg > 4.5) { 
-                    scoreDelta = 10; // Excellence absolue
+                    scoreDelta = 10; 
                     newStreak++; 
                 } else if (avg >= 4.0) { 
-                    scoreDelta = 5; // Très bon travail
+                    scoreDelta = 5; 
                     newStreak++; 
                 } else if (avg < 1.5) { 
-                    scoreDelta = -10; // Toxicité / Absentéisme grave
+                    scoreDelta = -10; 
                     newStreak = 0; 
                 } else if (avg <= 2.5) { 
-                    scoreDelta = -2; // Insuffisant
+                    scoreDelta = -2; 
                     newStreak = 0; 
                 } else { 
-                    scoreDelta = 2; // Standard (2.5 à 4.0)
+                    scoreDelta = 2; 
                     newStreak = 0; 
                 }
 
@@ -249,13 +250,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 return { ...member, streak: newStreak };
             });
             
-            // 3. SALARIES
-            let totalSalaryCost = 0;
+            // 3. SALARIES (With "Robin Hood" Logic > 800)
+            let totalSalaryCostForAgency = 0;
             const membersAfterPay = updatedMembers.map(member => {
-                const salary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
-                totalSalaryCost += salary;
-                let payment = salary;
-                let walletDelta = salary;
+                const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; // ex: 90 * 10 = 900
+                totalSalaryCostForAgency += rawSalary; // Agency pays full value
+
+                // Determine how much goes to student wallet vs agency rent relief
+                let studentKeep = rawSalary;
+                if (rawSalary > GAME_RULES.SALARY_CAP_FOR_STUDENT) {
+                    studentKeep = GAME_RULES.SALARY_CAP_FOR_STUDENT; // Cappé à 800
+                }
+
+                let payment = studentKeep;
+                let walletDelta = studentKeep;
+                
+                // If agency is broke, they don't get paid (debt sharing)
                 if (currentBudget < 0) {
                      const debtShare = Math.abs(currentBudget) / updatedMembers.length;
                      walletDelta = -debtShare; 
@@ -264,16 +274,34 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 return { ...member, wallet: (member.wallet || 0) + walletDelta };
             });
 
-            if (currentBudget >= 0) currentBudget -= totalSalaryCost;
+            if (currentBudget >= 0) {
+                // Agency pays the FULL salary amount from its budget
+                // The difference (900 paid - 800 received) is effectively "kept" by agency as rent contribution? 
+                // NO, for accounting logic: Agency pays 900. Student gets 800. 100 is lost? 
+                // BETTER LOGIC: Agency pays only 800 for that student. 
+                // "Tout ce que l'étudiant gagne au dela de 800 paye le loyer".
+                // So practically, the Agency doesn't disburse the excess. It saves it.
+                
+                let actualDisbursed = 0;
+                updatedMembers.forEach(m => {
+                    const raw = m.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                    actualDisbursed += Math.min(raw, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+                });
+                
+                currentBudget -= actualDisbursed;
+                // We log the disbursed amount only
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Versés', deltaBudgetReal: -actualDisbursed, description: `Salaires plafonnés à ${GAME_RULES.SALARY_CAP_FOR_STUDENT}.` });
+            } else {
+                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Défaut de Paiement', deltaBudgetReal: 0, description: `Agence en dette. Prélèvement solidaire sur portefeuilles.` });
+            }
 
-            logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: currentBudget < 0 ? 'Défaut de Paiement' : 'Salaires Versés', deltaBudgetReal: currentBudget < 0 ? 0 : -totalSalaryCost, description: currentBudget < 0 ? `Agence en dette. Prélèvement solidaire.` : `Salaires versés.` });
 
             // 4. REVENUES
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const bonuses = agency.weeklyRevenueModifier || 0;
             const revenue = GAME_RULES.REVENUE_BASE + revenueVE + bonuses;
             currentBudget += revenue;
-            logEvents.push({ id: `fin-rev-${Date.now()}-${agency.id}-2`, date: today, type: 'REVENUE', label: 'Rentrée Subvention', deltaBudgetReal: revenue, description: `Base + VE + Bonus.` });
+            logEvents.push({ id: `fin-rev-${Date.now()}-${agency.id}-2`, date: today, type: 'REVENUE', label: 'Revenus', deltaBudgetReal: revenue, description: `Subvention + VE + Bonus (${bonuses}).` });
 
             // 5. ADJUSTMENTS
             let veAdjustment = 0;
