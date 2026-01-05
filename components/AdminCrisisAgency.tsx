@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
-import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap } from 'lucide-react';
+import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminCrisisAgencyProps {
@@ -11,7 +11,7 @@ interface AdminCrisisAgencyProps {
 }
 
 interface AgencyPreset extends CrisisPreset {
-    category: 'AGENCY_CRISIS' | 'AGENCY_REWARD';
+    category: 'AGENCY_CRISIS' | 'AGENCY_REWARD' | 'CEREMONY';
     isPercentage?: boolean; 
     defaultReason: string;
 }
@@ -20,7 +20,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
   const { confirm, toast } = useUI();
   
   const [agencyTarget, setAgencyTarget] = useState<'ALL' | 'CLASS_A' | 'CLASS_B' | string>('ALL');
-  const [presetType, setPresetType] = useState<'CRISIS' | 'REWARD'>('CRISIS');
+  const [presetType, setPresetType] = useState<'CRISIS' | 'REWARD' | 'CEREMONY'>('CRISIS');
   
   const [form, setForm] = useState({
       label: "",
@@ -46,11 +46,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
     { label: "Innovation Disruptive", defaultReason: "Solution créative jamais vue auparavant.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Trophy/>, category: 'AGENCY_REWARD', description: "Bonus Créa" },
     { label: "Business Angel", defaultReason: "Investissement externe suite au pitch.", deltaVE: +5, deltaBudget: 2500, isPercentage: false, icon: <Wallet/>, category: 'AGENCY_REWARD', description: "Cash Injection" },
     { label: "Viralité Positive", defaultReason: "Engouement massif sur les réseaux.", deltaVE: +12, deltaBudget: 0, isPercentage: false, icon: <Heart/>, category: 'AGENCY_REWARD', description: "Hype" },
+
+    // CEREMONY (GROUPES S1)
+    { label: "🏆 Meilleur Groupe S1", defaultReason: "Vainqueur du challenge interclasses S1.", deltaVE: +20, deltaBudget: 3000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Excellence S1" },
+    { label: "🥈 Top 2 Groupe S1", defaultReason: "Podium challenge interclasses S1.", deltaVE: +15, deltaBudget: 2000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Podium S1" },
+    { label: "🥉 Top 3 Groupe S1", defaultReason: "Podium challenge interclasses S1.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Podium S1" },
   ];
 
   const filteredPresets = PRESETS.filter(p => 
       (presetType === 'CRISIS' && p.category === 'AGENCY_CRISIS') ||
-      (presetType === 'REWARD' && p.category === 'AGENCY_REWARD')
+      (presetType === 'REWARD' && p.category === 'AGENCY_REWARD') ||
+      (presetType === 'CEREMONY' && p.category === 'CEREMONY')
   );
 
   const selectPreset = (preset: AgencyPreset) => {
@@ -115,12 +121,15 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* LEFT: PRESETS */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-            <div className="flex gap-2">
-                <button onClick={() => setPresetType('CRISIS')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 border-2 ${presetType === 'CRISIS' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-100 text-slate-400'}`}>
+            <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
+                <button onClick={() => setPresetType('CRISIS')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'CRISIS' ? 'bg-white shadow text-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <Flame size={16}/> Crises
                 </button>
-                <button onClick={() => setPresetType('REWARD')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 border-2 ${presetType === 'REWARD' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-400'}`}>
+                <button onClick={() => setPresetType('REWARD')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'REWARD' ? 'bg-white shadow text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <Trophy size={16}/> Bonus
+                </button>
+                <button onClick={() => setPresetType('CEREMONY')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'CEREMONY' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <Medal size={16}/> Prix
                 </button>
             </div>
 
@@ -130,11 +139,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                         key={idx}
                         onClick={() => selectPreset(preset)}
                         className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-between ${
-                            presetType === 'CRISIS' ? 'hover:border-red-300 hover:bg-red-50/50 border-slate-100 bg-white' : 'hover:border-emerald-300 hover:bg-emerald-50/50 border-slate-100 bg-white'
+                            presetType === 'CRISIS' ? 'hover:border-red-300 hover:bg-red-50/50 border-slate-100 bg-white' : 
+                            presetType === 'CEREMONY' ? 'hover:border-amber-300 hover:bg-amber-50/50 border-slate-100 bg-white' :
+                            'hover:border-emerald-300 hover:bg-emerald-50/50 border-slate-100 bg-white'
                         }`}
                     >
                         <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-full ${presetType === 'CRISIS' ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                            <div className={`p-3 rounded-full ${
+                                presetType === 'CRISIS' ? 'bg-red-100 text-red-500' : 
+                                presetType === 'CEREMONY' ? 'bg-amber-100 text-amber-500' :
+                                'bg-emerald-100 text-emerald-500'
+                            }`}>
                                 {preset.icon}
                             </div>
                             <div>
@@ -240,7 +255,9 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                 <button 
                     onClick={handleApply}
                     className={`w-full py-4 rounded-xl font-bold text-white shadow-xl shadow-slate-300/50 flex items-center justify-center gap-3 transition-transform active:scale-95 ${
-                        presetType === 'CRISIS' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                        presetType === 'CRISIS' ? 'bg-red-600 hover:bg-red-700' : 
+                        presetType === 'CEREMONY' ? 'bg-amber-500 hover:bg-amber-600' :
+                        'bg-emerald-600 hover:bg-emerald-700'
                     }`}
                 >
                     {presetType === 'CRISIS' ? <Flame size={20}/> : <Send size={20}/>}

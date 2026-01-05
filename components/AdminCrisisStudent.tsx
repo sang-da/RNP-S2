@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, CrisisPreset, GameEvent, Student } from '../types';
-import { Crown, User, UserMinus, Sparkles, Gavel, Briefcase, FileWarning, ShieldAlert, BadgeCheck, Heart } from 'lucide-react';
+import { Crown, User, UserMinus, Sparkles, Gavel, Briefcase, FileWarning, ShieldAlert, BadgeCheck, Heart, Medal, Star } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminCrisisStudentProps {
@@ -11,7 +11,7 @@ interface AdminCrisisStudentProps {
 }
 
 interface StudentPreset extends CrisisPreset {
-    category: 'STUDENT_SANCTION' | 'STUDENT_BONUS';
+    category: 'STUDENT_SANCTION' | 'STUDENT_BONUS' | 'CEREMONY';
     deltaScore?: number;
     deltaWallet?: number;
     defaultReason: string;
@@ -21,7 +21,7 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
   const { confirm, toast } = useUI();
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
-  const [presetType, setPresetType] = useState<'SANCTION' | 'BONUS'>('SANCTION');
+  const [presetType, setPresetType] = useState<'SANCTION' | 'BONUS' | 'CEREMONY'>('BONUS');
   
   const [form, setForm] = useState({
       label: "",
@@ -50,11 +50,17 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
     { label: "MVP Technique", defaultReason: "A débloqué une situation technique complexe pour l'équipe.", deltaScore: +5, deltaWallet: 300, deltaVE: 0, deltaBudget: 0, icon: <BadgeCheck/>, category: 'STUDENT_BONUS', description: "Skill" },
     { label: "Esprit de Corps", defaultReason: "A aidé d'autres agences ou soutenu ses collègues.", deltaScore: +3, deltaWallet: 150, deltaVE: 0, deltaBudget: 0, icon: <Heart/>, category: 'STUDENT_BONUS', description: "Soft Skill" },
     { label: "Crunch Hero", defaultReason: "Effort exceptionnel de dernière minute pour sauver le rendu.", deltaScore: +4, deltaWallet: 200, deltaVE: 0, deltaBudget: 0, icon: <Sparkles/>, category: 'STUDENT_BONUS', description: "Effort" },
+
+    // CÉRÉMONIE (LAUREATS S1)
+    { label: "🥇 Major de Promo (Or)", defaultReason: "1ère place au classement général du S1.", deltaScore: +15, deltaWallet: 1000, deltaVE: 0, deltaBudget: 0, icon: <Medal/>, category: 'CEREMONY', description: "Top 1 Classe" },
+    { label: "🥈 Dauphin (Argent)", defaultReason: "2ème place au classement général du S1.", deltaScore: +10, deltaWallet: 750, deltaVE: 0, deltaBudget: 0, icon: <Medal/>, category: 'CEREMONY', description: "Top 2 Classe" },
+    { label: "🥉 Podium (Bronze)", defaultReason: "3ème place au classement général du S1.", deltaScore: +5, deltaWallet: 500, deltaVE: 0, deltaBudget: 0, icon: <Medal/>, category: 'CEREMONY', description: "Top 3 Classe" },
   ];
 
   const filteredPresets = PRESETS.filter(p => 
       (presetType === 'SANCTION' && p.category === 'STUDENT_SANCTION') ||
-      (presetType === 'BONUS' && p.category === 'STUDENT_BONUS')
+      (presetType === 'BONUS' && p.category === 'STUDENT_BONUS') ||
+      (presetType === 'CEREMONY' && p.category === 'CEREMONY')
   );
 
   const selectPreset = (preset: StudentPreset) => {
@@ -137,12 +143,15 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
 
          {/* CENTER: ACTIONS */}
          <div className="lg:col-span-8 space-y-6">
-            <div className="flex gap-2">
-                <button onClick={() => setPresetType('SANCTION')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 border-2 ${presetType === 'SANCTION' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-100 text-slate-400'}`}>
-                    <Gavel size={16}/> Sanctions RH
+            <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
+                <button onClick={() => setPresetType('SANCTION')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'SANCTION' ? 'bg-white shadow text-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <Gavel size={16}/> Sanctions
                 </button>
-                <button onClick={() => setPresetType('BONUS')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 border-2 ${presetType === 'BONUS' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-400'}`}>
-                    <Crown size={16}/> Bonus / Promotion
+                <button onClick={() => setPresetType('BONUS')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'BONUS' ? 'bg-white shadow text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <Crown size={16}/> Bonus
+                </button>
+                <button onClick={() => setPresetType('CEREMONY')} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all ${presetType === 'CEREMONY' ? 'bg-white shadow text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <Star size={16}/> Cérémonie S1
                 </button>
             </div>
 
@@ -152,11 +161,17 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                         key={idx}
                         onClick={() => selectPreset(preset)}
                         className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between h-32 ${
-                            presetType === 'SANCTION' ? 'hover:border-red-300 hover:bg-red-50/50 border-slate-100 bg-white' : 'hover:border-emerald-300 hover:bg-emerald-50/50 border-slate-100 bg-white'
+                            presetType === 'SANCTION' ? 'hover:border-red-300 hover:bg-red-50/50 border-slate-100 bg-white' : 
+                            presetType === 'CEREMONY' ? 'hover:border-amber-300 hover:bg-amber-50/50 border-slate-100 bg-white' :
+                            'hover:border-emerald-300 hover:bg-emerald-50/50 border-slate-100 bg-white'
                         }`}
                     >
                         <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${presetType === 'SANCTION' ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-500'}`}>
+                            <div className={`p-2 rounded-lg ${
+                                presetType === 'SANCTION' ? 'bg-red-100 text-red-500' : 
+                                presetType === 'CEREMONY' ? 'bg-amber-100 text-amber-500' :
+                                'bg-emerald-100 text-emerald-500'
+                            }`}>
                                 {preset.icon}
                             </div>
                             <h4 className="font-bold text-slate-900 text-sm leading-tight">{preset.label}</h4>
@@ -208,10 +223,12 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                     onClick={handleApply}
                     disabled={!selectedStudentId}
                     className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        presetType === 'SANCTION' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                        presetType === 'SANCTION' ? 'bg-red-600 hover:bg-red-700' : 
+                        presetType === 'CEREMONY' ? 'bg-amber-500 hover:bg-amber-600' :
+                        'bg-emerald-600 hover:bg-emerald-700'
                     }`}
                 >
-                    {presetType === 'SANCTION' ? "APPLIQUER LA SANCTION" : "VALIDER LE BONUS"}
+                    {presetType === 'SANCTION' ? "APPLIQUER LA SANCTION" : "VALIDER"}
                 </button>
             </div>
          </div>
