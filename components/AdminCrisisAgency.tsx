@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
-import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal } from 'lucide-react';
+import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminCrisisAgencyProps {
@@ -20,7 +20,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
   const { confirm, toast } = useUI();
   
   const [agencyTarget, setAgencyTarget] = useState<'ALL' | 'CLASS_A' | 'CLASS_B' | string>('ALL');
-  const [presetType, setPresetType] = useState<'CRISIS' | 'REWARD' | 'CEREMONY'>('CRISIS');
+  const [presetType, setPresetType] = useState<'CRISIS' | 'REWARD' | 'CEREMONY'>('CEREMONY');
   
   const [form, setForm] = useState({
       label: "",
@@ -41,16 +41,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
     { label: "Plagiat Avéré", defaultReason: "Copie substantielle détectée. Tolérance zéro.", deltaVE: -25, deltaBudget: -1000, isPercentage: false, icon: <AlertOctagon/>, category: 'AGENCY_CRISIS', description: "Sanction Lourde" },
     { label: "Bad Buzz", defaultReason: "Communication désastreuse sur les réseaux.", deltaVE: -8, deltaBudget: 0, icon: <Megaphone/>, category: 'AGENCY_CRISIS', description: "Impact Image" },
     
-    // REWARDS
+    // REWARDS (AGENCE S2)
     { label: "Rendu Photoréaliste", defaultReason: "Qualité technique exceptionnelle du rendu.", deltaVE: +8, deltaBudget: 500, isPercentage: false, icon: <Zap/>, category: 'AGENCY_REWARD', description: "Bonus Qualité" },
     { label: "Innovation Disruptive", defaultReason: "Solution créative jamais vue auparavant.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Trophy/>, category: 'AGENCY_REWARD', description: "Bonus Créa" },
     { label: "Business Angel", defaultReason: "Investissement externe suite au pitch.", deltaVE: +5, deltaBudget: 2500, isPercentage: false, icon: <Wallet/>, category: 'AGENCY_REWARD', description: "Cash Injection" },
     { label: "Viralité Positive", defaultReason: "Engouement massif sur les réseaux.", deltaVE: +12, deltaBudget: 0, isPercentage: false, icon: <Heart/>, category: 'AGENCY_REWARD', description: "Hype" },
 
-    // CEREMONY (GROUPES S1)
-    { label: "🏆 Meilleur Groupe S1", defaultReason: "Vainqueur du challenge interclasses S1.", deltaVE: +20, deltaBudget: 3000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Excellence S1" },
-    { label: "🥈 Top 2 Groupe S1", defaultReason: "Podium challenge interclasses S1.", deltaVE: +15, deltaBudget: 2000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Podium S1" },
-    { label: "🥉 Top 3 Groupe S1", defaultReason: "Podium challenge interclasses S1.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Medal/>, category: 'CEREMONY', description: "Podium S1" },
+    // CEREMONY (GRANDS PRIX CYCLES)
+    { label: "🏆 Golden Brief (C1)", defaultReason: "Vainqueur du Cycle 1 : Stratégie & Cohérence.", deltaVE: +15, deltaBudget: 1000, isPercentage: false, icon: <Compass/>, category: 'CEREMONY', description: "Grand Prix Cycle 1" },
+    { label: "🏆 Prix Narration (C2)", defaultReason: "Vainqueur du Cycle 2 : Storytelling & IA.", deltaVE: +20, deltaBudget: 1500, isPercentage: false, icon: <Mic/>, category: 'CEREMONY', description: "Grand Prix Cycle 2" },
+    { label: "🏆 Prix Vision (C3)", defaultReason: "Vainqueur du Cycle 3 : Direction Artistique.", deltaVE: +25, deltaBudget: 2000, isPercentage: false, icon: <Eye/>, category: 'CEREMONY', description: "Grand Prix Cycle 3" },
+    { label: "🏆 Prix Signature (C4)", defaultReason: "Vainqueur du Cycle 4 : Packaging Final.", deltaVE: +40, deltaBudget: 3000, isPercentage: false, icon: <Crown/>, category: 'CEREMONY', description: "Grand Prix Final" },
   ];
 
   const filteredPresets = PRESETS.filter(p => 
