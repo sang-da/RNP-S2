@@ -79,7 +79,6 @@ export interface Student {
   avatarUrl: string;
   individualScore: number; // 0-100
   wallet: number; // NEW: Personal Funds in PiXi
-  streak?: number; // NEW: Consecutive weeks with good grade
   cvUrl?: string; // URL vers le PDF du CV
   classId: 'A' | 'B'; // Gestion des deux promotions
   connectionStatus?: 'online' | 'offline' | 'pending';

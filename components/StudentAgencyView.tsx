@@ -103,13 +103,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
                 {agency.id !== 'unassigned' && (
                 <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                    {/* Personal Wallet with Click Handler */}
+                    {/* Personal Wallet Button */}
                     {myMemberProfile && (
                         <div onClick={() => setShowWallet(true)} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
-                            <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline">Mon Portefeuille</span>
+                            <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline flex items-center gap-1 md:justify-end">
+                                <Wallet size={12}/> Banque Perso
+                            </span>
                             <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
-                                <Wallet size={16} className="text-yellow-400"/>
-                                <span className="text-yellow-400">{myMemberProfile.wallet || 0}</span>
+                                <span className="text-yellow-400 font-mono">{myMemberProfile.wallet || 0} PiXi</span>
                             </div>
                         </div>
                     )}
@@ -155,14 +156,16 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
         </div>
 
         {/* WALLET MODAL */}
-        <WalletModal 
-            isOpen={showWallet} 
-            onClose={() => setShowWallet(false)} 
-            student={myMemberProfile!} 
-            allStudents={allAgencies.flatMap(a => a.members)}
-            onTransfer={transferFunds}
-            onTradeScore={tradeScoreForCash}
-        />
+        {myMemberProfile && (
+            <WalletModal 
+                isOpen={showWallet} 
+                onClose={() => setShowWallet(false)} 
+                student={myMemberProfile} 
+                allStudents={allAgencies.flatMap(a => a.members)}
+                onTransfer={transferFunds}
+                onTradeScore={tradeScoreForCash}
+            />
+        )}
 
         {/* SETTINGS & HELP MODALS */}
         <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="Personnalisation Agence">

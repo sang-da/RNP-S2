@@ -214,20 +214,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             currentBudget -= GAME_RULES.AGENCY_RENT;
             logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -GAME_RULES.AGENCY_RENT, description: `Charges fixes.` });
 
-            // 2. SCORES
+            // 2. SCORES SCALING (AGRESSIF)
             const updatedMembers = agency.members.map(member => {
                 const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
                 if (reviews.length === 0) return member;
                 const totalScore = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0);
                 const avg = totalScore / reviews.length;
+                
+                // SCALING LOGIC: HIGH RISK / HIGH REWARD
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
 
-                if (avg > 4.5) { scoreDelta = 10; newStreak++; } 
-                else if (avg >= 4.0) { scoreDelta = 5; newStreak++; } 
-                else if (avg < 1.5) { scoreDelta = -10; newStreak = 0; } 
-                else if (avg <= 2.5) { scoreDelta = -2; newStreak = 0; } 
-                else { scoreDelta = 2; newStreak = 0; }
+                if (avg > 4.5) { 
+                    scoreDelta = 10; // Excellence absolue
+                    newStreak++; 
+                } else if (avg >= 4.0) { 
+                    scoreDelta = 5; // Très bon travail
+                    newStreak++; 
+                } else if (avg < 1.5) { 
+                    scoreDelta = -10; // Toxicité / Absentéisme grave
+                    newStreak = 0; 
+                } else if (avg <= 2.5) { 
+                    scoreDelta = -2; // Insuffisant
+                    newStreak = 0; 
+                } else { 
+                    scoreDelta = 2; // Standard (2.5 à 4.0)
+                    newStreak = 0; 
+                }
 
                 if (scoreDelta !== 0) {
                      const newScore = Math.max(0, Math.min(100, member.individualScore + scoreDelta));
@@ -293,7 +306,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- NEW: STUDENT ECONOMY ---
   
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => {
-      // Find students and their agencies
       let sourceData: { agency: Agency, student: Student } | undefined;
       let targetData: { agency: Agency, student: Student } | undefined;
 
@@ -312,24 +324,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const batch = writeBatch(db);
 
-      // Deduct from Source
       const updatedSourceMembers = sourceData.agency.members.map(m => 
           m.id === sourceId ? { ...m, wallet: (m.wallet || 0) - amount } : m
       );
       batch.update(doc(db, "agencies", sourceData.agency.id), { members: updatedSourceMembers });
 
-      // Add to Target (Handle case where source and target are in same agency)
-      // Note: If same agency, we need to apply changes to the already modified list if needed, 
-      // but simpler to just fetch target agency fresh logic if ID matches
-      
       if (sourceData.agency.id === targetData.agency.id) {
-          // Same agency logic
           const finalMembers = updatedSourceMembers.map(m => 
               m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m
           );
           batch.update(doc(db, "agencies", sourceData.agency.id), { members: finalMembers });
       } else {
-          // Different agency
           const updatedTargetMembers = targetData.agency.members.map(m => 
               m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m
           );
