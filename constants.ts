@@ -45,6 +45,10 @@ export const BADGE_DEFINITIONS: Badge[] = [
     { id: 's1_gold', label: 'Or S1', description: 'Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_silver', label: 'Argent S1', description: 'Vice-Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_bronze', label: 'Bronze S1', description: 'Podium Promotion Semestre 1', icon: 'medal' },
+    // GROUP AWARDS
+    { id: 's1_gold_group', label: 'Agence Or S1', description: 'Meilleure Agence S1 (+200/sem)', icon: 'crown' },
+    { id: 's1_silver_group', label: 'Agence Argent S1', description: 'Top Agence S1 (+150/sem)', icon: 'crown' },
+    { id: 's1_bronze_group', label: 'Agence Bronze S1', description: 'Top Agence S1 (+100/sem)', icon: 'crown' },
 ];
 
 // --- GRANDS PRIX CYCLES ---
@@ -88,15 +92,16 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
 ];
 
 // --- CONFIGURATION DES RÉCOMPENSES S1 ---
-const S1_INDIVIDUAL_WINNERS: Record<string, { amount: number, badge: string }> = {
+// SCORE LOGIC: BASE (30) + S1 (40/35/30/20) + BONUS (20)
+const S1_INDIVIDUAL_WINNERS: Record<string, { amount: number, badge: string, s1Score: number }> = {
     // CLASSE A
-    "Maëlys": { amount: 1000, badge: 's1_gold' },
-    "Marie-Trinité": { amount: 750, badge: 's1_silver' },
-    "Sarah": { amount: 500, badge: 's1_bronze' },
+    "Maëlys": { amount: 1000, badge: 's1_gold', s1Score: 40 },
+    "Marie-Trinité": { amount: 750, badge: 's1_silver', s1Score: 35 },
+    "Sarah": { amount: 500, badge: 's1_bronze', s1Score: 30 },
     // CLASSE B
-    "Loïs": { amount: 1000, badge: 's1_gold' },
-    "Esther": { amount: 750, badge: 's1_silver' },
-    "Coralie": { amount: 500, badge: 's1_bronze' }
+    "Loïs": { amount: 1000, badge: 's1_gold', s1Score: 40 },
+    "Esther": { amount: 750, badge: 's1_silver', s1Score: 35 },
+    "Coralie": { amount: 500, badge: 's1_bronze', s1Score: 30 }
 };
 
 const S1_GROUP_BONUSES: Record<string, number> = {
@@ -331,15 +336,29 @@ const generateMockAgencies = (): Agency[] => {
       // Check for Individual Awards
       const award = S1_INDIVIDUAL_WINNERS[name];
       
+      // FORMULE DE SCORE : SMIG (30) + S1 (40/35/30/20) + BONUS (20)
+      const baseScore = 30; // SMIG
+      const s1Score = award ? award.s1Score : 20; // S1 Note (Max 40 for Gold, 20 for others)
+      const bonusScore = 20; // Bonus de départ
+      const calculatedScore = baseScore + s1Score + bonusScore;
+
+      // BADGES
+      const studentBadges: Badge[] = [];
+      if (award) {
+          const badgeDef = BADGE_DEFINITIONS.find(b => b.id === award.badge);
+          if (badgeDef) studentBadges.push(badgeDef);
+      }
+
       return {
         id: `s-${globalStudentIndex++}`,
         name: name,
         role: 'Associé',
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
-        individualScore: 80,
+        individualScore: calculatedScore,
         wallet: award ? award.amount : 0, // INJECTION CASH PRIZE
         classId: classId,
         connectionStatus: 'offline',
+        badges: studentBadges, // ASSIGNATION BADGES ETUDIANT
         history: award ? [{
             date: "2024-02-01",
             agencyId: "system",
@@ -360,23 +379,11 @@ const generateMockAgencies = (): Agency[] => {
       // Check for Group Awards
       const revenueBonus = S1_GROUP_BONUSES[team.id] || 0;
       
-      // Add Badges to Winners
-      const agencyBadges: Badge[] = [];
-      members.forEach(m => {
-          const award = S1_INDIVIDUAL_WINNERS[m.name];
-          if(award) {
-             const def = BADGE_DEFINITIONS.find(b => b.id === award.badge);
-             if(def) agencyBadges.push(def); // Note: In real app, badges belong to students, but here we only have Agency Badges structure in types currently? 
-             // Actually, looking at types.ts, badges are on Agency. 
-             // Ideally we should have student badges. 
-             // For now, let's not break types, assume the prompt implies we reward the student with Cash, and maybe the Agency gets a badge if it's a group award.
-          }
-      });
-      
       // Add Group Badge to Agency
-      if (team.id === 'agency_gold') agencyBadges.push({ id: 's1_gold_group', label: 'Agence Or S1', description: 'Meilleure Agence S1 (+200/sem)', icon: 'crown' });
-      if (team.id === 'agency_silver') agencyBadges.push({ id: 's1_silver_group', label: 'Agence Argent S1', description: 'Top Agence S1 (+150/sem)', icon: 'crown' });
-      if (team.id === 'agency_bronze') agencyBadges.push({ id: 's1_bronze_group', label: 'Agence Bronze S1', description: 'Top Agence S1 (+100/sem)', icon: 'crown' });
+      const agencyBadges: Badge[] = [];
+      if (team.id === 'agency_gold') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_gold_group')!);
+      if (team.id === 'agency_silver') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_silver_group')!);
+      if (team.id === 'agency_bronze') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_bronze_group')!);
 
       agencies.push({
           id: team.id,
@@ -401,7 +408,7 @@ const generateMockAgencies = (): Agency[] => {
           constraints: { space: "", style: "", client: "" },
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
           branding: { color: revenueBonus > 0 ? 'amber' : 'indigo' },
-          badges: agencyBadges
+          badges: agencyBadges.filter(Boolean)
       });
   });
 
@@ -409,7 +416,6 @@ const generateMockAgencies = (): Agency[] => {
   const unassignedMembers = createMembers(UNASSIGNED_POOL, 'A'); // Default class A for pool, mixed later
   // Fix classIds for pool
   unassignedMembers.forEach(m => {
-      // Very basic heuristic since pool is mixed in array but we need strict class
       if (['Stessy', 'Zirwath', 'Coralie', 'Faghez', 'Tryphose', 'Ghintia', 'Achabys', 'Duamel', 'Erudice', 'Lindsay'].includes(m.name)) {
           m.classId = 'B';
       }

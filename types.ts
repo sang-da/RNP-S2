@@ -1,5 +1,4 @@
 
-
 export enum CycleType {
   MARQUE_BRIEF = "Cycle 1: Marque & Brief",
   NARRATION_IA = "Cycle 2: Narration & IA",
@@ -72,6 +71,14 @@ export interface StudentHistoryEntry {
     reason?: string;        // Motif (ex: "Licenciement économique", "Démission")
 }
 
+export interface Badge {
+    id: string;
+    label: string;
+    description: string;
+    icon: string; // Identifier for Lucide icon or image path
+    unlockedAt?: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -83,6 +90,7 @@ export interface Student {
   classId: 'A' | 'B'; // Gestion des deux promotions
   connectionStatus?: 'online' | 'offline' | 'pending';
   history?: StudentHistoryEntry[]; // Parcours professionnel
+  badges?: Badge[]; // NEW: Individual Badges
 }
 
 export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE';
@@ -125,14 +133,6 @@ export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'sla
 export interface AgencyBranding {
     color: BrandColor;
     bannerUrl?: string;
-}
-
-export interface Badge {
-    id: string;
-    label: string;
-    description: string;
-    icon: string; // Identifier for Lucide icon or image path
-    unlockedAt?: string;
 }
 
 export interface Agency {

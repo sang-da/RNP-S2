@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 
@@ -51,7 +51,12 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                             <div className="flex-1">
                                 <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
                                     {member.name}
-                                    {member.id === currentUser?.id && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 rounded-full">Moi</span>}
+                                    {/* BADGE DISPLAY */}
+                                    {member.badges && member.badges.length > 0 && member.badges.map(b => (
+                                        <span key={b.id} title={b.label} className="text-yellow-500 bg-yellow-50 p-1 rounded-full border border-yellow-200">
+                                            <Medal size={14}/>
+                                        </span>
+                                    ))}
                                 </h3>
                                 
                                 {/* SALARY BADGE */}
@@ -103,7 +108,14 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                     <div className="flex items-center gap-4 mb-6">
                         <img src={selectedMember.avatarUrl} className="w-16 h-16 rounded-2xl bg-slate-100" />
                         <div>
-                            <h4 className="text-xl font-bold text-slate-900">{selectedMember.name}</h4>
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-xl font-bold text-slate-900">{selectedMember.name}</h4>
+                                {selectedMember.badges?.map(b => (
+                                    <span key={b.id} className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold border border-yellow-200">
+                                        {b.label}
+                                    </span>
+                                ))}
+                            </div>
                             <p className="text-slate-500 text-sm">{selectedMember.role}</p>
                             <p className="text-red-500 font-bold text-xs mt-1">Coût salarial: {selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi / sem</p>
                         </div>
