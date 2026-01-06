@@ -19,12 +19,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
         allAgencies.flatMap(a => a.eventLog.map(e => e.date))
     )).sort();
 
+    const STARTING_VE = 20; // FIXED: Base VE at start of semester
+
     // 2. Point de départ (Semaine 0 / Création)
     const initialPoint = {
         name: 'Départ',
-        date: '0000-00-00',
-        [agency.name]: 0, // On assume un départ à 0 ou 50 selon la config, ici recalculé
-        ...allAgencies.reduce((acc, a) => ({ ...acc, [a.name]: 0 }), {})
+        date: '2024-01-01', // Date arbitraire de début
+        [agency.name]: STARTING_VE, 
+        ...allAgencies.reduce((acc, a) => ({ ...acc, [a.name]: STARTING_VE }), {})
     };
 
     // 3. Construire les points pour chaque date d'événement
@@ -37,10 +39,10 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
 
         // Pour chaque agence, on calcule sa VE cumulée jusqu'à cette date incluse
         allAgencies.forEach(a => {
-            // Somme des deltaVE de tous les événements antérieurs ou égaux à la date
+            // Somme des deltaVE de tous les événements antérieurs ou égaux à la date + BASE
             const veAtDate = a.eventLog
                 .filter(e => e.date <= dateStr)
-                .reduce((sum, e) => sum + (e.deltaVE || 0), 0); // Départ à 0 + deltas
+                .reduce((sum, e) => sum + (e.deltaVE || 0), STARTING_VE); 
             
             // On s'assure que ça ne descend pas sous 0
             point[a.name] = Math.max(0, veAtDate);

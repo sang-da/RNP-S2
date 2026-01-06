@@ -259,7 +259,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                                 onChange={(e) => setForm({...form, deltaBudget: Number(e.target.value)})}
                                 className={`w-full bg-white p-2 rounded-lg text-xl font-bold text-center border ${form.deltaBudget < 0 ? 'text-red-500 border-red-200' : 'text-emerald-500 border-emerald-200'}`}
                             />
-                            <span className="absolute right-3 top-3 text-slate-300 font-bold">{form.isPercentage ? '%' : 'PX'}</span>
+                            <span className="absolute right-3 top-3 text-slate-300 font-bold">{form.isPercentage ? '%' : 'PiXi'}</span>
                         </div>
                     </div>
                 </div>
