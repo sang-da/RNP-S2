@@ -53,10 +53,11 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', function(event) {
   const data = event.data ? event.data.json() : { title: 'RNP Manager', body: 'Nouvelle notification' };
   
+  // Utilisation de PiXi_Cloud pour l'icône de notification (cohérence App)
   const options = {
     body: data.body,
-    icon: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png',
-    badge: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png',
+    icon: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png',
+    badge: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),

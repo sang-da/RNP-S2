@@ -3,12 +3,12 @@
   "name": "RNP Studio Manager S2",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png",
+      "src": "https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png",
+      "src": "https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png",
       "type": "image/png",
       "sizes": "512x512"
     }
