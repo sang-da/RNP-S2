@@ -1,105 +1,68 @@
 
 import { Agency, CycleType, GameEvent, Student, Badge } from '../types';
-import { BADGE_DEFINITIONS, S1_INDIVIDUAL_WINNERS, S1_GROUP_BONUSES, S1_AVERAGES } from './awards';
+import { BADGE_DEFINITIONS, S1_INDIVIDUAL_WINNERS, S1_AVERAGES } from './awards';
 import { INITIAL_WEEKS } from './weeks';
 import { GAME_RULES } from './rules';
 
-// --- CONFIGURATION DES ÉQUIPES ACTIVES ---
-// Reconfiguré pour matcher les groupes gagnants du S1
-const TEAMS_CONFIG = [
-    {
-        id: 'agency_gold',
-        name: 'Agence Alpha (Or S1)',
-        classId: 'A' as const, 
-        members: ["Zirwath", "Aubine", "Maëlys", "Tiffany", "Roxane"]
-    },
-    {
-        id: 'agency_silver',
-        name: 'Agence Beta (Argent S1)',
-        classId: 'B' as const,
-        members: ["Rayane", "Erudice", "Pascal", "Jennifer"]
-    },
-    {
-        id: 'agency_bronze',
-        name: 'Agence Gamma (Bronze S1)',
-        classId: 'B' as const,
-        members: ["Tryphose", "Sarah", "Grâce", "Stessy"]
-    },
-    {
-        id: 'agency_allstars',
-        name: 'Agence Delta',
-        classId: 'A' as const,
-        members: ["Marie-Trinité", "Loïs", "Esther", "Coralie"] 
-    },
-    {
-        id: 'agency_5',
-        name: 'Agence Epsilon',
-        classId: 'A' as const,
-        members: ["Kassandra", "Jessica", "Ronelle", "Gloria"]
-    },
-    {
-        id: 'agency_6',
-        name: 'Agence Zeta',
-        classId: 'A' as const,
-        members: ["Lydia", "Korell", "Shaneen"]
-    },
-    {
-        id: 'agency_7',
-        name: 'Agence Eta',
-        classId: 'B' as const,
-        members: ["Ruth-De-Franck", "Vianney", "Elicia", "Brunelle"]
-    },
-    {
-        id: 'agency_8',
-        name: 'Agence Theta',
-        classId: 'B' as const,
-        members: ["Mira", "Ashley", "Ian", "Emeraude"]
-    }
+// --- CONFIGURATION DES GAGNANTS GROUPES S1 (POUR BADGES) ---
+const S1_GOLD_TEAM_MEMBERS = ["Zirwath", "Aubine", "Maëlys", "Tiffany", "Roxane"];
+const S1_SILVER_TEAM_MEMBERS = ["Rayane", "Erudice", "Pascal", "Jennifer"];
+const S1_BRONZE_TEAM_MEMBERS = ["Tryphose", "Sarah", "Grâce", "Stessy"];
+
+// --- LISTE COMPLÈTE DES ÉTUDIANTS ---
+const STUDENTS_CLASSE_A = [
+    "Marie-Trinité", "Jessica", "Lydia", "Ronelle", "Tiffany", 
+    "Ian", "Kassandra", "Aubine", "Lidwine", "Sarah", 
+    "Maëlys", "Rebecca", "Rolyx", "Emeraude", "Shaneen", 
+    "Noriane", "Pascal", "Roxane", "Loan", "Korell", "Iris"
 ];
 
-// --- POOL DE CHÔMAGE (Le reste des étudiants) ---
-const UNASSIGNED_POOL = [
-    "Rolyx", "Noriane", "Lidwine", "Iris", "Loan", // Reste A
-    "Faghez", "Ghintia", "Achabys", "Duamel", "Lindsay" // Reste B
+const STUDENTS_CLASSE_B = [
+    "Tryphose", "Vianney", "Esther", "Achabys", "Zirwath", 
+    "Elicia", "Loïs", "Coralie", "Ruth-De-Franck", "Lindsay", 
+    "Ghintia", "Rayane", "Ashley", "Faghez", "Erudice", 
+    "Mira", "Brunelle", "Stessy", "Duamel", "Grâce", "Jennifer"
 ];
 
+// --- GÉNÉRATEUR ---
 const generateMockAgencies = (): Agency[] => {
   const agencies: Agency[] = [];
   let globalStudentIndex = 0;
 
-  const createMembers = (names: string[], classId: 'A' | 'B', teamId?: string): Student[] => {
-    return names.map((name) => {
-      // 1. Récupération des données S1
+  // Helper pour créer un étudiant
+  const createStudent = (name: string, classId: 'A' | 'B'): Student => {
+      // 1. DATA S1
       const award = S1_INDIVIDUAL_WINNERS[name];
-      const averageS1 = S1_AVERAGES[name] || 10; // Valeur par défaut 10 si introuvable
+      const averageS1 = S1_AVERAGES[name] || 10;
       
-      // 2. FORMULE DE SCORE RÉELLE
-      // Base (30) + Moyenne S1 ramenée sur 40 + Bonus (20)
+      // 2. SCORE CALCULATION
+      // Formule: 30 (Base) + (MoyenneS1 / 20 * 40) + 20 (Bonus)
       const baseScore = 30;
-      const s1Part = (averageS1 / 20) * 40; // Ex: 15/20 donne 30 points
-      const bonusScore = 20; 
-      
+      const s1Part = (averageS1 / 20) * 40;
+      const bonusScore = 20;
       const calculatedScore = Math.round(baseScore + s1Part + bonusScore);
 
       // 3. BADGES
       const studentBadges: Badge[] = [];
-      
+
       // Badge Individuel (Solo)
       if (award) {
           const badgeDef = BADGE_DEFINITIONS.find(b => b.id === award.badge);
           if (badgeDef) studentBadges.push(badgeDef);
       }
 
-      // Badge de Groupe (Team)
-      if (teamId === 'agency_gold') {
-          const groupBadge = BADGE_DEFINITIONS.find(b => b.id === 's1_gold_group');
-          if (groupBadge) studentBadges.push(groupBadge);
-      } else if (teamId === 'agency_silver') {
-          const groupBadge = BADGE_DEFINITIONS.find(b => b.id === 's1_silver_group');
-          if (groupBadge) studentBadges.push(groupBadge);
-      } else if (teamId === 'agency_bronze') {
-          const groupBadge = BADGE_DEFINITIONS.find(b => b.id === 's1_bronze_group');
-          if (groupBadge) studentBadges.push(groupBadge);
+      // Badge de Groupe S1 (Attribué à l'individu)
+      if (S1_GOLD_TEAM_MEMBERS.includes(name)) {
+          const b = BADGE_DEFINITIONS.find(def => def.id === 's1_gold_group');
+          if (b) studentBadges.push(b);
+      }
+      if (S1_SILVER_TEAM_MEMBERS.includes(name)) {
+          const b = BADGE_DEFINITIONS.find(def => def.id === 's1_silver_group');
+          if (b) studentBadges.push(b);
+      }
+      if (S1_BRONZE_TEAM_MEMBERS.includes(name)) {
+          const b = BADGE_DEFINITIONS.find(def => def.id === 's1_bronze_group');
+          if (b) studentBadges.push(b);
       }
 
       return {
@@ -108,10 +71,10 @@ const generateMockAgencies = (): Agency[] => {
         role: 'Associé',
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
         individualScore: calculatedScore,
-        wallet: award ? award.amount : 0, 
+        wallet: award ? award.amount : 0,
         classId: classId,
         connectionStatus: 'offline',
-        badges: studentBadges, 
+        badges: studentBadges,
         history: award ? [{
             date: "2024-02-01",
             agencyId: "system",
@@ -122,36 +85,42 @@ const generateMockAgencies = (): Agency[] => {
             reason: `Prix S1 (+${award.amount} PiXi)`
         }] : []
       };
-    });
   };
 
-  // Generate Agencies from TEAMS_CONFIG
-  TEAMS_CONFIG.forEach(team => {
-      const members = createMembers(team.members, team.classId, team.id);
-      
-      // Check for Group Awards (Revenue Bonus)
-      const revenueBonus = S1_GROUP_BONUSES[team.id] || 0;
-      
-      // Add Group Badge to Agency (Cosmetic for the agency card)
-      const agencyBadges: Badge[] = [];
-      if (team.id === 'agency_gold') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_gold_group')!);
-      if (team.id === 'agency_silver') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_silver_group')!);
-      if (team.id === 'agency_bronze') agencyBadges.push(BADGE_DEFINITIONS.find(b => b.id === 's1_bronze_group')!);
+  // --- CRÉATION DES 12 AGENCES S2 ---
+  // Agences 1-6 : Classe A
+  // Agences 7-12 : Classe B
+  
+  // Fonction de distribution équitable
+  const chunkArray = (array: string[], parts: number) => {
+      const result = [];
+      for (let i = 0; i < parts; i++) {
+          result.push(array.slice(Math.ceil((i * array.length) / parts), Math.ceil(((i + 1) * array.length) / parts)));
+      }
+      return result;
+  };
 
+  const teamsA = chunkArray(STUDENTS_CLASSE_A, 6); // Répartit les 21 élèves A en 6 groupes
+  const teamsB = chunkArray(STUDENTS_CLASSE_B, 6); // Répartit les 21 élèves B en 6 groupes
+
+  // Génération Agences A (1 à 6)
+  teamsA.forEach((membersList, index) => {
+      const agencyId = `agency_${index + 1}`;
+      const members = membersList.map(name => createStudent(name, 'A'));
+      
       agencies.push({
-          id: team.id,
-          name: team.name,
-          tagline: revenueBonus > 0 ? "Lauréat S1 - Excellence RNP" : "En attente de définition...",
-          ve_current: revenueBonus > 0 ? 60 : 50, 
+          id: agencyId,
+          name: `Agence ${index + 1}`,
+          tagline: "Nouvelle Agence S2",
+          ve_current: 50,
           status: 'stable',
-          classId: team.classId,
+          classId: 'A',
           budget_real: 0,
           budget_valued: 0,
           weeklyTax: 0,
-          weeklyRevenueModifier: revenueBonus, 
+          weeklyRevenueModifier: 0,
           eventLog: [
-             { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." },
-             ...(revenueBonus > 0 ? [{ id: `e-${team.id}-2`, date: "2024-02-01", type: "INFO", label: "Bonus S1", deltaVE: 10, description: `Bonus récurrent activé: +${revenueBonus} PiXi/sem.` } as GameEvent] : [])
+             { id: `e-${agencyId}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
           ],
           members: members,
           peerReviews: [],
@@ -160,20 +129,43 @@ const generateMockAgencies = (): Agency[] => {
           mercatoRequests: [],
           constraints: { space: "", style: "", client: "" },
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
-          branding: { color: revenueBonus > 0 ? 'amber' : 'indigo' },
-          badges: agencyBadges.filter(Boolean)
+          branding: { color: 'indigo' },
+          badges: []
       });
   });
 
-  // Add the "Unassigned" Agency
-  const unassignedMembers = createMembers(UNASSIGNED_POOL, 'A'); 
-  // Fix classIds for pool
-  unassignedMembers.forEach(m => {
-      if (['Stessy', 'Zirwath', 'Coralie', 'Faghez', 'Tryphose', 'Ghintia', 'Achabys', 'Duamel', 'Erudice', 'Lindsay'].includes(m.name)) {
-          m.classId = 'B';
-      }
+  // Génération Agences B (7 à 12)
+  teamsB.forEach((membersList, index) => {
+      const agencyId = `agency_${index + 7}`;
+      const members = membersList.map(name => createStudent(name, 'B'));
+      
+      agencies.push({
+          id: agencyId,
+          name: `Agence ${index + 7}`,
+          tagline: "Nouvelle Agence S2",
+          ve_current: 50,
+          status: 'stable',
+          classId: 'B',
+          budget_real: 0,
+          budget_valued: 0,
+          weeklyTax: 0,
+          weeklyRevenueModifier: 0,
+          eventLog: [
+             { id: `e-${agencyId}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
+          ],
+          members: members,
+          peerReviews: [],
+          currentCycle: CycleType.MARQUE_BRIEF,
+          projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
+          mercatoRequests: [],
+          constraints: { space: "", style: "", client: "" },
+          progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
+          branding: { color: 'cyan' },
+          badges: []
+      });
   });
 
+  // Agence Chômage (Vide au départ car tout le monde est assigné)
   agencies.push({
       id: 'unassigned',
       name: "Vivier / Chômage",
@@ -186,7 +178,7 @@ const generateMockAgencies = (): Agency[] => {
       weeklyTax: 0,
       weeklyRevenueModifier: 0,
       eventLog: [],
-      members: unassignedMembers,
+      members: [],
       peerReviews: [],
       currentCycle: CycleType.MARQUE_BRIEF,
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },
