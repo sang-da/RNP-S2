@@ -57,17 +57,67 @@ export const CYCLE_AWARDS: CycleAwardDefinition[] = [
     }
 ];
 
-// --- CONFIGURATION DES RÉCOMPENSES S1 ---
-// SCORE LOGIC: BASE (30) + S1 (40/35/30/20) + BONUS (20)
-export const S1_INDIVIDUAL_WINNERS: Record<string, { amount: number, badge: string, s1Score: number }> = {
+// --- MOYENNES S1 (REAL DATA) ---
+// Format: Nom Exact (tel qu'utilisé dans TEAMS_CONFIG) -> Moyenne / 20
+export const S1_AVERAGES: Record<string, number> = {
     // CLASSE A
-    "Maëlys": { amount: 1000, badge: 's1_gold', s1Score: 40 },
-    "Marie-Trinité": { amount: 750, badge: 's1_silver', s1Score: 35 },
-    "Sarah": { amount: 500, badge: 's1_bronze', s1Score: 30 },
+    "Marie-Trinité": 14.97,
+    "Jessica": 13.04,
+    "Lydia": 10.07,
+    "Ronelle": 9.17,
+    "Tiffany": 14.95,
+    "Ian": 11.74,
+    "Kassandra": 11.96,
+    "Aubine": 14.25,
+    "Lidwine": 11.68,
+    "Sarah": 13.39,
+    "Maëlys": 15.44,
+    "Rebecca": 13.84, // Attention: Rebecca pas dans TEAMS_CONFIG actuel ?
+    "Rolyx": 13.16,
+    "Emeraude": 7.1,
+    "Shaneen": 12.2,
+    "Noriane": 13.16,
+    "Pascal": 11.77,
+    "Roxane": 12.35,
+    "Loan": 10.78, // Pas assigné ?
+    "Korell": 11.8,
+    "Iris": 11.06,
+
     // CLASSE B
-    "Loïs": { amount: 1000, badge: 's1_gold', s1Score: 40 },
-    "Esther": { amount: 750, badge: 's1_silver', s1Score: 35 },
-    "Coralie": { amount: 500, badge: 's1_bronze', s1Score: 30 }
+    "Tryphose": 11.9,
+    "Vianney": 12.39,
+    "Esther": 9.3,
+    "Achabys": 11.54,
+    "Zirwath": 13.95,
+    "Elicia": 7.38,
+    "Loïs": 14.97,
+    "Coralie": 14.29,
+    "Ruth-De-Franck": 13.49, // Mappé depuis "Ruth"
+    "Lindsay": 11.96,
+    "Ghintia": 12.53,
+    "Rayane": 15.28,
+    "Ashley": 11.9,
+    "Faghez": 8.88,
+    "Erudice": 13.68,
+    "Mira": 8.25, // Mappé depuis "Myra"
+    "Brunelle": 8.9,
+    "Stessy": 12.09,
+    "Duamel": 14.67,
+    "Grâce": 6.7,
+    "Jennifer": 12.97
+};
+
+// --- CONFIGURATION DES RÉCOMPENSES S1 (WINNERS) ---
+export const S1_INDIVIDUAL_WINNERS: Record<string, { amount: number, badge: string }> = {
+    // CLASSE A
+    "Maëlys": { amount: 1000, badge: 's1_gold' },
+    "Marie-Trinité": { amount: 750, badge: 's1_silver' },
+    "Tiffany": { amount: 500, badge: 's1_bronze' }, // Tiffany (14.95) vs Sarah (13.39) - J'ai corrigé selon les notes fournies
+    
+    // CLASSE B
+    "Rayane": { amount: 1000, badge: 's1_gold' }, // Rayane (15.28) > Loïs (14.97)
+    "Loïs": { amount: 750, badge: 's1_silver' },
+    "Duamel": { amount: 500, badge: 's1_bronze' } // Duamel (14.67) > Coralie (14.29)
 };
 
 export const S1_GROUP_BONUSES: Record<string, number> = {

@@ -1,6 +1,6 @@
 
 import { Agency, CycleType, GameEvent, Student, Badge } from '../types';
-import { BADGE_DEFINITIONS, S1_INDIVIDUAL_WINNERS, S1_GROUP_BONUSES } from './awards';
+import { BADGE_DEFINITIONS, S1_INDIVIDUAL_WINNERS, S1_GROUP_BONUSES, S1_AVERAGES } from './awards';
 import { INITIAL_WEEKS } from './weeks';
 import { GAME_RULES } from './rules';
 
@@ -10,7 +10,7 @@ const TEAMS_CONFIG = [
     {
         id: 'agency_gold',
         name: 'Agence Alpha (Or S1)',
-        classId: 'A' as const, // Mixte en réalité, assigné A par défaut
+        classId: 'A' as const, 
         members: ["Zirwath", "Aubine", "Maëlys", "Tiffany", "Roxane"]
     },
     {
@@ -29,7 +29,7 @@ const TEAMS_CONFIG = [
         id: 'agency_allstars',
         name: 'Agence Delta',
         classId: 'A' as const,
-        members: ["Marie-Trinité", "Loïs", "Esther", "Coralie"] // Regroupement des individuels restants
+        members: ["Marie-Trinité", "Loïs", "Esther", "Coralie"] 
     },
     {
         id: 'agency_5',
@@ -59,7 +59,7 @@ const TEAMS_CONFIG = [
 
 // --- POOL DE CHÔMAGE (Le reste des étudiants) ---
 const UNASSIGNED_POOL = [
-    "Pascal", "Rolyx", "Noriane", "Lidwine", "Iris", // Reste A
+    "Rolyx", "Noriane", "Lidwine", "Iris", "Loan", // Reste A
     "Faghez", "Ghintia", "Achabys", "Duamel", "Lindsay" // Reste B
 ];
 
@@ -69,26 +69,28 @@ const generateMockAgencies = (): Agency[] => {
 
   const createMembers = (names: string[], classId: 'A' | 'B', teamId?: string): Student[] => {
     return names.map((name) => {
-      // Check for Individual Awards
+      // 1. Récupération des données S1
       const award = S1_INDIVIDUAL_WINNERS[name];
+      const averageS1 = S1_AVERAGES[name] || 10; // Valeur par défaut 10 si introuvable
       
-      // FORMULE DE SCORE CORRIGÉE : SMIG (30) + BONUS (20) + 0 (Moyenne S1 non fournie)
-      const baseScore = 30; // SMIG
-      const s1Score = 0;    // Moyenne S1 (Non fournie pour l'instant)
-      const bonusScore = 20; // Bonus de départ
-      const calculatedScore = baseScore + s1Score + bonusScore;
+      // 2. FORMULE DE SCORE RÉELLE
+      // Base (30) + Moyenne S1 ramenée sur 40 + Bonus (20)
+      const baseScore = 30;
+      const s1Part = (averageS1 / 20) * 40; // Ex: 15/20 donne 30 points
+      const bonusScore = 20; 
+      
+      const calculatedScore = Math.round(baseScore + s1Part + bonusScore);
 
-      // BADGES
+      // 3. BADGES
       const studentBadges: Badge[] = [];
       
-      // 1. Badge Individuel (Solo)
+      // Badge Individuel (Solo)
       if (award) {
           const badgeDef = BADGE_DEFINITIONS.find(b => b.id === award.badge);
           if (badgeDef) studentBadges.push(badgeDef);
       }
 
-      // 2. Badge de Groupe (Team)
-      // On attribue le badge de groupe directement à l'étudiant pour qu'il s'affiche sur son profil
+      // Badge de Groupe (Team)
       if (teamId === 'agency_gold') {
           const groupBadge = BADGE_DEFINITIONS.find(b => b.id === 's1_gold_group');
           if (groupBadge) studentBadges.push(groupBadge);
@@ -106,10 +108,10 @@ const generateMockAgencies = (): Agency[] => {
         role: 'Associé',
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
         individualScore: calculatedScore,
-        wallet: award ? award.amount : 0, // INJECTION CASH PRIZE
+        wallet: award ? award.amount : 0, 
         classId: classId,
         connectionStatus: 'offline',
-        badges: studentBadges, // ASSIGNATION BADGES (Solo + Groupe)
+        badges: studentBadges, 
         history: award ? [{
             date: "2024-02-01",
             agencyId: "system",
@@ -117,7 +119,7 @@ const generateMockAgencies = (): Agency[] => {
             action: "JOINED",
             contextVE: 0,
             contextBudget: 0,
-            reason: `Prix S1 ${award.badge.includes('gold') ? 'OR' : award.badge.includes('silver') ? 'ARGENT' : 'BRONZE'} (+${award.amount} PiXi)`
+            reason: `Prix S1 (+${award.amount} PiXi)`
         }] : []
       };
     });
@@ -125,7 +127,6 @@ const generateMockAgencies = (): Agency[] => {
 
   // Generate Agencies from TEAMS_CONFIG
   TEAMS_CONFIG.forEach(team => {
-      // Pass team.id to createMembers to assign Group Badges to students
       const members = createMembers(team.members, team.classId, team.id);
       
       // Check for Group Awards (Revenue Bonus)
@@ -141,13 +142,13 @@ const generateMockAgencies = (): Agency[] => {
           id: team.id,
           name: team.name,
           tagline: revenueBonus > 0 ? "Lauréat S1 - Excellence RNP" : "En attente de définition...",
-          ve_current: revenueBonus > 0 ? 60 : 50, // Bonus start VE for winners
+          ve_current: revenueBonus > 0 ? 60 : 50, 
           status: 'stable',
           classId: team.classId,
           budget_real: 0,
           budget_valued: 0,
           weeklyTax: 0,
-          weeklyRevenueModifier: revenueBonus, // INJECTION REVENU RÉCURRENT
+          weeklyRevenueModifier: revenueBonus, 
           eventLog: [
              { id: `e-${team.id}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." },
              ...(revenueBonus > 0 ? [{ id: `e-${team.id}-2`, date: "2024-02-01", type: "INFO", label: "Bonus S1", deltaVE: 10, description: `Bonus récurrent activé: +${revenueBonus} PiXi/sem.` } as GameEvent] : [])
@@ -165,7 +166,7 @@ const generateMockAgencies = (): Agency[] => {
   });
 
   // Add the "Unassigned" Agency
-  const unassignedMembers = createMembers(UNASSIGNED_POOL, 'A'); // Default class A for pool, mixed later
+  const unassignedMembers = createMembers(UNASSIGNED_POOL, 'A'); 
   // Fix classIds for pool
   unassignedMembers.forEach(m => {
       if (['Stessy', 'Zirwath', 'Coralie', 'Faghez', 'Tryphose', 'Ghintia', 'Achabys', 'Duamel', 'Erudice', 'Lindsay'].includes(m.name)) {
