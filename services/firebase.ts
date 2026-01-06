@@ -26,6 +26,9 @@ export const auth = app.auth();
 export const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 export const signInWithPopup = (authInstance: any, provider: any) => authInstance.signInWithPopup(provider);
+// Wrapper spécifique pour Google utilisé dans LoginPage
+export const signInWithGoogle = () => auth.signInWithPopup(googleProvider);
+
 export const signInWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.signInWithEmailAndPassword(email, pass);
 export const createUserWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.createUserWithEmailAndPassword(email, pass);
 export const signOut = (authInstance: any) => authInstance.signOut();
