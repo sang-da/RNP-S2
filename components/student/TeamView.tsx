@@ -4,6 +4,7 @@ import { Agency, Student, PeerReview } from '../../types';
 import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TeamViewProps {
   agency: Agency;
@@ -15,8 +16,10 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   const [reviewMode, setReviewMode] = useState<Student | null>(null);
   const [showSalaryInfo, setShowSalaryInfo] = useState(false);
 
-  // Pour la démo, on considère que l'utilisateur courant est le 1er de la liste (ou logique à adapter selon Auth)
-  const currentUser = agency.members[0];
+  const { currentUser: firebaseUser } = useAuth();
+  
+  // Correction Identity: Find the member that corresponds to the logged-in user
+  const currentUser = agency.members.find(m => m.id === firebaseUser?.uid);
 
   const handlePeerReview = (review: PeerReview) => {
     onUpdateAgency({
@@ -91,7 +94,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                             >
                                 Voir Bulletin
                             </button>
-                            {member.id !== currentUser?.id && (
+                            {member.id !== currentUser?.id && currentUser && (
                                 <button 
                                     onClick={() => setReviewMode(member)}
                                     className="flex-1 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"

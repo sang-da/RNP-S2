@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest } from '../types';
+import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest, MercatoRequest, StudentHistoryEntry } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
 import { useUI } from './UIContext';
 import { db } from '../services/firebase';
@@ -34,12 +34,13 @@ interface GameContextType {
   processPerformance: (targetClass: 'A' | 'B') => Promise<void>;
   resetGame: () => void;
   
-  // Student Economy
+  // Student Economy & RH
   transferFunds: (sourceId: string, targetId: string, amount: number) => Promise<void>;
   tradeScoreForCash: (studentId: string, scoreAmount: number) => Promise<void>;
   injectCapital: (studentId: string, agencyId: string, amount: number) => Promise<void>;
   requestScorePurchase: (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => Promise<void>;
   handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
+  submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -579,6 +580,151 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', "Transaction validée.");
   };
 
+  // --- DEMOCRATIC MERCATO VOTING & AUTO-EXECUTION ---
+  const submitMercatoVote = async (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if(!agency) return;
+      const request = agency.mercatoRequests.find(r => r.id === requestId);
+      if(!request) return;
+
+      // 1. Update votes locally first
+      const currentVotes = request.votes || {};
+      const newVotes = { ...currentVotes, [voterId]: vote };
+      
+      const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
+      
+      // 2. Logic Threshold
+      // HIRE: All members vote. Threshold > 66% (2/3)
+      // FIRE: All members EXCEPT target vote. Threshold > 75% (3/4)
+      
+      let totalVoters = agency.members.length;
+      let threshold = 0.66;
+      let isPassed = false;
+
+      if (request.type === 'FIRE') {
+          // If firing, target cannot vote (handled in UI), so total voters = members - 1
+          // BUT: If the requester is also the target (Resignation), logic is different (Resignation is usually auto or Admin only)
+          // Assuming here "FIRE" implies "Team firing someone".
+          if (request.requesterId !== request.studentId) {
+              totalVoters = Math.max(1, agency.members.length - 1);
+              threshold = 0.75;
+          }
+      }
+
+      const ratio = approvals / totalVoters;
+      if (ratio > threshold) {
+          isPassed = true;
+      }
+
+      // 3. EXECUTE OR UPDATE
+      const batch = writeBatch(db);
+      
+      if (isPassed) {
+          // AUTO EXECUTION OF TRANSFER
+          // Need to find Source and Target Agencies
+          // Case HIRE: Source = Unassigned, Target = agencyId
+          // Case FIRE: Source = agencyId, Target = Unassigned
+          
+          let sourceAgency = agency;
+          let targetAgency = agencies.find(a => a.id === 'unassigned');
+          
+          if (request.type === 'HIRE') {
+              sourceAgency = agencies.find(a => a.id === 'unassigned')!; // Should act on Unassigned to remove, and Current to add
+              targetAgency = agency;
+          }
+
+          if (!sourceAgency || !targetAgency) {
+              toast('error', "Erreur structure agence lors du vote.");
+              return;
+          }
+
+          const studentId = request.studentId;
+          const student = sourceAgency.members.find(m => m.id === studentId);
+          if(!student) return;
+
+          const today = new Date().toISOString().split('T')[0];
+
+          // A. Remove from Source
+          const updatedSourceMembers = sourceAgency.members.filter(m => m.id !== studentId);
+          
+          // B. Add to Target (Update History)
+          const newHistory = [...(student.history || [])];
+          newHistory.push({
+              date: today,
+              agencyId: targetAgency.id,
+              agencyName: targetAgency.name,
+              action: request.type === 'HIRE' ? 'JOINED' : 'FIRED',
+              contextVE: targetAgency.ve_current,
+              contextBudget: targetAgency.budget_real,
+              reason: "Décision Démocratique (Vote)"
+          });
+          const updatedStudent = { ...student, history: newHistory };
+          const updatedTargetMembers = [...targetAgency.members, updatedStudent];
+
+          // C. Update Docs
+          // Update Source
+          batch.update(doc(db, "agencies", sourceAgency.id), { 
+              members: updatedSourceMembers,
+              // If source is current agency, remove request
+              mercatoRequests: sourceAgency.id === agency.id 
+                  ? sourceAgency.mercatoRequests.filter(r => r.id !== request.id) 
+                  : sourceAgency.mercatoRequests
+          });
+
+          // Update Target
+          batch.update(doc(db, "agencies", targetAgency.id), { 
+              members: updatedTargetMembers,
+              // If target is current agency, remove request
+              mercatoRequests: targetAgency.id === agency.id 
+                  ? targetAgency.mercatoRequests.filter(r => r.id !== request.id) 
+                  : targetAgency.mercatoRequests
+          });
+
+          // D. Log Event
+          const eventLog: GameEvent = {
+              id: `vote-success-${Date.now()}`,
+              date: today,
+              type: 'VE_DELTA',
+              label: request.type === 'HIRE' ? "Recrutement Validé" : "Départ Acté",
+              description: `Décision d'équipe (Vote > ${Math.round(threshold*100)}%).`,
+              deltaVE: request.type === 'HIRE' ? -5 : -15 // Penalty standard for moves
+          };
+          
+          // Add event to the active agency (the one that voted)
+          const agencyRef = doc(db, "agencies", agency.id);
+          // Need to merge with previous update if same doc, but batch handles it.
+          // However, we need to be careful not to overwrite the member update if agency is source or target.
+          // Since we might update the same doc twice in batch logic above, simpler to just append event to the correct agency object in memory before batch update?
+          // Firestore batch treats multiple updates to same doc as one merge? No, last write wins or merge.
+          // Let's do a specific update for the event.
+          
+          // To simplify: We just pushed member updates. Let's add event to the "Active" agency (The one where vote happened)
+          // If HIRE: Active = Target. If FIRE: Active = Source. So 'agency' is always the one.
+          // We can combine the request removal and event log.
+          
+          const updatedRequests = agency.mercatoRequests.filter(r => r.id !== request.id);
+          // Note: Members update is already queued above. 
+          // We need to be careful. Let's reconstruct the object for the active agency properly.
+          
+          // Let's assume the batch handles 'update' correctly by merging fields.
+          batch.update(agencyRef, {
+              eventLog: [...agency.eventLog, eventLog]
+          });
+
+          toast('success', "Vote validé ! Transfert exécuté automatiquement.");
+
+      } else {
+          // JUST UPDATE VOTES
+          const updatedRequests = agency.mercatoRequests.map(r => 
+              r.id === requestId ? { ...r, votes: newVotes } : r
+          );
+          batch.update(doc(db, "agencies", agency.id), { mercatoRequests: updatedRequests });
+          toast('success', "Vote enregistré.");
+      }
+
+      await batch.commit();
+  };
+
   const resetGame = async () => {
       try { await seedDatabase(); } catch (e) { console.error(e); }
   };
@@ -588,7 +734,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       agencies, weeks, resources, role, selectedAgencyId, isAutoMode,
       setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, updateWeek,
       addResource, deleteResource, shuffleConstraints, processFinance, processPerformance, resetGame,
-      transferFunds, tradeScoreForCash, injectCapital, requestScorePurchase, handleTransactionRequest
+      transferFunds, tradeScoreForCash, injectCapital, requestScorePurchase, handleTransactionRequest,
+      submitMercatoVote
     }}>
       {children}
     </GameContext.Provider>

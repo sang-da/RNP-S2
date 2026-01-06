@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student, StudentHistoryEntry } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, ArrowRight, UserX, Briefcase, Eye } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, ArrowRight, UserX, Briefcase, Eye, Trash2, Edit, Save, X } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext'; 
@@ -29,6 +29,10 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [isResetting, setIsResetting] = useState(false);
   const [selectedStudentForHistory, setSelectedStudentForHistory] = useState<Student | null>(null);
+
+  // EDIT STATE
+  const [editingStudent, setEditingStudent] = useState<{ student: Student, agencyId: string } | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string, classId: 'A' | 'B' }>({ name: '', classId: 'A' });
 
   // 1. REAL-TIME LISTENER FOR PENDING USERS
   useEffect(() => {
@@ -148,6 +152,26 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       }
   };
 
+  const handleRejectPending = async (firebaseUser: PendingUser) => {
+      if(readOnly) return;
+      const confirmed = await confirm({
+          title: "Refuser l'accès ?",
+          message: `Voulez-vous supprimer la demande de ${firebaseUser.displayName} ?\nL'utilisateur devra se reconnecter pour refaire une demande.`,
+          confirmText: "Refuser et Supprimer",
+          isDangerous: true
+      });
+
+      if (!confirmed) return;
+
+      try {
+          await deleteDoc(doc(db, "users", firebaseUser.uid));
+          toast('success', "Utilisateur retiré de la salle d'attente.");
+      } catch (error) {
+          console.error(error);
+          toast('error', "Erreur lors de la suppression.");
+      }
+  };
+
   const handlePromoteSupervisor = async (firebaseUser: PendingUser) => {
       if(readOnly) return;
       const confirmed = await confirm({
@@ -223,6 +247,46 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
            console.error(e);
            toast('error', "Erreur lors du déliage.");
        }
+  };
+
+  const openEditStudent = (student: Student, agencyId: string) => {
+      setEditingStudent({ student, agencyId });
+      setEditForm({ name: student.name, classId: student.classId });
+  };
+
+  const handleSaveStudent = async () => {
+      if (!editingStudent || readOnly) return;
+      if (!editForm.name.trim()) return;
+
+      try {
+          const batch = writeBatch(db);
+          
+          // 1. Update Agency Member
+          const agency = agencies.find(a => a.id === editingStudent.agencyId);
+          if (!agency) return;
+
+          const updatedMembers = agency.members.map(m => 
+              m.id === editingStudent.student.id 
+              ? { ...m, name: editForm.name, classId: editForm.classId } 
+              : m
+          );
+
+          const agencyRef = doc(db, "agencies", agency.id);
+          batch.update(agencyRef, { members: updatedMembers });
+
+          // 2. If student is real (linked), update User profile for consistency
+          if (!editingStudent.student.id.startsWith('s-')) {
+              const userRef = doc(db, "users", editingStudent.student.id);
+              batch.update(userRef, { studentProfileName: editForm.name });
+          }
+
+          await batch.commit();
+          toast('success', "Profil étudiant mis à jour.");
+          setEditingStudent(null);
+      } catch (e) {
+          console.error(e);
+          toast('error', "Erreur lors de la modification.");
+      }
   };
 
   const handleResetDatabase = async () => {
@@ -307,7 +371,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     <Eye size={14}/> Nommer Superviseur
                                 </button>
 
-                                <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-indigo-100 shadow-sm w-full">
+                                <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-indigo-100 shadow-sm w-full">
                                     <span className="text-xs font-bold text-slate-400 uppercase hidden xl:inline whitespace-nowrap px-2">Lier à :</span>
                                     <select 
                                         className="flex-1 w-full xl:w-64 p-2 rounded-lg bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 border-none cursor-pointer"
@@ -328,6 +392,14 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                         )}
                                     </select>
                                 </div>
+                                
+                                <button 
+                                    onClick={() => handleRejectPending(user)}
+                                    className="bg-red-100 text-red-600 hover:bg-red-200 p-3 rounded-lg transition-colors"
+                                    title="Refuser et Supprimer"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
                             </div>
                             )}
                         </div>
@@ -414,9 +486,19 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     </td>
                                     <td className="p-4 text-right">
                                         <div className="flex gap-2 justify-end">
+                                            {!readOnly && (
+                                                <button 
+                                                    onClick={() => openEditStudent(student, agency.id)}
+                                                    className="text-xs font-bold text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-indigo-100 transition-all flex items-center gap-2"
+                                                    title="Modifier Nom/Classe"
+                                                >
+                                                    <Edit size={14}/>
+                                                </button>
+                                            )}
+                                            
                                             <button 
                                                 onClick={() => setSelectedStudentForHistory(student)}
-                                                className="text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-indigo-100 transition-all flex items-center gap-2"
+                                                className="text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-transparent hover:border-slate-200 transition-all flex items-center gap-2"
                                                 title="Voir l'historique"
                                             >
                                                 <FileClock size={14}/>
@@ -518,6 +600,51 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                 <button onClick={() => setSelectedStudentForHistory(null)} className="w-full py-3 bg-slate-100 font-bold text-slate-600 rounded-xl hover:bg-slate-200">Fermer</button>
             </div>
         </Modal>
+
+        {/* MODAL EDITION */}
+        {editingStudent && (
+            <Modal isOpen={true} onClose={() => setEditingStudent(null)} title="Éditer le profil Étudiant">
+                <div className="space-y-6">
+                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
+                        La modification du nom sera répercutée sur le profil Agence et le profil Utilisateur (si lié).
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom de l'étudiant</label>
+                        <input 
+                            value={editForm.name} 
+                            onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                            className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Classe</label>
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setEditForm({ ...editForm, classId: 'A' })}
+                                className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${editForm.classId === 'A' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400'}`}
+                            >
+                                CLASSE A
+                            </button>
+                            <button 
+                                onClick={() => setEditForm({ ...editForm, classId: 'B' })}
+                                className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${editForm.classId === 'B' ? 'border-purple-500 bg-purple-50 text-purple-600' : 'border-slate-100 text-slate-400'}`}
+                            >
+                                CLASSE B
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-slate-100">
+                         <button onClick={() => setEditingStudent(null)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50">Annuler</button>
+                         <button onClick={handleSaveStudent} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 flex items-center justify-center gap-2">
+                            <Save size={18}/> Enregistrer
+                         </button>
+                    </div>
+                </div>
+            </Modal>
+        )}
     </div>
   );
 };

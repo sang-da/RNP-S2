@@ -125,6 +125,7 @@ export interface MercatoRequest {
   status: 'PENDING' | 'REJECTED';
   date: string;
   motivation?: string; // Texte justificatif
+  votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; // Système de vote démocratique
 }
 
 // --- NEW: FINANCIAL REQUESTS ---
