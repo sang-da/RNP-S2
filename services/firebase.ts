@@ -1,5 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -14,26 +15,27 @@ const firebaseConfig = {
   measurementId: "G-QSVQW2K3CX"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase using compat to ensure Auth availability
+const app = firebase.initializeApp(firebaseConfig);
 
-// Initialize Analytics safely (Async check to prevent crashes)
-// Désactivé pour corriger les erreurs de compilation sur 'firebase/analytics'
+// Initialize Analytics safely
 const analytics = null;
 
-export const auth = getAuth(app);
+// Auth Exports (v8 compat wrapped as v9 style)
+export const auth = app.auth();
+export const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+export const signInWithPopup = (authInstance: any, provider: any) => authInstance.signInWithPopup(provider);
+export const signInWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.signInWithEmailAndPassword(email, pass);
+export const createUserWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.createUserWithEmailAndPassword(email, pass);
+export const signOut = (authInstance: any) => authInstance.signOut();
+export const onAuthStateChanged = (authInstance: any, observer: any) => authInstance.onAuthStateChanged(observer);
+export const updateProfile = (user: any, profile: any) => user.updateProfile(profile);
+
+export type User = firebase.User;
+
+// Firestore & Storage (v9 modular style)
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const googleProvider = new GoogleAuthProvider();
 
-export const signInWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error("Error signing in with Google", error);
-    throw error;
-  }
-};
-
-export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, doc, setDoc, getDoc, updateDoc, analytics };
+export { doc, setDoc, getDoc, updateDoc, analytics };

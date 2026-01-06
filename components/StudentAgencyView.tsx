@@ -22,7 +22,7 @@ interface StudentViewProps {
   onUpdateAgency: (agency: Agency) => void;
 }
 
-type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'HISTORY' | 'RESOURCES';
+type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'HISTORY' | 'RESOURCES' | 'WALLET';
 
 const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
     indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600' },
@@ -41,7 +41,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showWallet, setShowWallet] = useState(false);
 
   const brandColor = agency.branding?.color || 'indigo';
   const theme = COLOR_THEMES[brandColor];
@@ -103,11 +102,11 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
                 {agency.id !== 'unassigned' && (
                 <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                    {/* Personal Wallet Button */}
+                    {/* Personal Wallet Button - Now Redirects to Tab */}
                     {myMemberProfile && (
-                        <div onClick={() => setShowWallet(true)} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
+                        <div onClick={() => setActiveTab('WALLET')} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
                             <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline flex items-center gap-1 md:justify-end">
-                                <Wallet size={12}/> Marché & Banque
+                                <Wallet size={12}/> Mon Solde
                             </span>
                             <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
                                 <span className="text-yellow-400 font-mono">{myMemberProfile.wallet || 0} PiXi</span>
@@ -119,8 +118,13 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
                             <div className={`text-xl font-bold ${netWeekly >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)}</div>
                         </div>
-                        <div className="text-center cursor-pointer group" onClick={() => setShowVERules(true)}>
-                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1 flex items-center gap-1 justify-center">VE <HelpCircle size={10}/></span>
+                        <div className="text-center">
+                            <div 
+                                onClick={() => setShowVERules(true)}
+                                className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mb-1 flex items-center gap-1 justify-center cursor-pointer hover:text-white"
+                            >
+                                VE <HelpCircle size={10}/>
+                            </div>
                             <div className={`text-3xl font-display font-bold leading-none ${agency.ve_current >= 60 ? 'text-emerald-400' : 'text-amber-400'}`}>{agency.ve_current}</div>
                         </div>
                     </div>
@@ -134,6 +138,16 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             {activeTab === 'MARKET' && agency.id !== 'unassigned' && <MarketOverview agency={agency} allAgencies={allAgencies} />}
             {activeTab === 'MISSIONS' && agency.id !== 'unassigned' && <MissionsView agency={agency} onUpdateAgency={onUpdateAgency} />}
             {activeTab === 'TEAM' && agency.id !== 'unassigned' && <TeamView agency={agency} onUpdateAgency={onUpdateAgency} />}
+            {activeTab === 'WALLET' && myMemberProfile && agency.id !== 'unassigned' && (
+                <WalletView 
+                    student={myMemberProfile} 
+                    agency={agency} 
+                    allStudents={allAgencies.flatMap(a => a.members)}
+                    onTransfer={transferFunds}
+                    onInjectCapital={injectCapital}
+                    onRequestScore={requestScorePurchase}
+                />
+            )}
             {(activeTab === 'RECRUITMENT' || agency.id === 'unassigned') && <MercatoView agency={agency} allAgencies={allAgencies} onUpdateAgency={onUpdateAgency} onUpdateAgencies={() => {}} />}
             {activeTab === 'RESOURCES' && <WikiView agency={agency} />}
             {activeTab === 'HISTORY' && <HistoryView agency={agency} />}
@@ -147,6 +161,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         <NavButton active={activeTab === 'MARKET'} onClick={() => setActiveTab('MARKET')} icon={<TrendingUp size={20} />} label="Marché" theme={theme} />
                         <NavButton active={activeTab === 'MISSIONS'} onClick={() => setActiveTab('MISSIONS')} icon={<Target size={20} />} label="Missions" theme={theme} />
                         <NavButton active={activeTab === 'TEAM'} onClick={() => setActiveTab('TEAM')} icon={<Users size={20} />} label="Équipe" theme={theme} />
+                        <NavButton active={activeTab === 'WALLET'} onClick={() => setActiveTab('WALLET')} icon={<Wallet size={20} />} label="Banque" theme={theme} />
                     </>
                 )}
                 <NavButton active={activeTab === 'RESOURCES'} onClick={() => setActiveTab('RESOURCES')} icon={<BookOpen size={20} />} label="Wiki" theme={theme} />
@@ -154,20 +169,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY')} icon={<History size={20} />} label="Journal" theme={theme} />
              </div>
         </div>
-
-        {/* WALLET MODAL */}
-        {myMemberProfile && (
-            <WalletModal 
-                isOpen={showWallet} 
-                onClose={() => setShowWallet(false)} 
-                student={myMemberProfile} 
-                agency={agency}
-                allStudents={allAgencies.flatMap(a => a.members)}
-                onTransfer={transferFunds}
-                onInjectCapital={injectCapital}
-                onRequestScore={requestScorePurchase}
-            />
-        )}
 
         {/* SETTINGS & HELP MODALS */}
         <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="Personnalisation Agence">
@@ -193,16 +194,34 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             </div>
         </Modal>
         
-        <Modal isOpen={showVERules} onClose={() => setShowVERules(false)} title="Audit de Valeur (VE)">
+        <Modal isOpen={showVERules} onClose={() => setShowVERules(false)} title="Comprendre la VE">
             <div className="space-y-6">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-sm text-slate-600 leading-relaxed mb-2">VE = Revenus. Chaque point rapporte {GAME_RULES.REVENUE_VE_MULTIPLIER} PiXi/sem.</p>
-                    <div className="flex gap-2 text-xs font-bold uppercase"><span className="bg-white px-2 py-1 rounded border">VE : {agency.ve_current}</span></div>
+                    <p className="text-sm text-slate-600 leading-relaxed mb-2">
+                        La <strong>Valeur d'Entreprise (VE)</strong> est votre "note de groupe" dynamique (/100). 
+                        <br/>Elle fluctue selon vos rendus, vos choix et les événements.
+                    </p>
+                    <div className="flex gap-2 mt-4">
+                        <div className="flex-1 bg-white p-2 rounded border text-center">
+                            <div className="text-xs font-bold text-emerald-600 uppercase">Impact Revenus</div>
+                            <div className="text-sm font-bold">1 Point VE = {GAME_RULES.REVENUE_VE_MULTIPLIER} PiXi/sem</div>
+                        </div>
+                        <div className="flex-1 bg-white p-2 rounded border text-center">
+                            <div className="text-xs font-bold text-indigo-600 uppercase">Note Finale</div>
+                            <div className="text-sm font-bold">Compte pour 40%</div>
+                        </div>
+                    </div>
                 </div>
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                    {agency.eventLog.filter(e => e.deltaVE).map(e => (
-                        <div key={e.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0"><span className="text-slate-600 text-sm">{e.label}</span><span className={`font-mono font-bold ${(e.deltaVE || 0) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{(e.deltaVE || 0) > 0 ? '+' : ''}{e.deltaVE}</span></div>
-                    ))}
+                <div>
+                    <h4 className="font-bold text-slate-900 text-sm mb-2">Derniers Mouvements</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        {agency.eventLog.filter(e => e.deltaVE).map(e => (
+                            <div key={e.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+                                <span className="text-slate-600 text-xs">{e.label}</span>
+                                <span className={`font-mono font-bold text-xs ${(e.deltaVE || 0) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{(e.deltaVE || 0) > 0 ? '+' : ''}{e.deltaVE}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </Modal>
@@ -210,9 +229,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   );
 };
 
-// --- WALLET COMPONENT ---
-const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Student, agency: Agency, allStudents: Student[], onTransfer: any, onInjectCapital: any, onRequestScore: any}> = ({isOpen, onClose, student, agency, allStudents, onTransfer, onInjectCapital, onRequestScore}) => {
-    const [mode, setMode] = useState<'TRANSFER' | 'INJECT' | 'BUY_SCORE'>('INJECT');
+// --- WALLET VIEW COMPONENT ---
+const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Student[], onTransfer: any, onInjectCapital: any, onRequestScore: any}> = ({student, agency, allStudents, onTransfer, onInjectCapital, onRequestScore}) => {
     const [targetId, setTargetId] = useState('');
     const [amount, setAmount] = useState(0);
     const [scoreToBuy, setScoreToBuy] = useState(0);
@@ -220,102 +238,108 @@ const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Stud
     const handleTransfer = async () => {
         if(!targetId || amount <= 0) return;
         await onTransfer(student.id, targetId, amount);
-        onClose();
+        setAmount(0);
     };
 
     const handleInject = async () => {
         if(amount <= 0) return;
         await onInjectCapital(student.id, agency.id, amount);
-        onClose();
+        setAmount(0);
     };
 
     const handleBuyScore = async () => {
         if(scoreToBuy <= 0) return;
-        // Cost: 200 PiXi for 1 Score point (for example)
         const cost = scoreToBuy * 200;
         await onRequestScore(student.id, agency.id, cost, scoreToBuy);
-        onClose();
+        setScoreToBuy(0);
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Marché Financier">
-            <div className="space-y-6">
-                <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 bg-white/5 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
-                    <div className="relative z-10">
-                        <p className="text-indigo-300 text-xs font-bold uppercase mb-1">Solde Personnel</p>
-                        <p className="text-3xl font-display font-bold">{student?.wallet || 0} PiXi</p>
-                    </div>
-                    <Wallet size={32} className="text-indigo-400 relative z-10"/>
+        <div className="animate-in fade-in space-y-6">
+            {/* SOLDE CARD */}
+            <div className="bg-indigo-900 text-white p-8 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-20 bg-white/5 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
+                <div className="relative z-10 text-center md:text-left mb-4 md:mb-0">
+                    <p className="text-indigo-300 text-sm font-bold uppercase mb-1 tracking-widest">Solde Disponible</p>
+                    <p className="text-5xl font-display font-bold text-yellow-400">{student?.wallet || 0} <span className="text-2xl text-yellow-200">PiXi</span></p>
                 </div>
-
-                <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto">
-                    <button onClick={() => setMode('INJECT')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'INJECT' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>Investir Agence</button>
-                    <button onClick={() => setMode('BUY_SCORE')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'BUY_SCORE' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Acheter Score</button>
-                    <button onClick={() => setMode('TRANSFER')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'TRANSFER' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}>Virement Tiers</button>
+                <div className="relative z-10 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/20">
+                    <p className="text-xs text-indigo-200 mb-1">Salaire Hebdo</p>
+                    <p className="font-bold text-white text-lg">+{student.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi</p>
                 </div>
-
-                {mode === 'INJECT' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-emerald-800 text-sm">
-                            <strong className="block mb-1 flex items-center gap-2"><ArrowUpRight size={16}/> Injection de Capital</strong>
-                            Transférez vos fonds personnels vers la trésorerie de l'agence pour payer le loyer ou éviter la faillite.
-                            <br/><span className="text-xs opacity-75">Action immédiate et irréversible.</span>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-400">Montant à investir</label>
-                            <input type="number" className="w-full p-3 rounded-xl border font-bold" placeholder="0" onChange={e => setAmount(Number(e.target.value))} />
-                        </div>
-                        <button onClick={handleInject} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-emerald-700 transition-colors">
-                            Investir dans l'agence
-                        </button>
-                    </div>
-                )}
-
-                {mode === 'BUY_SCORE' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800 text-sm">
-                            <strong className="block mb-1 flex items-center gap-2"><TrendingUp size={16}/> Achat de Points (Formation)</strong>
-                            Convertissez votre argent en compétence.
-                            <br/>Taux : <strong>200 PiXi = 1 Point Score</strong>.
-                            <br/><span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-amber-200 mt-2 inline-block">Soumis à validation prof.</span>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-400">Points voulus</label>
-                            <input type="number" className="w-full p-3 rounded-xl border font-bold" placeholder="0" onChange={e => setScoreToBuy(Number(e.target.value))} />
-                        </div>
-                        <div className="text-center py-2">
-                            <span className="text-xl font-bold text-slate-900">Coût : {scoreToBuy * 200} PiXi</span>
-                        </div>
-                        <button onClick={handleBuyScore} disabled={scoreToBuy <= 0 || (scoreToBuy * 200) > (student.wallet || 0)} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-amber-600 transition-colors">
-                            Envoyer demande d'achat
-                        </button>
-                    </div>
-                )}
-
-                {mode === 'TRANSFER' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <p className="text-sm text-slate-500">Envoyez des fonds à un autre étudiant (soutien de projet).</p>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-400">Bénéficiaire</label>
-                            <select className="w-full p-3 rounded-xl border bg-white" onChange={e => setTargetId(e.target.value)} value={targetId}>
-                                <option value="">-- Choisir --</option>
-                                {allStudents.filter(s => s.id !== student.id).map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-400">Montant</label>
-                            <input type="number" className="w-full p-3 rounded-xl border" placeholder="0" onChange={e => setAmount(Number(e.target.value))} />
-                        </div>
-                        <button onClick={handleTransfer} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-indigo-700 transition-colors">
-                            <Send size={16} className="inline mr-2"/> Envoyer
-                        </button>
-                    </div>
-                )}
             </div>
-        </Modal>
+
+            {/* ACTIONS GRID */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 1. INVESTIR AGENCE */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                    <div className="mb-4">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-3">
+                            <ArrowUpRight size={24}/>
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-lg">Investir dans mon Agence</h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Injectez votre argent personnel pour sauver la trésorerie ou payer le loyer.
+                        </p>
+                    </div>
+                    <div className="mt-auto space-y-3">
+                        <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant" onChange={e => setAmount(Number(e.target.value))} />
+                        <button onClick={handleInject} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                            Confirmer l'injection
+                        </button>
+                    </div>
+                </div>
+
+                {/* 2. SOUTIEN EXTERNE (PRÊT ENTREPRISE) */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                    <div className="mb-4">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mb-3">
+                            <Send size={24}/>
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-lg">Soutien & Prêt Inter-Agences</h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Envoyez des fonds à un collègue d'une autre agence pour les aider.
+                            <br/><span className="text-xs text-indigo-600 font-bold">Conseil : Négociez un gain de VE en retour !</span>
+                        </p>
+                    </div>
+                    <div className="mt-auto space-y-3">
+                        <select className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm" onChange={e => setTargetId(e.target.value)} value={targetId}>
+                            <option value="">-- Bénéficiaire --</option>
+                            {allStudents.filter(s => s.id !== student.id).map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant" onChange={e => setAmount(Number(e.target.value))} />
+                        <button onClick={handleTransfer} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                            Envoyer les fonds
+                        </button>
+                    </div>
+                </div>
+
+                {/* 3. ACHAT SCORE */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                    <div className="mb-4">
+                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-3">
+                            <TrendingUp size={24}/>
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-lg">Formation (Achat Score)</h3>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Convertissez votre argent en compétence. 
+                            <br/><strong>200 PiXi = 1 Point Score</strong>.
+                        </p>
+                    </div>
+                    <div className="mt-auto space-y-3">
+                        <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Points voulus" onChange={e => setScoreToBuy(Number(e.target.value))} />
+                        <div className="text-right text-xs font-bold text-slate-400">Coût: {scoreToBuy * 200} PiXi</div>
+                        <button onClick={handleBuyScore} disabled={scoreToBuy <= 0 || (scoreToBuy * 200) > (student.wallet || 0)} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50">
+                            Demander la validation
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
     );
 };
 

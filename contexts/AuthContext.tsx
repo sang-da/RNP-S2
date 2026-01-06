@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db } from '../services/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, db, onAuthStateChanged, User } from '../services/firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 interface UserData {
@@ -61,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
             console.log("Création de profil Firestore...");
             
-            // Correction : Utilisation de null au lieu de undefined
             const newUserData: UserData = {
                 uid: user.uid,
                 email: user.email,
@@ -93,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
       setLoading(true);
       if (user) {
           setCurrentUser(user);

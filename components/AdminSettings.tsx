@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
-import { updateProfile } from 'firebase/auth';
+import { updateProfile } from '../services/firebase';
 import { auth } from '../services/firebase';
 import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2 } from 'lucide-react';
 

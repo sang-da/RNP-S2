@@ -136,7 +136,7 @@ const generateMockAgencies = (): Agency[] => {
           id: agencyId,
           name: `Agence A${agencyNum}`,
           tagline: "Nouvelle Agence S2",
-          ve_current: 20, // CHANGE: Starting VE from 50 to 20
+          ve_current: 0, // START AT 0
           status: 'critique', // Start in critic because VE < 40
           classId: 'A',
           budget_real: 0,
@@ -169,7 +169,7 @@ const generateMockAgencies = (): Agency[] => {
           id: agencyId,
           name: `Agence B${agencyNum}`,
           tagline: "Nouvelle Agence S2",
-          ve_current: 20, // CHANGE: Starting VE from 50 to 20
+          ve_current: 0, // START AT 0
           status: 'critique',
           classId: 'B',
           budget_real: 0,

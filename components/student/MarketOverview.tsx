@@ -19,7 +19,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
         allAgencies.flatMap(a => a.eventLog.map(e => e.date))
     )).sort();
 
-    const STARTING_VE = 20; // FIXED: Base VE at start of semester
+    const STARTING_VE = 0; // FIXED: Base VE at 0
 
     // 2. Point de départ (Semaine 0 / Création)
     const initialPoint = {

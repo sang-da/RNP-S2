@@ -1,8 +1,7 @@
 
-
 import React, { useState } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 
@@ -14,6 +13,7 @@ interface TeamViewProps {
 export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) => {
   const [selectedMember, setSelectedMember] = useState<Student | null>(null);
   const [reviewMode, setReviewMode] = useState<Student | null>(null);
+  const [showSalaryInfo, setShowSalaryInfo] = useState(false);
 
   // Pour la démo, on considère que l'utilisateur courant est le 1er de la liste (ou logique à adapter selon Auth)
   const currentUser = agency.members[0];
@@ -59,13 +59,17 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                                     ))}
                                 </h3>
                                 
-                                {/* SALARY BADGE */}
+                                {/* SALARY BADGE (CLICKABLE) */}
                                 <div className="flex flex-col items-start mt-1 gap-1">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{member.role}</span>
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-xs font-bold text-red-600">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setShowSalaryInfo(true); }}
+                                        className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-xs font-bold text-red-600 hover:bg-red-100 transition-colors"
+                                    >
                                         <Coins size={12} />
                                         -{salary} PiXi / sem
-                                    </span>
+                                        <HelpCircle size={10} className="opacity-50"/>
+                                    </button>
                                 </div>
                             </div>
                             <div className="text-right flex flex-col items-end gap-1">
@@ -100,6 +104,45 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                 );
             })}
         </div>
+
+        {/* MODAL: SALARY RULES */}
+        <Modal isOpen={showSalaryInfo} onClose={() => setShowSalaryInfo(false)} title="Règles Salariales">
+            <div className="space-y-6">
+                <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-sm text-red-800">
+                    <strong className="block mb-2">Le Salaire = Charge pour l'agence.</strong>
+                    Chaque étudiant coûte de l'argent à son entreprise chaque semaine.
+                    <br/>Plus vous êtes performant (Score élevé), plus votre salaire est haut.
+                </div>
+                <ul className="space-y-3 text-sm text-slate-600">
+                    <li className="flex gap-3 items-start">
+                        <div className="p-1 bg-slate-100 rounded text-slate-500"><Coins size={16}/></div>
+                        <div>
+                            <strong>Calcul :</strong> Score Individuel x {GAME_RULES.SALARY_MULTIPLIER} PiXi.
+                            <br/><span className="text-xs italic opacity-75">Ex: Score 80 = 800 PiXi/semaine.</span>
+                        </div>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                        <div className="p-1 bg-slate-100 rounded text-slate-500"><Wallet size={16}/></div>
+                        <div>
+                            <strong>Poche Perso :</strong> Vous recevez ce salaire dans votre portefeuille personnel (jusqu'à {GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi max).
+                            <br/><span className="text-xs italic opacity-75">Le surplus éventuel est absorbé par les charges.</span>
+                        </div>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                        <div className="p-1 bg-slate-100 rounded text-slate-500"><Award size={16}/></div>
+                        <div>
+                            <strong>Comment monter son score ?</strong>
+                            <ul className="list-disc pl-4 mt-1 space-y-1">
+                                <li>Assiduité et Ponctualité (Review des pairs).</li>
+                                <li>Qualité du travail rendu.</li>
+                                <li>Bonus "Bounty" techniques validés par le prof.</li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+                <button onClick={() => setShowSalaryInfo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800">Compris</button>
+            </div>
+        </Modal>
 
         {/* MODAL: Détail Note Élève */}
         <Modal isOpen={!!selectedMember} onClose={() => setSelectedMember(null)} title="Bulletin Individuel">
