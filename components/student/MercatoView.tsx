@@ -290,7 +290,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                         <p className={`text-2xl font-bold ${currentUser?.individualScore < 50 ? 'text-red-500' : 'text-slate-900'}`}>
                             {currentUser?.individualScore}/100
                         </p>
-                        <p className="text-xs text-red-500 font-bold mt-1">Coût: -{currentUser?.individualScore * GAME_RULES.SALARY_MULTIPLIER} € / sem</p>
+                        <p className="text-xs text-red-500 font-bold mt-1">Coût: -{currentUser?.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi / sem</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded text-white ${agency.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}>
                         CLASSE {agency.classId}
@@ -385,7 +385,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                                         </div>
                                         <p className="text-xs text-slate-400">{student.role}</p>
                                         <div className="mt-1 flex items-center gap-1 text-red-600 font-bold text-xs bg-red-50 px-2 py-0.5 rounded-lg w-fit">
-                                            <Coins size={12}/> {salaryCost} € / sem
+                                            <Coins size={12}/> {salaryCost} PiXi / sem
                                         </div>
                                     </div>
                                     <div className="ml-2">

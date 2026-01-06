@@ -92,7 +92,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                 </td>
                                 <td className="p-3 text-right hidden md:table-cell">
                                     <span className={`text-xs font-bold ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                                        {agency.budget_real} €
+                                        {agency.budget_real} PiXi
                                     </span>
                                 </td>
                                 <td className="p-3 text-right">

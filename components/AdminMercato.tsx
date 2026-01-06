@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Agency, GameEvent, MercatoRequest, StudentHistoryEntry } from '../types';
 import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote, User } from 'lucide-react';
@@ -266,8 +265,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           id: newAgencyId,
           name: "Nouvelle Agence",
           tagline: "En construction...",
-          ve_current: 50,
-          status: 'stable',
+          ve_current: 20, // Init at 20
+          status: 'critique',
           classId: founder ? founder.classId : 'A', // Inherit from founder or default A
           budget_real: 3000, // Starting Budget lower than initial 5000 of big teams
           budget_valued: 0,
@@ -280,6 +279,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           constraints: { space: "À définir", style: "À définir", client: "À définir" },
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
+          transactionRequests: [], // New Empty Array
           progress: JSON.parse(JSON.stringify(agencies[0].progress)),
           branding: { color: 'indigo' },
           badges: [],

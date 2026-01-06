@@ -1,20 +1,20 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Agency, Deliverable, GameEvent, WeekModule } from '../types';
-import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Activity, Play, Zap, Star } from 'lucide-react';
+import { Agency, Deliverable, GameEvent, WeekModule, TransactionRequest } from '../types';
+import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Activity, Play, Zap, Star, Check, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getAgencyPerformanceMultiplier } from '../constants';
-import { useGame } from '../contexts/GameContext'; // Added Import
+import { useGame } from '../contexts/GameContext'; 
 
 interface AdminDashboardProps {
   agencies: Agency[];
   onSelectAgency: (id: string) => void;
   onShuffleConstraints: (id: string) => void;
   onUpdateAgency: (agency: Agency) => void;
-  onProcessWeek: () => void; // Deprecated, but kept for interface compat if needed
+  onProcessWeek: () => void; // Deprecated
   onNavigate: (view: string) => void;
   readOnly?: boolean;
 }
@@ -34,13 +34,13 @@ const detectAnomalies = (agency: Agency): string[] => {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onNavigate, readOnly }) => {
   const { toast } = useUI();
-  const { processFinance, processPerformance, isAutoMode, toggleAutoMode } = useGame(); // Use Context
+  const { processFinance, processPerformance, isAutoMode, toggleAutoMode, handleTransactionRequest } = useGame(); 
   
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
   const [selectedClass, setSelectedClass] = useState<'ALL' | 'A' | 'B'>('ALL');
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
-  const [showControlPanel, setShowControlPanel] = useState(false); // New Modal State
+  const [showControlPanel, setShowControlPanel] = useState(false);
 
   // Live Feed State
   const [isFeedCollapsed, setIsFeedCollapsed] = useState(false);
@@ -72,6 +72,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
       return count;
   }, [activeAgencies]);
 
+  // 1c. PENDING FINANCIAL REQUESTS
+  const pendingTransactions = useMemo(() => {
+      const txs: {agency: Agency, request: TransactionRequest}[] = [];
+      activeAgencies.forEach(a => {
+          (a.transactionRequests || []).forEach(req => {
+              if(req.status === 'PENDING') txs.push({agency: a, request: req});
+          });
+      });
+      return txs;
+  }, [activeAgencies]);
+
   // 2. GLOBAL FEED
   const activityFeed = useMemo(() => {
       const allEvents: {event: GameEvent, agencyName: string, agencyId: string}[] = [];
@@ -80,8 +91,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
               // Apply Feed Filter
               let include = true;
               if (feedFilter === 'CRISIS' && e.type !== 'CRISIS') include = false;
-              if (feedFilter === 'FINANCE' && !['VE_DELTA', 'PAYROLL', 'REVENUE'].includes(e.type)) include = false;
-              // HR could be mapped to future HR events or specific keywords
+              if (feedFilter === 'FINANCE' && !['VE_DELTA', 'PAYROLL', 'REVENUE', 'BUDGET_DELTA'].includes(e.type)) include = false;
               
               if (include) {
                  allEvents.push({ event: e, agencyName: a.name, agencyId: a.id });
@@ -183,6 +193,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
                 </div>
                 <ArrowRight size={18} className="opacity-50"/>
             </div>
+
+            {/* WIDGET: PENDING TRANSACTIONS (BUY SCORE) */}
+            {pendingTransactions.length > 0 && (
+                <div className="bg-white border border-amber-200 rounded-3xl p-5 shadow-sm">
+                    <h3 className="text-base font-bold text-amber-800 mb-4 flex items-center gap-2">
+                        <Wallet size={18} /> Achats Points ({pendingTransactions.length})
+                    </h3>
+                    <div className="space-y-2">
+                        {pendingTransactions.map(({agency, request}) => (
+                            <div key={request.id} className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex justify-between items-center">
+                                <div>
+                                    <p className="text-xs font-bold text-slate-800">{request.studentName}</p>
+                                    <p className="text-[10px] text-slate-500">
+                                        +{request.amountScore} pts contre {request.amountPixi} PiXi
+                                    </p>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button onClick={() => handleTransactionRequest(agency, request, false)} className="p-1 bg-white hover:bg-red-100 text-red-500 rounded border border-red-100"><X size={14}/></button>
+                                    <button onClick={() => handleTransactionRequest(agency, request, true)} className="p-1 bg-white hover:bg-emerald-100 text-emerald-500 rounded border border-emerald-100"><Check size={14}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* 1. Pending Reviews */}
             <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">

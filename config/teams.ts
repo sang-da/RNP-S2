@@ -136,8 +136,8 @@ const generateMockAgencies = (): Agency[] => {
           id: agencyId,
           name: `Agence A${agencyNum}`,
           tagline: "Nouvelle Agence S2",
-          ve_current: 50,
-          status: 'stable',
+          ve_current: 20, // CHANGE: Starting VE from 50 to 20
+          status: 'critique', // Start in critic because VE < 40
           classId: 'A',
           budget_real: 0,
           budget_valued: 0,
@@ -151,6 +151,7 @@ const generateMockAgencies = (): Agency[] => {
           currentCycle: CycleType.MARQUE_BRIEF,
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
+          transactionRequests: [], // Init empty
           constraints: { space: "", style: "", client: "" },
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
           branding: { color: 'indigo' }, // Couleur par défaut Classe A
@@ -168,8 +169,8 @@ const generateMockAgencies = (): Agency[] => {
           id: agencyId,
           name: `Agence B${agencyNum}`,
           tagline: "Nouvelle Agence S2",
-          ve_current: 50,
-          status: 'stable',
+          ve_current: 20, // CHANGE: Starting VE from 50 to 20
+          status: 'critique',
           classId: 'B',
           budget_real: 0,
           budget_valued: 0,
@@ -183,6 +184,7 @@ const generateMockAgencies = (): Agency[] => {
           currentCycle: CycleType.MARQUE_BRIEF,
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
+          transactionRequests: [], // Init empty
           constraints: { space: "", style: "", client: "" },
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS)),
           branding: { color: 'cyan' }, // Couleur par défaut Classe B
@@ -228,6 +230,7 @@ const generateMockAgencies = (): Agency[] => {
       currentCycle: CycleType.MARQUE_BRIEF,
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },
       mercatoRequests: [],
+      transactionRequests: [],
       constraints: { space: "", style: "", client: "" },
       progress: {},
       branding: { color: 'slate' },

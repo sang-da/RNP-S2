@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Agency, WeekModule, GameEvent, WikiResource, Student } from '../types';
+import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
 import { useUI } from './UIContext';
 import { db } from '../services/firebase';
@@ -37,6 +37,9 @@ interface GameContextType {
   // Student Economy
   transferFunds: (sourceId: string, targetId: string, amount: number) => Promise<void>;
   tradeScoreForCash: (studentId: string, scoreAmount: number) => Promise<void>;
+  injectCapital: (studentId: string, agencyId: string, amount: number) => Promise<void>;
+  requestScorePurchase: (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => Promise<void>;
+  handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -124,8 +127,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const now = new Date();
           const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
           const hour = now.getHours();
-          // Logique simplifiée pour la démo : On regarde si la date du jour correspond à une semaine
-          // Dans une vraie app, on stockerait l'état "déjà exécuté" pour la journée.
+          // Logique simplifiée pour la démo
           console.log(`Auto Check: ${today} ${hour}h`);
       };
 
@@ -425,6 +427,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', `Virement de ${amount} PiXi effectué.`);
   };
 
+  // Legacy trade function (Direct Score to Cash) - kept for compatibility if needed but replaced by request logic usually
   const tradeScoreForCash = async (studentId: string, scoreAmount: number) => {
       // RATE: 1 Score Point = 50 PiXi
       const CASH_RATE = 50;
@@ -454,6 +457,128 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', `Liquidité obtenue : +${cashReceived} PiXi (Coût: -${scoreAmount} Score)`);
   };
 
+  // --- NEW: INJECT CAPITAL (AUTOMATIC) ---
+  const injectCapital = async (studentId: string, agencyId: string, amount: number) => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if(!agency) return;
+      const student = agency.members.find(m => m.id === studentId);
+      if(!student) return;
+
+      if((student.wallet || 0) < amount) {
+          toast('error', "Fonds insuffisants.");
+          return;
+      }
+
+      const batch = writeBatch(db);
+      
+      // 1. Deduct from student
+      const updatedMembers = agency.members.map(m => 
+          m.id === studentId ? { ...m, wallet: (m.wallet || 0) - amount } : m
+      );
+
+      // 2. Add to agency budget
+      const updatedAgency = {
+          ...agency,
+          members: updatedMembers,
+          budget_real: agency.budget_real + amount,
+          eventLog: [...agency.eventLog, {
+              id: `inj-${Date.now()}`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'BUDGET_DELTA' as const, // Cast needed for TS
+              label: "Injection Capital",
+              deltaBudgetReal: amount,
+              description: `Investissement personnel de ${student.name}.`
+          }]
+      };
+
+      const agencyRef = doc(db, "agencies", agency.id);
+      batch.update(agencyRef, updatedAgency);
+      await batch.commit();
+      toast('success', `Injection de ${amount} PiXi réussie.`);
+  };
+
+  // --- NEW: REQUEST SCORE PURCHASE (MANUAL VALIDATION) ---
+  const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if(!agency) return;
+      const student = agency.members.find(m => m.id === studentId);
+      if(!student) return;
+
+      // Create Request
+      const newRequest: TransactionRequest = {
+          id: `req-score-${Date.now()}`,
+          studentId: student.id,
+          studentName: student.name,
+          type: 'BUY_SCORE',
+          amountPixi: amountPixi,
+          amountScore: amountScore,
+          status: 'PENDING',
+          date: new Date().toISOString().split('T')[0]
+      };
+
+      const agencyRef = doc(db, "agencies", agency.id);
+      await updateDoc(agencyRef, {
+          transactionRequests: [...(agency.transactionRequests || []), newRequest]
+      });
+      toast('success', "Demande d'achat envoyée à l'administration.");
+  };
+
+  // --- ADMIN: VALIDATE TRANSACTION ---
+  const handleTransactionRequest = async (agency: Agency, request: TransactionRequest, approved: boolean) => {
+      const batch = writeBatch(db);
+      const agencyRef = doc(db, "agencies", agency.id);
+
+      // Remove request from pending list
+      const updatedRequests = (agency.transactionRequests || []).filter(r => r.id !== request.id);
+
+      if (!approved) {
+          batch.update(agencyRef, { transactionRequests: updatedRequests });
+          await batch.commit();
+          toast('info', "Demande rejetée.");
+          return;
+      }
+
+      // Execute Transaction
+      const student = agency.members.find(m => m.id === request.studentId);
+      if (!student) {
+          toast('error', "Étudiant introuvable.");
+          return;
+      }
+
+      if ((student.wallet || 0) < request.amountPixi) {
+          toast('error', "Fonds insuffisants pour valider la transaction.");
+          // Still remove request or mark rejected? Let's just stop here for safety.
+          return;
+      }
+
+      const updatedMembers = agency.members.map(m => 
+          m.id === request.studentId 
+          ? { 
+              ...m, 
+              wallet: (m.wallet || 0) - request.amountPixi,
+              individualScore: Math.min(100, m.individualScore + request.amountScore)
+            }
+          : m
+      );
+
+      const logEvent: GameEvent = {
+          id: `buy-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'INFO',
+          label: "Achat de Score",
+          description: `${request.studentName} a acheté +${request.amountScore} pts pour ${request.amountPixi} PiXi.`
+      };
+
+      batch.update(agencyRef, {
+          transactionRequests: updatedRequests,
+          members: updatedMembers,
+          eventLog: [...agency.eventLog, logEvent]
+      });
+
+      await batch.commit();
+      toast('success', "Transaction validée.");
+  };
+
   const resetGame = async () => {
       try { await seedDatabase(); } catch (e) { console.error(e); }
   };
@@ -463,7 +588,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       agencies, weeks, resources, role, selectedAgencyId, isAutoMode,
       setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, updateWeek,
       addResource, deleteResource, shuffleConstraints, processFinance, processPerformance, resetGame,
-      transferFunds, tradeScoreForCash
+      transferFunds, tradeScoreForCash, injectCapital, requestScorePurchase, handleTransactionRequest
     }}>
       {children}
     </GameContext.Provider>

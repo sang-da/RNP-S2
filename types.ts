@@ -127,6 +127,18 @@ export interface MercatoRequest {
   motivation?: string; // Texte justificatif
 }
 
+// --- NEW: FINANCIAL REQUESTS ---
+export interface TransactionRequest {
+    id: string;
+    studentId: string;
+    studentName: string;
+    type: 'BUY_SCORE';
+    amountPixi: number;
+    amountScore: number;
+    status: 'PENDING' | 'REJECTED';
+    date: string;
+}
+
 // --- NEW TYPES FOR GAMIFICATION ---
 
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
@@ -147,8 +159,8 @@ export interface Agency {
   
   // Data Driven by Events
   ve_current: number; // 0-100 (La note/valeur)
-  budget_real: number; // En XOF ou €
-  budget_valued: number; // En XOF ou €
+  budget_real: number; // En PiXi
+  budget_valued: number; // En PiXi
   weeklyTax: number; // Pourcentage de charges hebdo (0.1 = 10%)
   weeklyRevenueModifier: number; // Bonus/Malus récurrent en PiXi (ex: +500 par semaine grâce à un prix)
   
@@ -163,6 +175,9 @@ export interface Agency {
   
   // Mercato Requests (Pending)
   mercatoRequests: MercatoRequest[];
+  
+  // Financial Requests (Pending)
+  transactionRequests: TransactionRequest[];
 
   // Legacy constraints
   constraints: {

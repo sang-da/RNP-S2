@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, BrandColor, Student } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -36,7 +36,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
-  const { transferFunds, tradeScoreForCash } = useGame();
+  const { transferFunds, injectCapital, requestScorePurchase } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
@@ -107,7 +107,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                     {myMemberProfile && (
                         <div onClick={() => setShowWallet(true)} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
                             <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline flex items-center gap-1 md:justify-end">
-                                <Wallet size={12}/> Banque Perso
+                                <Wallet size={12}/> Marché & Banque
                             </span>
                             <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
                                 <span className="text-yellow-400 font-mono">{myMemberProfile.wallet || 0} PiXi</span>
@@ -161,9 +161,11 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 isOpen={showWallet} 
                 onClose={() => setShowWallet(false)} 
                 student={myMemberProfile} 
+                agency={agency}
                 allStudents={allAgencies.flatMap(a => a.members)}
                 onTransfer={transferFunds}
-                onTradeScore={tradeScoreForCash}
+                onInjectCapital={injectCapital}
+                onRequestScore={requestScorePurchase}
             />
         )}
 
@@ -209,11 +211,11 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 };
 
 // --- WALLET COMPONENT ---
-const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Student, allStudents: Student[], onTransfer: any, onTradeScore: any}> = ({isOpen, onClose, student, allStudents, onTransfer, onTradeScore}) => {
-    const [mode, setMode] = useState<'TRANSFER' | 'TRADE'>('TRANSFER');
+const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Student, agency: Agency, allStudents: Student[], onTransfer: any, onInjectCapital: any, onRequestScore: any}> = ({isOpen, onClose, student, agency, allStudents, onTransfer, onInjectCapital, onRequestScore}) => {
+    const [mode, setMode] = useState<'TRANSFER' | 'INJECT' | 'BUY_SCORE'>('INJECT');
     const [targetId, setTargetId] = useState('');
     const [amount, setAmount] = useState(0);
-    const [scoreToSell, setScoreToSell] = useState(0);
+    const [scoreToBuy, setScoreToBuy] = useState(0);
 
     const handleTransfer = async () => {
         if(!targetId || amount <= 0) return;
@@ -221,30 +223,78 @@ const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Stud
         onClose();
     };
 
-    const handleTrade = async () => {
-        if(scoreToSell <= 0) return;
-        await onTradeScore(student.id, scoreToSell);
+    const handleInject = async () => {
+        if(amount <= 0) return;
+        await onInjectCapital(student.id, agency.id, amount);
+        onClose();
+    };
+
+    const handleBuyScore = async () => {
+        if(scoreToBuy <= 0) return;
+        // Cost: 200 PiXi for 1 Score point (for example)
+        const cost = scoreToBuy * 200;
+        await onRequestScore(student.id, agency.id, cost, scoreToBuy);
         onClose();
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Banque & Investissement">
+        <Modal isOpen={isOpen} onClose={onClose} title="Marché Financier">
             <div className="space-y-6">
-                <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
-                    <div>
-                        <p className="text-indigo-300 text-xs font-bold uppercase">Solde Actuel</p>
+                <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-10 bg-white/5 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
+                    <div className="relative z-10">
+                        <p className="text-indigo-300 text-xs font-bold uppercase mb-1">Solde Personnel</p>
                         <p className="text-3xl font-display font-bold">{student?.wallet || 0} PiXi</p>
                     </div>
-                    <Wallet size={32} className="text-indigo-400"/>
+                    <Wallet size={32} className="text-indigo-400 relative z-10"/>
                 </div>
 
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setMode('TRANSFER')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'TRANSFER' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}>Virement</button>
-                    <button onClick={() => setMode('TRADE')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'TRADE' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Vendre Score</button>
+                <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto">
+                    <button onClick={() => setMode('INJECT')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'INJECT' ? 'bg-white shadow text-emerald-600' : 'text-slate-400'}`}>Investir Agence</button>
+                    <button onClick={() => setMode('BUY_SCORE')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'BUY_SCORE' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}>Acheter Score</button>
+                    <button onClick={() => setMode('TRANSFER')} className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mode === 'TRANSFER' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}>Virement Tiers</button>
                 </div>
 
-                {mode === 'TRANSFER' ? (
-                    <div className="space-y-4">
+                {mode === 'INJECT' && (
+                    <div className="space-y-4 animate-in fade-in">
+                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-emerald-800 text-sm">
+                            <strong className="block mb-1 flex items-center gap-2"><ArrowUpRight size={16}/> Injection de Capital</strong>
+                            Transférez vos fonds personnels vers la trésorerie de l'agence pour payer le loyer ou éviter la faillite.
+                            <br/><span className="text-xs opacity-75">Action immédiate et irréversible.</span>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase text-slate-400">Montant à investir</label>
+                            <input type="number" className="w-full p-3 rounded-xl border font-bold" placeholder="0" onChange={e => setAmount(Number(e.target.value))} />
+                        </div>
+                        <button onClick={handleInject} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-emerald-700 transition-colors">
+                            Investir dans l'agence
+                        </button>
+                    </div>
+                )}
+
+                {mode === 'BUY_SCORE' && (
+                    <div className="space-y-4 animate-in fade-in">
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800 text-sm">
+                            <strong className="block mb-1 flex items-center gap-2"><TrendingUp size={16}/> Achat de Points (Formation)</strong>
+                            Convertissez votre argent en compétence.
+                            <br/>Taux : <strong>200 PiXi = 1 Point Score</strong>.
+                            <br/><span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-amber-200 mt-2 inline-block">Soumis à validation prof.</span>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase text-slate-400">Points voulus</label>
+                            <input type="number" className="w-full p-3 rounded-xl border font-bold" placeholder="0" onChange={e => setScoreToBuy(Number(e.target.value))} />
+                        </div>
+                        <div className="text-center py-2">
+                            <span className="text-xl font-bold text-slate-900">Coût : {scoreToBuy * 200} PiXi</span>
+                        </div>
+                        <button onClick={handleBuyScore} disabled={scoreToBuy <= 0 || (scoreToBuy * 200) > (student.wallet || 0)} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-amber-600 transition-colors">
+                            Envoyer demande d'achat
+                        </button>
+                    </div>
+                )}
+
+                {mode === 'TRANSFER' && (
+                    <div className="space-y-4 animate-in fade-in">
                         <p className="text-sm text-slate-500">Envoyez des fonds à un autre étudiant (soutien de projet).</p>
                         <div>
                             <label className="text-[10px] font-bold uppercase text-slate-400">Bénéficiaire</label>
@@ -259,27 +309,8 @@ const WalletModal: React.FC<{isOpen: boolean, onClose: () => void, student: Stud
                             <label className="text-[10px] font-bold uppercase text-slate-400">Montant</label>
                             <input type="number" className="w-full p-3 rounded-xl border" placeholder="0" onChange={e => setAmount(Number(e.target.value))} />
                         </div>
-                        <button onClick={handleTransfer} disabled={amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl disabled:opacity-50">
+                        <button onClick={handleTransfer} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl disabled:opacity-50 hover:bg-indigo-700 transition-colors">
                             <Send size={16} className="inline mr-2"/> Envoyer
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800 text-sm">
-                            <strong className="block mb-1 flex items-center gap-2"><TrendingUp size={16}/> Sacrifice Stratégique</strong>
-                            Échangez vos points de note contre du capital.
-                            <br/>Taux : <strong>1 Point Score = 50 PiXi</strong>.
-                            <br/><span className="text-xs opacity-75">Attention : Cela réduira votre salaire futur.</span>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-400">Points à vendre</label>
-                            <input type="number" className="w-full p-3 rounded-xl border" placeholder="0" onChange={e => setScoreToSell(Number(e.target.value))} />
-                        </div>
-                        <div className="text-center py-2">
-                            <span className="text-2xl font-bold text-emerald-600">+{scoreToSell * 50} PiXi</span>
-                        </div>
-                        <button onClick={handleTrade} disabled={scoreToSell > student.individualScore} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl disabled:opacity-50">
-                            <Repeat size={16} className="inline mr-2"/> Confirmer l'échange
                         </button>
                     </div>
                 )}

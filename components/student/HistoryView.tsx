@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Agency } from '../../types';
 
@@ -32,7 +33,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ agency }) => {
                         
                         {event.deltaBudgetReal && (
                             <div className="mt-3 inline-block px-3 py-1 bg-slate-50 rounded-lg text-xs font-bold text-slate-600">
-                                Impact Budget: {event.deltaBudgetReal > 0 ? '+' : ''}{event.deltaBudgetReal} €
+                                Impact Budget: {event.deltaBudgetReal > 0 ? '+' : ''}{event.deltaBudgetReal} PiXi
                             </div>
                         )}
                     </div>
