@@ -1,4 +1,6 @@
 
+import { Agency } from '../types';
+
 // --- GAME RULES / BALANCING ---
 export const GAME_RULES = {
     // REVENUS
@@ -24,4 +26,23 @@ export const CONSTRAINTS_POOL = {
   space: ["Hall de Gare", "Friche Industrielle", "Parvis Église", "Toit Terrasse", "Parking Souterrain", "Kiosque Abandonné"],
   style: ["Cyberpunk", "Art Déco", "Brutalisme Végétal", "Minimalisme Japonais", "Steampunk", "Bauhaus"],
   client: ["Marque de Luxe", "ONG Humanitaire", "Collectif d'Artistes", "Mairie de Quartier", "Start-up Tech", "Festival de Musique"]
+};
+
+// --- HELPER FUNCTION: PERFORMANCE MULTIPLIER ---
+// Calcule un multiplicateur basé sur la moyenne des scores individuels des membres.
+// Pivot à 50/100 = 1.0x
+// Range: 0.5x (si score 0) à 1.5x (si score 100)
+export const getAgencyPerformanceMultiplier = (agency: Agency): number => {
+    if (!agency.members || agency.members.length === 0) return 1;
+    
+    const totalScore = agency.members.reduce((acc, m) => acc + m.individualScore, 0);
+    const avgScore = totalScore / agency.members.length;
+    
+    // Formule : 1 + ((Moyenne - 50) / 100)
+    // Ex: Moyenne 80 -> 1 + (30/100) = 1.3x
+    // Ex: Moyenne 40 -> 1 + (-10/100) = 0.9x
+    const multiplier = 1 + ((avgScore - 50) / 100);
+    
+    // Clamp de sécurité (Min 0.5x, Max 1.5x)
+    return Math.max(0.5, Math.min(1.5, multiplier));
 };

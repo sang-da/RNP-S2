@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, GameEvent, WeekModule } from '../types';
 import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Filter, Star } from 'lucide-react';
@@ -7,6 +6,7 @@ import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { getAgencyPerformanceMultiplier } from '../constants';
 
 interface AdminDashboardProps {
   agencies: Agency[];
@@ -514,10 +514,16 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
     const baseScore = quality === 'A' ? 10 : quality === 'B' ? 4 : 0;
     const penaltyLate = daysLate * 5;
     const penaltyConstraint = constraintBroken ? 10 : 0;
-    const totalDelta = baseScore - penaltyLate - penaltyConstraint;
+    const rawDelta = baseScore - penaltyLate - penaltyConstraint;
 
     const handleValidate = () => {
         if(!agency) return;
+
+        // PERFORMANCE MULTIPLIER APPLICATION
+        // Only apply if the delta is positive (gains). Penalties remain fixed.
+        const multiplier = getAgencyPerformanceMultiplier(agency);
+        const finalDelta = rawDelta > 0 ? Math.round(rawDelta * multiplier) : rawDelta;
+        const perfPercent = Math.round(multiplier * 100);
 
         const currentWeek = agency.progress[item.weekId];
         const isRejected = quality === 'C';
@@ -534,7 +540,7 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
                     quality,
                     daysLate,
                     constraintBroken,
-                    finalDelta: totalDelta,
+                    finalDelta: finalDelta,
                     mvpId: mvpId || undefined
                 }
               }
@@ -559,13 +565,13 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
             date: new Date().toISOString().split('T')[0],
             type: 'VE_DELTA',
             label: isRejected ? `Rejet: ${item.deliverable.name}` : `Correction: ${item.deliverable.name}`,
-            deltaVE: totalDelta,
-            description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate})${mvpId ? ' | MVP Bonus attribué' : ''}`
+            deltaVE: finalDelta,
+            description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate}) | Perf. ${perfPercent}%${mvpId ? ' | MVP Bonus' : ''}`
         };
 
         const updatedAgency = {
             ...agency,
-            ve_current: Math.max(0, Math.min(100, agency.ve_current + totalDelta)),
+            ve_current: Math.max(0, Math.min(100, agency.ve_current + finalDelta)),
             projectDef: updatedProjectDef,
             eventLog: [...agency.eventLog, newEvent],
             members: updatedMembers,
@@ -579,7 +585,7 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
         };
 
         onUpdateAgency(updatedAgency);
-        toast(totalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${totalDelta} VE)`);
+        toast(finalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${finalDelta} VE) - Perf ${perfPercent}%`);
         onClose();
     };
 
@@ -641,7 +647,12 @@ const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agen
                  
                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                     <div className="font-bold">
-                        Impact VE: <span className={`${totalDelta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{totalDelta > 0 ? '+' : ''}{totalDelta}</span>
+                        Impact VE Brut: <span className={`${rawDelta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{rawDelta > 0 ? '+' : ''}{rawDelta}</span>
+                        {rawDelta > 0 && agency && (
+                            <span className="text-xs text-slate-400 block font-normal">
+                                Multiplicateur Perf: x{getAgencyPerformanceMultiplier(agency).toFixed(2)}
+                            </span>
+                        )}
                     </div>
                     <button onClick={handleValidate} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">Valider</button>
                  </div>

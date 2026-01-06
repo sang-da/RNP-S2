@@ -12,17 +12,17 @@ const S1_BRONZE_MEMBERS = ["Tryphose", "Sarah", "Grâce", "Stessy"];
 
 // --- LISTE OFFICIELLE DES ÉTUDIANTS S2 ---
 const STUDENTS_CLASSE_A = [
-    "Marie-Trinité", "Jessica", "Lydia", "Ronelle", "Tiffany", 
-    "Ian", "Kassandra", "Aubine", "Lidwine", "Sarah", 
-    "Maëlys", "Rebecca", "Rolyx", "Emeraude", "Shaneen", 
+    "Marie-Trinité", "Jessica", "Lydia", "Ronelle", "Tiffany",
+    "Ian", "Kassandra", "Aubine", "Lidwine", "Sarah",
+    "Maëlys", "Rebecca", "Rolyx", "Emeraude", "Shaneen",
     "Noriane", "Pascal", "Roxane", "Loan", "Korell", "Iris"
 ];
 
 const STUDENTS_CLASSE_B = [
-    "Tryphose", "Vianney", "Esther", "Achabys", "Zirwath", 
-    "Elicia", "Loïs", "Coralie", "Ruth-De-Franck", "Lindsay", 
-    "Ghintia", "Rayane", "Ashley", "Faghez", "Erudice", 
-    "Mira", "Brunelle", "Stessy", "Duamel", "Grâce", "Jennifer"
+    "Tryphose", "Vianney", "Esther", "Achabys", "Zirwath",
+    "Elicia", "Loïs", "Coralie", "Ruth", "Lindsay",
+    "Ghintia", "Rayane", "Ashley", "Faghez", "Erudice",
+    "Myra", "Brunelle", "Stessy", "Duamel", "Grâce", "Jennifer"
 ];
 
 const generateMockAgencies = (): Agency[] => {
@@ -36,13 +36,33 @@ const generateMockAgencies = (): Agency[] => {
       const averageS1 = S1_AVERAGES[name] || 10;
       
       // 2. Calcul du Score de départ S2
-      // Formule : Base (30) + Performance S1 (Moyenne/20 * 40) + Motivation (20)
+      // Formule : SMIG (30) + Moyenne S1 (x2 pour base 40) + Bonus Badges (Indiv + Group)
       const baseScore = 30;
-      const s1Part = (averageS1 / 20) * 40;
-      const bonusScore = 20;
+      const s1Part = averageS1 * 2;
+      
+      let bonusScore = 0;
+
+      // A. Bonus Badges Individuels
+      // Or = 10, Argent = 7.5, Bronze = 5
+      if (individualAward) {
+          if (individualAward.badge === 's1_gold') bonusScore += 10;
+          else if (individualAward.badge === 's1_silver') bonusScore += 7.5;
+          else if (individualAward.badge === 's1_bronze') bonusScore += 5;
+      }
+
+      // B. Bonus Badges Groupe
+      // Or = 10, Argent = 7.5, Bronze = 5
+      if (S1_GOLD_MEMBERS.includes(name)) {
+          bonusScore += 10; 
+      } else if (S1_SILVER_MEMBERS.includes(name)) {
+          bonusScore += 7.5;
+      } else if (S1_BRONZE_MEMBERS.includes(name)) {
+          bonusScore += 5;
+      }
+
       const calculatedScore = Math.round(baseScore + s1Part + bonusScore);
 
-      // 3. Attribution des Badges (Personnels + Historique Groupe)
+      // 3. Attribution des Badges (Visuels)
       const studentBadges: Badge[] = [];
 
       // A. Badge Individuel (Major, Vice-Major...)
@@ -52,7 +72,6 @@ const generateMockAgencies = (): Agency[] => {
       }
 
       // B. Badge Historique Groupe S1 (Or/Argent/Bronze)
-      // On vérifie si l'étudiant faisait partie d'une équipe gagnante en S1
       if (S1_GOLD_MEMBERS.includes(name)) {
           const b = BADGE_DEFINITIONS.find(def => def.id === 's1_gold_group');
           if (b) studentBadges.push(b);
@@ -89,21 +108,7 @@ const generateMockAgencies = (): Agency[] => {
   };
 
   // --- LOGIQUE DE RÉPARTITION (CHUNKING) ---
-  // On divise les listes d'étudiants en groupes pour former les agences
-  const chunkArray = (array: string[], size: number) => {
-      const result = [];
-      for (let i = 0; i < array.length; i += size) {
-          result.push(array.slice(i, i + size));
-      }
-      return result;
-  };
-
-  // Répartition Classe A : 21 élèves / 6 Agences = ~3.5 élèves par agence (mix 3 et 4)
-  // On mélange un peu pour l'exemple ou on prend l'ordre alphabétique/liste
-  // Ici on prend l'ordre de la liste fournie.
-  // 21 élèves divisés en 6 équipes -> On va faire des groupes manuels pour être sûr d'avoir 6 équipes.
-  
-  // Algorithme de distribution équitable pour avoir exactement 6 équipes
+  // Algorithme de distribution équitable pour avoir exactement 6 équipes par classe
   const distributeStudents = (students: string[], teamCount: number) => {
       const teams: string[][] = Array.from({ length: teamCount }, () => []);
       students.forEach((student, index) => {
@@ -112,8 +117,8 @@ const generateMockAgencies = (): Agency[] => {
       return teams;
   };
 
-  const teamsA = distributeStudents(STUDENTS_CLASSE_A, 6); // 6 équipes Classe A
-  const teamsB = distributeStudents(STUDENTS_CLASSE_B, 6); // 6 équipes Classe B
+  const teamsA = distributeStudents(STUDENTS_CLASSE_A, 6); // 6 équipes Classe A (mix 3 et 4 étudiants)
+  const teamsB = distributeStudents(STUDENTS_CLASSE_B, 6); // 6 équipes Classe B (mix 3 et 4 étudiants)
 
   // --- CRÉATION DES AGENCES ---
 

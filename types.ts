@@ -91,6 +91,7 @@ export interface Student {
   connectionStatus?: 'online' | 'offline' | 'pending';
   history?: StudentHistoryEntry[]; // Parcours professionnel
   badges?: Badge[]; // NEW: Individual Badges
+  streak?: number; // NEW: Streak for performance
 }
 
 export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE';

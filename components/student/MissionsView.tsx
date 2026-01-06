@@ -6,7 +6,7 @@ import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
-import { CYCLE_AWARDS } from '../../constants';
+import { CYCLE_AWARDS, getAgencyPerformanceMultiplier } from '../../constants';
 
 interface MissionsViewProps {
   agency: Agency;
@@ -88,22 +88,28 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             d.id === targetDeliverableId ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback } : d
         );
 
+        // --- PERFORMANCE MULTIPLIER LOGIC ---
+        const baseGain = 5;
+        const multiplier = getAgencyPerformanceMultiplier(agency);
+        const finalGain = Math.round(baseGain * multiplier);
+        const perfPercent = Math.round(multiplier * 100);
+
         const newEvent: GameEvent = {
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
             type: 'VE_DELTA',
             label: `Rendu ${updatedWeek.deliverables.find(d => d.id === targetDeliverableId)?.name}`,
-            deltaVE: 5,
-            description: "Fichier uploadé. Validation en attente (+5 VE temp)"
+            deltaVE: finalGain,
+            description: `Fichier uploadé. Gain VE ajusté à la performance d'équipe (${perfPercent}%).`
         };
 
         onUpdateAgency({
             ...agency,
-            ve_current: Math.min(100, agency.ve_current + 5),
+            ve_current: Math.min(100, agency.ve_current + finalGain),
             eventLog: [...agency.eventLog, newEvent],
             progress: { ...agency.progress, [activeWeek]: updatedWeek }
         });
-        toast('success', "Fichier transmis avec succès !");
+        toast('success', `Fichier transmis ! Gain : +${finalGain} VE (Perf. ${perfPercent}%)`);
 
     } catch (error) {
         toast('error', "Erreur lors de l'envoi du fichier.");

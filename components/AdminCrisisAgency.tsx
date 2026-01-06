@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
 import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
+import { getAgencyPerformanceMultiplier } from '../constants';
 
 interface AdminCrisisAgencyProps {
   agencies: Agency[];
@@ -95,20 +96,30 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                       budgetDeltaReal = form.deltaBudget;
                   }
 
+                  // PERFORMANCE MULTIPLIER APPLICATION
+                  // Only apply if the delta is positive (gains). Penalties remain fixed.
+                  const multiplier = getAgencyPerformanceMultiplier(agency);
+                  const finalVEDelta = form.deltaVE > 0 ? Math.round(form.deltaVE * multiplier) : form.deltaVE;
+                  const perfPercent = Math.round(multiplier * 100);
+
+                  const description = form.deltaVE > 0 
+                    ? `${form.reason} (Gain VE ajusté perf. ${perfPercent}%)` 
+                    : form.reason;
+
                   const newEvent: GameEvent = {
                       id: `evt-${Date.now()}-${agency.id}`,
                       date: new Date().toISOString().split('T')[0],
                       type: presetType === 'CRISIS' ? 'CRISIS' : 'VE_DELTA',
                       label: form.label,
-                      description: form.reason,
-                      deltaVE: form.deltaVE,
+                      description: description,
+                      deltaVE: finalVEDelta,
                       deltaBudgetReal: budgetDeltaReal
                   };
 
                   onUpdateAgency({
                       ...agency,
                       budget_real: agency.budget_real + budgetDeltaReal,
-                      ve_current: Math.max(0, agency.ve_current + form.deltaVE),
+                      ve_current: Math.max(0, agency.ve_current + finalVEDelta),
                       eventLog: [...agency.eventLog, newEvent]
                   });
               }
