@@ -1,7 +1,7 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
-import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle, ArrowRight, CheckSquare, Crown, Compass, Mic, Eye } from 'lucide-react';
+import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle, ArrowRight, CheckSquare, Crown, Compass, Mic, Eye, Save } from 'lucide-react';
 import { Modal } from '../Modal';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -22,6 +22,26 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
   const [isCharterModalOpen, setIsCharterModalOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  
+  // Charter Form State
+  const [charterForm, setCharterForm] = useState({
+      problem: "",
+      target: "",
+      location: "",
+      gesture: ""
+  });
+
+  // Pre-fill charter form if data exists
+  useEffect(() => {
+      if (agency.projectDef) {
+          setCharterForm({
+              problem: agency.projectDef.problem || "",
+              target: agency.projectDef.target || "",
+              location: agency.projectDef.location || "",
+              gesture: agency.projectDef.gesture || ""
+          });
+      }
+  }, [agency.projectDef]);
   
   // Checklist State
   const [checks, setChecks] = useState({
@@ -120,8 +140,37 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     }
   };
 
-  // Submit charter logic omitted for brevity (same as before)
-  const handleSubmitCharter = () => { /* ... */ setIsCharterModalOpen(false); toast('success', "Charte soumise !"); };
+  const handleSubmitCharter = () => { 
+      if (!charterForm.problem || !charterForm.target || !charterForm.location) {
+          toast('error', "Veuillez remplir tous les champs obligatoires.");
+          return;
+      }
+
+      const updatedWeek = { ...currentWeekData };
+      updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
+          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée. En attente validation." } : d
+      );
+
+      const newEvent: GameEvent = {
+            id: `evt-charter-${Date.now()}`,
+            date: new Date().toISOString().split('T')[0],
+            type: 'VE_DELTA',
+            label: "Charte Projet",
+            deltaVE: 10,
+            description: "Définition du projet soumise."
+      };
+
+      onUpdateAgency({
+          ...agency,
+          ve_current: Math.min(100, agency.ve_current + 10),
+          eventLog: [...agency.eventLog, newEvent],
+          projectDef: { ...agency.projectDef, ...charterForm },
+          progress: { ...agency.progress, [activeWeek]: updatedWeek }
+      });
+
+      setIsCharterModalOpen(false);
+      toast('success', "Charte enregistrée et soumise ! (+10 VE)");
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
@@ -218,8 +267,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                                             : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                         }`}
                                     >
-                                        {isUploading === deliverable.id ? <Loader2 className="animate-spin" size={16}/> : <Upload size={16}/>}
-                                        {deliverable.id === 'd_charter' ? 'Remplir' : 'Déposer'}
+                                        {isUploading === deliverable.id ? <Loader2 className="animate-spin" size={16}/> : deliverable.id === 'd_charter' ? <FileText size={16}/> : <Upload size={16}/>}
+                                        {deliverable.id === 'd_charter' ? 'Remplir le Formulaire' : 'Déposer'}
                                     </button>
                                 ) : (
                                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">
@@ -238,7 +287,65 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
         {/* MODAL: Charter Form */}
         <Modal isOpen={isCharterModalOpen} onClose={() => setIsCharterModalOpen(false)} title="Charte de Projet">
-             <div className="p-4"><p>Formulaire Charte (Placeholder)</p><button onClick={() => setIsCharterModalOpen(false)}>Fermer</button></div>
+             <div className="space-y-4">
+                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
+                     Définissez l'identité de votre projet. Ces informations seront visibles par l'administration et sur votre tableau de bord.
+                 </div>
+
+                 <div>
+                     <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Problème Identifié</label>
+                     <textarea 
+                        value={charterForm.problem}
+                        onChange={e => setCharterForm({...charterForm, problem: e.target.value})}
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Quel problème local essayez-vous de résoudre ?"
+                        rows={3}
+                     />
+                 </div>
+
+                 <div>
+                     <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Cible (Persona)</label>
+                     <input 
+                        type="text"
+                        value={charterForm.target}
+                        onChange={e => setCharterForm({...charterForm, target: e.target.value})}
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Qui est votre utilisateur principal ?"
+                     />
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                     <div>
+                         <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Lieu</label>
+                         <input 
+                            type="text"
+                            value={charterForm.location}
+                            onChange={e => setCharterForm({...charterForm, location: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            placeholder="Adresse ou Quartier"
+                         />
+                     </div>
+                     <div>
+                         <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Geste Architectural</label>
+                         <input 
+                            type="text"
+                            value={charterForm.gesture}
+                            onChange={e => setCharterForm({...charterForm, gesture: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            placeholder="Ex: Kiosque, Passerelle..."
+                         />
+                     </div>
+                 </div>
+
+                 <div className="pt-2">
+                     <button 
+                        onClick={handleSubmitCharter}
+                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2"
+                     >
+                         <Save size={18} /> Enregistrer & Soumettre
+                     </button>
+                 </div>
+             </div>
         </Modal>
 
         {/* MODAL: Checklist Pré-Rendu */}

@@ -9,6 +9,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     objectives: ["Définir le problème local", "Identifier la cible", "Choisir le lieu", "Nommer l'agence"],
     deliverables: [
       { id: "d_charter", name: "Charte de Projet", description: "Formulaire de définition du projet (Nom, Problème, Cible, Lieu)", status: 'pending' },
+      { id: "d_branding", name: "Identité & Branding Agence", description: "Logo, Couleurs, Nom final et Tagline.", status: 'pending' },
       { id: "d2", name: "Feuille de route S1", description: "Planning prévisionnel des 4 prochaines semaines", status: 'pending' }
     ],
     locked: false,

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, CrisisPreset, GameEvent, Student } from '../types';
-import { Crown, User, UserMinus, Sparkles, Gavel, Briefcase, FileWarning, ShieldAlert, BadgeCheck, Heart, Medal, Star } from 'lucide-react';
+import { Crown, User, UserMinus, Sparkles, Gavel, Briefcase, FileWarning, ShieldAlert, BadgeCheck, Heart, Medal, Star, TrendingUp, TrendingDown, Coins } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 
 interface AdminCrisisStudentProps {
@@ -86,7 +86,7 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
       const targetInfo = allStudents.find(s => s.student.id === selectedStudentId);
       if(!targetInfo) return;
 
-      const message = `Étudiant: ${targetInfo.student.name}\nAction: ${form.label}\nScore: ${form.deltaScore} pts\nWallet: ${form.deltaWallet} PiXi`;
+      const message = `Étudiant: ${targetInfo.student.name}\nAction: ${form.label}\nScore: ${form.deltaScore > 0 ? '+' : ''}${form.deltaScore} pts\nWallet: ${form.deltaWallet > 0 ? '+' : ''}${form.deltaWallet} PiXi`;
 
       if(await confirm({title: "Confirmer Action RH", message, isDangerous: presetType === 'SANCTION'})) {
           const agency = agencies.find(a => a.id === targetInfo.agencyId);
@@ -107,7 +107,7 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
               date: new Date().toISOString().split('T')[0],
               type: 'INFO',
               label: `RH: ${targetInfo.student.name} (${form.label})`,
-              description: form.reason
+              description: `${form.reason} (Score ${form.deltaScore > 0 ? '+' : ''}${form.deltaScore}, Wallet ${form.deltaWallet > 0 ? '+' : ''}${form.deltaWallet})`
           };
 
           onUpdateAgency({
@@ -160,24 +160,42 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                     <div 
                         key={idx}
                         onClick={() => selectPreset(preset)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between h-32 ${
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between min-h-[140px] ${
                             presetType === 'SANCTION' ? 'hover:border-red-300 hover:bg-red-50/50 border-slate-100 bg-white' : 
                             presetType === 'CEREMONY' ? 'hover:border-amber-300 hover:bg-amber-50/50 border-slate-100 bg-white' :
                             'hover:border-emerald-300 hover:bg-emerald-50/50 border-slate-100 bg-white'
                         }`}
                     >
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                                presetType === 'SANCTION' ? 'bg-red-100 text-red-500' : 
-                                presetType === 'CEREMONY' ? 'bg-amber-100 text-amber-500' :
-                                'bg-emerald-100 text-emerald-500'
-                            }`}>
-                                {preset.icon}
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className={`p-2 rounded-lg shrink-0 ${
+                                    presetType === 'SANCTION' ? 'bg-red-100 text-red-500' : 
+                                    presetType === 'CEREMONY' ? 'bg-amber-100 text-amber-500' :
+                                    'bg-emerald-100 text-emerald-500'
+                                }`}>
+                                    {preset.icon}
+                                </div>
+                                <h4 className="font-bold text-slate-900 text-sm leading-tight">{preset.label}</h4>
                             </div>
-                            <h4 className="font-bold text-slate-900 text-sm leading-tight">{preset.label}</h4>
+                            <div className="text-xs text-slate-500 line-clamp-2 italic mb-3">
+                                "{preset.defaultReason}"
+                            </div>
                         </div>
-                        <div className="text-xs text-slate-500 line-clamp-2 mt-2 italic">
-                            "{preset.defaultReason}"
+
+                        {/* EXPLICIT IMPACT BADGES */}
+                        <div className="flex gap-2 mt-auto border-t border-slate-100 pt-2">
+                            {(preset.deltaScore !== 0) && (
+                                <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${preset.deltaScore! > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                    {preset.deltaScore! > 0 ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
+                                    Note: {preset.deltaScore! > 0 ? '+' : ''}{preset.deltaScore}
+                                </div>
+                            )}
+                            {(preset.deltaWallet !== 0) && (
+                                <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${preset.deltaWallet! > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                    <Coins size={10}/>
+                                    Cash: {preset.deltaWallet! > 0 ? '+' : ''}{preset.deltaWallet}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -189,7 +207,7 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Impact Score (Note)</label>
+                        <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Impact Note Individuelle (/100)</label>
                         <input 
                             type="number" 
                             value={form.deltaScore}
@@ -198,7 +216,7 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                         />
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Impact Wallet (PiXi)</label>
+                        <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Impact Portefeuille (PiXi)</label>
                         <input 
                             type="number" 
                             value={form.deltaWallet}

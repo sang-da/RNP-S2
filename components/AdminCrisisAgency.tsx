@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
-import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown } from 'lucide-react';
+import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown, Gift } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../constants';
 
@@ -43,6 +43,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
     { label: "Bad Buzz", defaultReason: "Communication désastreuse sur les réseaux.", deltaVE: -8, deltaBudget: 0, icon: <Megaphone/>, category: 'AGENCY_CRISIS', description: "Impact Image" },
     
     // REWARDS (AGENCE S2)
+    { label: "Cadeau de Bienvenue", defaultReason: "Subvention de lancement pour aider à la structuration.", deltaVE: +5, deltaBudget: 2000, isPercentage: false, icon: <Gift/>, category: 'AGENCY_REWARD', description: "Boost Démarrage" },
     { label: "Rendu Photoréaliste", defaultReason: "Qualité technique exceptionnelle du rendu.", deltaVE: +8, deltaBudget: 500, isPercentage: false, icon: <Zap/>, category: 'AGENCY_REWARD', description: "Bonus Qualité" },
     { label: "Innovation Disruptive", defaultReason: "Solution créative jamais vue auparavant.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Trophy/>, category: 'AGENCY_REWARD', description: "Bonus Créa" },
     { label: "Business Angel", defaultReason: "Investissement externe suite au pitch.", deltaVE: +5, deltaBudget: 2500, isPercentage: false, icon: <Wallet/>, category: 'AGENCY_REWARD', description: "Cash Injection" },

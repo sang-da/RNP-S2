@@ -43,7 +43,9 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   const currentUser = agency.members.find(m => m.id === authUser?.uid);
 
   // Lists Logic
-  const availableAgencies = allAgencies.filter(a => a.id !== 'unassigned' && a.classId === agency.members[0].classId);
+  // CORRECTION: Filter available agencies based on the CURRENT USER'S CLASS, not the first member of the unemployment pool.
+  const availableAgencies = allAgencies.filter(a => a.id !== 'unassigned' && a.classId === currentUser?.classId);
+  
   const unemployedAgency = allAgencies.find(a => a.id === 'unassigned');
   const allUnemployed = unemployedAgency ? unemployedAgency.members : [];
 

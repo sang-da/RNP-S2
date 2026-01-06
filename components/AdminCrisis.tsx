@@ -22,7 +22,7 @@ export const AdminCrisis: React.FC<AdminCrisisProps> = ({ agencies, onUpdateAgen
                 Gestion de Crise & Arbitrage
             </h2>
             <p className="text-slate-500 text-sm mt-1">
-                Console de "Dieu" : Déclenchez des événements globaux ou gérez les cas individuels.
+                Centre de Pilotage : Déclenchez des événements majeurs ou gérez les ajustements disciplinaires individuels.
             </p>
         </div>
 
