@@ -2,8 +2,7 @@
 const CACHE_NAME = 'rnp-manager-v1';
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/index.tsx'
+  '/index.html'
 ];
 
 // Installation du SW
