@@ -10,19 +10,38 @@ const S1_GOLD_MEMBERS = ["Zirwath", "Aubine", "Maëlys", "Tiffany", "Roxane"];
 const S1_SILVER_MEMBERS = ["Rayane", "Erudice", "Pascal", "Jennifer"];
 const S1_BRONZE_MEMBERS = ["Tryphose", "Sarah", "Grâce", "Stessy"];
 
-// --- LISTE OFFICIELLE DES ÉTUDIANTS S2 ---
-const STUDENTS_CLASSE_A = [
+// --- POOLS COMPLETS (POUR RÉFÉRENCE ET CHÔMAGE) ---
+const STUDENTS_CLASSE_A_POOL = [
     "Marie-Trinité", "Jessica", "Lydia", "Ronelle", "Tiffany",
     "Ian", "Kassandra", "Aubine", "Lidwine", "Sarah",
     "Maëlys", "Rebecca", "Rolyx", "Emeraude", "Shaneen",
     "Noriane", "Pascal", "Roxane", "Loan", "Korell", "Iris"
 ];
 
-const STUDENTS_CLASSE_B = [
+const STUDENTS_CLASSE_B_POOL = [
     "Tryphose", "Vianney", "Esther", "Achabys", "Zirwath",
     "Elicia", "Loïs", "Coralie", "Ruth", "Lindsay",
     "Ghintia", "Rayane", "Ashley", "Faghez", "Erudice",
     "Myra", "Brunelle", "Stessy", "Duamel", "Grâce", "Jennifer"
+];
+
+// --- DEFINITION DES EQUIPES MANUELLES ---
+const TEAMS_A_SPECIFIC = [
+    ["Roxane", "Sarah"],
+    ["Maëlys", "Ronelle"],
+    ["Iris", "Aubine", "Jessica"],
+    ["Shaneen", "Lydia"],
+    ["Rebecca", "Korell"],
+    ["Kassandra", "Pascal"]
+];
+
+const TEAMS_B_SPECIFIC = [
+    ["Rayane"],
+    ["Faghez", "Achabys"],
+    ["Coralie", "Myra"],
+    ["Grâce", "Ashley", "Tryphose"],
+    ["Ruth", "Loïs", "Brunelle"], // "Ruth" correspond à Ruth-De-Franck dans les stats S1
+    ["Esther", "Erudice"]
 ];
 
 const generateMockAgencies = (): Agency[] => {
@@ -107,30 +126,15 @@ const generateMockAgencies = (): Agency[] => {
       };
   };
 
-  // --- LOGIQUE DE RÉPARTITION (CHUNKING) ---
-  // Algorithme de distribution équitable pour avoir exactement 6 équipes par classe
-  const distributeStudents = (students: string[], teamCount: number) => {
-      const teams: string[][] = Array.from({ length: teamCount }, () => []);
-      students.forEach((student, index) => {
-          teams[index % teamCount].push(student);
-      });
-      return teams;
-  };
-
-  const teamsA = distributeStudents(STUDENTS_CLASSE_A, 6); // 6 équipes Classe A (mix 3 et 4 étudiants)
-  const teamsB = distributeStudents(STUDENTS_CLASSE_B, 6); // 6 équipes Classe B (mix 3 et 4 étudiants)
-
-  // --- CRÉATION DES AGENCES ---
-
-  // Agences 1 à 6 (Classe A)
-  teamsA.forEach((membersNames, index) => {
+  // --- 1. CRÉATION DES AGENCES CLASSE A (Assignées) ---
+  TEAMS_A_SPECIFIC.forEach((membersNames, index) => {
       const agencyNum = index + 1;
-      const agencyId = `agency_${agencyNum}`;
+      const agencyId = `agency_A_${agencyNum}`;
       const members = membersNames.map(name => createStudent(name, 'A'));
 
       agencies.push({
           id: agencyId,
-          name: `Agence ${agencyNum}`,
+          name: `Agence A${agencyNum}`,
           tagline: "Nouvelle Agence S2",
           ve_current: 50,
           status: 'stable',
@@ -154,15 +158,15 @@ const generateMockAgencies = (): Agency[] => {
       });
   });
 
-  // Agences 7 à 12 (Classe B)
-  teamsB.forEach((membersNames, index) => {
-      const agencyNum = index + 7;
-      const agencyId = `agency_${agencyNum}`;
+  // --- 2. CRÉATION DES AGENCES CLASSE B (Assignées) ---
+  TEAMS_B_SPECIFIC.forEach((membersNames, index) => {
+      const agencyNum = index + 1;
+      const agencyId = `agency_B_${agencyNum}`;
       const members = membersNames.map(name => createStudent(name, 'B'));
 
       agencies.push({
           id: agencyId,
-          name: `Agence ${agencyNum}`,
+          name: `Agence B${agencyNum}`,
           tagline: "Nouvelle Agence S2",
           ve_current: 50,
           status: 'stable',
@@ -186,7 +190,27 @@ const generateMockAgencies = (): Agency[] => {
       });
   });
 
-  // Agence Chômage (Vide au départ car tous les étudiants sont assignés)
+  // --- 3. GESTION DES CHÔMEURS (Tous ceux qui ne sont pas dans les listes spécifiques) ---
+  const assignedA = TEAMS_A_SPECIFIC.flat();
+  const assignedB = TEAMS_B_SPECIFIC.flat();
+
+  const unemployedMembers: Student[] = [];
+
+  // Filtrer Classe A
+  STUDENTS_CLASSE_A_POOL.forEach(name => {
+      if (!assignedA.includes(name)) {
+          unemployedMembers.push(createStudent(name, 'A'));
+      }
+  });
+
+  // Filtrer Classe B
+  STUDENTS_CLASSE_B_POOL.forEach(name => {
+      if (!assignedB.includes(name)) {
+          unemployedMembers.push(createStudent(name, 'B'));
+      }
+  });
+
+  // Agence Chômage / Vivier
   agencies.push({
       id: 'unassigned',
       name: "Vivier / Chômage",
@@ -199,7 +223,7 @@ const generateMockAgencies = (): Agency[] => {
       weeklyTax: 0,
       weeklyRevenueModifier: 0,
       eventLog: [],
-      members: [],
+      members: unemployedMembers, // Tous les restants
       peerReviews: [],
       currentCycle: CycleType.MARQUE_BRIEF,
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },

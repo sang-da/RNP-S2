@@ -33,7 +33,6 @@ const GameContainer: React.FC = () => {
     weeks,
     updateWeek,
     updateAgenciesList,
-    processWeekFinance,
     shuffleConstraints
   } = useGame();
 
@@ -189,7 +188,7 @@ const GameContainer: React.FC = () => {
                             onSelectAgency={selectAgency}
                             onShuffleConstraints={shuffleConstraints}
                             onUpdateAgency={updateAgency}
-                            onProcessWeek={processWeekFinance}
+                            onProcessWeek={() => {}}
                             onNavigate={(view: string) => setAdminView(view as AdminViewType)}
                             readOnly={isReadOnly}
                         />

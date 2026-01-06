@@ -1,19 +1,20 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, GameEvent, WeekModule } from '../types';
-import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Filter, Star } from 'lucide-react';
+import { CheckCircle2, UserCog, Wallet, Bell, Flame, TrendingDown, Eye, Trophy, ArrowRight, UserPlus, UserMinus, ChevronUp, ChevronDown, Activity, Play, Zap, Star } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUI } from '../contexts/UIContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getAgencyPerformanceMultiplier } from '../constants';
+import { useGame } from '../contexts/GameContext'; // Added Import
 
 interface AdminDashboardProps {
   agencies: Agency[];
   onSelectAgency: (id: string) => void;
   onShuffleConstraints: (id: string) => void;
   onUpdateAgency: (agency: Agency) => void;
-  onProcessWeek: () => void;
+  onProcessWeek: () => void; // Deprecated, but kept for interface compat if needed
   onNavigate: (view: string) => void;
   readOnly?: boolean;
 }
@@ -31,12 +32,15 @@ const detectAnomalies = (agency: Agency): string[] => {
     return anomalies;
 };
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onProcessWeek, onNavigate, readOnly }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onNavigate, readOnly }) => {
   const { toast } = useUI();
+  const { processFinance, processPerformance, isAutoMode, toggleAutoMode } = useGame(); // Use Context
+  
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
   const [selectedClass, setSelectedClass] = useState<'ALL' | 'A' | 'B'>('ALL');
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [showControlPanel, setShowControlPanel] = useState(false); // New Modal State
 
   // Live Feed State
   const [isFeedCollapsed, setIsFeedCollapsed] = useState(false);
@@ -122,20 +126,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
              <button onClick={() => setSelectedClass('B')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${selectedClass === 'B' ? 'bg-purple-100 text-purple-700 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Classe B</button>
         </div>
 
-        {/* Actions */}
+        {/* Actions / Control Center */}
         {!readOnly && (
         <div className="flex gap-2 w-full md:w-auto">
              <button 
                 onClick={() => onNavigate('CRISIS')}
-                className="flex-1 md:flex-none justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl border border-red-700 font-bold text-sm flex items-center gap-2 transition-colors shadow-lg shadow-red-600/20"
+                className="flex-1 md:flex-none justify-center bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl border border-red-200 font-bold text-sm flex items-center gap-2 transition-colors"
              >
-                <Flame size={16} /> ZONE CRISE
+                <Flame size={16} /> Crises
              </button>
+             
+             {/* MAIN CONTROL PANEL BUTTON */}
              <button 
-                onClick={onProcessWeek}
-                className="flex-1 md:flex-none justify-center bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-900 font-bold text-sm flex items-center gap-2 transition-colors"
+                onClick={() => setShowControlPanel(true)}
+                className="flex-1 md:flex-none justify-center bg-slate-900 hover:bg-slate-700 text-white px-6 py-2 rounded-xl border border-slate-900 font-bold text-sm flex items-center gap-2 transition-colors shadow-lg shadow-slate-900/20"
              >
-                <Wallet size={16} /> Paye Hebdo
+                <Activity size={16} /> Centre de Contrôle
              </button>
         </div>
         )}
@@ -386,11 +392,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
             readOnly={readOnly}
           />
       )}
+
+      {/* NEW: CONTROL PANEL MODAL */}
+      <Modal isOpen={showControlPanel} onClose={() => setShowControlPanel(false)} title="Centre de Contrôle Hebdo">
+          <div className="space-y-6">
+              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${isAutoMode ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                      <div>
+                          <p className="font-bold text-slate-900 text-sm">Mode Automatique</p>
+                          <p className="text-xs text-slate-500">Exécution programmée selon calendrier</p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={toggleAutoMode}
+                    className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors ${isAutoMode ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                  >
+                      {isAutoMode ? 'ACTIVÉ' : 'DÉSACTIVÉ'}
+                  </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                  {/* CLASSE A */}
+                  <div className="p-4 border-2 border-blue-100 rounded-xl bg-blue-50/30">
+                      <h4 className="font-bold text-blue-800 mb-3 text-center border-b border-blue-200 pb-2">CLASSE A</h4>
+                      <div className="space-y-2">
+                          <button 
+                            onClick={() => processFinance('A')}
+                            className="w-full py-3 bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                          >
+                              <Wallet size={14}/> Traiter Finance
+                          </button>
+                          <button 
+                            onClick={() => processPerformance('A')}
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                          >
+                              <Zap size={14}/> Traiter Performance
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* CLASSE B */}
+                  <div className="p-4 border-2 border-purple-100 rounded-xl bg-purple-50/30">
+                      <h4 className="font-bold text-purple-800 mb-3 text-center border-b border-purple-200 pb-2">CLASSE B</h4>
+                      <div className="space-y-2">
+                          <button 
+                            onClick={() => processFinance('B')}
+                            className="w-full py-3 bg-white border border-purple-200 hover:bg-purple-100 text-purple-700 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                          >
+                              <Wallet size={14}/> Traiter Finance
+                          </button>
+                          <button 
+                            onClick={() => processPerformance('B')}
+                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                          >
+                              <Zap size={14}/> Traiter Performance
+                          </button>
+                      </div>
+                  </div>
+              </div>
+              
+              <div className="text-center text-[10px] text-slate-400 italic">
+                  Attention : Ces actions sont irréversibles et impactent immédiatement les budgets et notes.
+              </div>
+          </div>
+      </Modal>
     </div>
   );
 };
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENTS (Keep existing GradingModal & AuditRHModal unchanged) ---
 
 const AuditRHModal: React.FC<{agency: Agency, onClose: () => void, onUpdateAgency: (a: Agency) => void, readOnly?: boolean}> = ({agency, onClose, onUpdateAgency, readOnly}) => {
     const { toast, confirm } = useUI();

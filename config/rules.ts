@@ -4,7 +4,7 @@ import { Agency } from '../types';
 // --- GAME RULES / BALANCING ---
 export const GAME_RULES = {
     // REVENUS
-    REVENUE_BASE: 1500, // Subvention fixe hebdomadaire
+    REVENUE_BASE: 0, // Subvention fixe supprimée (Méritocratie pure)
     REVENUE_VE_MULTIPLIER: 30, // 50 VE = 1500 PiXi de bonus
     
     // DÉPENSES

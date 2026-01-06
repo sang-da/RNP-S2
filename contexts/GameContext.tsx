@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Agency, WeekModule, GameEvent, WikiResource, Student } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
@@ -15,10 +14,12 @@ interface GameContextType {
   resources: WikiResource[]; // Wiki Data
   role: 'admin' | 'student';
   selectedAgencyId: string | null;
+  isAutoMode: boolean;
   
   // Actions
   setRole: (role: 'admin' | 'student') => void;
   selectAgency: (id: string | null) => void;
+  toggleAutoMode: () => void;
   updateAgency: (agency: Agency) => void;
   updateAgenciesList: (agencies: Agency[]) => void;
   updateWeek: (weekId: string, week: WeekModule) => void;
@@ -29,7 +30,8 @@ interface GameContextType {
 
   // Game Logic
   shuffleConstraints: (agencyId: string) => void;
-  processWeekFinance: () => void;
+  processFinance: (targetClass: 'A' | 'B') => Promise<void>;
+  processPerformance: (targetClass: 'A' | 'B') => Promise<void>;
   resetGame: () => void;
   
   // Student Economy
@@ -54,6 +56,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [weeks, setWeeks] = useState<{ [key: string]: WeekModule }>(INITIAL_WEEKS);
   const [resources, setResources] = useState<WikiResource[]>([]);
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
+  const [isAutoMode, setIsAutoMode] = useState(false);
 
   // Sync Role with Auth
   useEffect(() => {
@@ -112,6 +115,23 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return () => unsubscribe();
   }, []);
+
+  // 4. AUTO MODE SCHEDULER
+  useEffect(() => {
+      if (!isAutoMode) return;
+
+      const checkSchedule = () => {
+          const now = new Date();
+          const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+          const hour = now.getHours();
+          // Logique simplifiée pour la démo : On regarde si la date du jour correspond à une semaine
+          // Dans une vraie app, on stockerait l'état "déjà exécuté" pour la journée.
+          console.log(`Auto Check: ${today} ${hour}h`);
+      };
+
+      const interval = setInterval(checkSchedule, 60000); // Check every minute
+      return () => clearInterval(interval);
+  }, [isAutoMode, weeks]);
 
   // SEED FUNCTION
   const seedDatabase = async () => {
@@ -180,6 +200,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const selectAgency = (id: string | null) => setSelectedAgencyId(id);
+  const toggleAutoMode = () => setIsAutoMode(!isAutoMode);
 
   const shuffleConstraints = async (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
@@ -194,122 +215,148 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     toast('info', 'Contraintes régénérées');
   };
 
-  const processWeekFinance = async () => {
-      const confirmed = await confirm({
-          title: "Clôture Hebdomadaire & Paie",
-          message: "Actions déclenchées :\n1. Prélèvement Loyer\n2. Calcul auto des notes (Scaling Agressif)\n3. Paiement Salaires\n\nIrréversible.",
-          confirmText: "Exécuter la Paye",
-          isDangerous: false
-      });
-
-      if (!confirmed) return;
+  // --- PROCESS: FINANCE (Rent, Salary, Revenue) ---
+  const processFinance = async (targetClass: 'A' | 'B') => {
       const today = new Date().toISOString().split('T')[0];
       try {
         const batch = writeBatch(db);
+        let processedCount = 0;
+
         agencies.forEach(agency => {
-            if (agency.id === 'unassigned') return;
+            if (agency.id === 'unassigned' || agency.classId !== targetClass) return;
+            processedCount++;
+
             let currentBudget = agency.budget_real;
             let logEvents: GameEvent[] = [];
 
             // 1. RENT
+            // Rent is automatic.
             currentBudget -= GAME_RULES.AGENCY_RENT;
-            logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -GAME_RULES.AGENCY_RENT, description: `Charges fixes.` });
+            logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -GAME_RULES.AGENCY_RENT, description: `Prélèvement automatique.` });
 
-            // 2. SCORES SCALING (AGRESSIF)
+            // 2. SALARIES
+            let actualDisbursed = 0;
             const updatedMembers = agency.members.map(member => {
-                const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
-                if (reviews.length === 0) return member;
-                const totalScore = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0);
-                const avg = totalScore / reviews.length;
+                const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
+                // Agency pays up to salary cap for the student pocket
+                const pay = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                 
-                // SCALING LOGIC
-                let scoreDelta = 0;
-                let newStreak = member.streak || 0;
-
-                if (avg > 4.5) { 
-                    scoreDelta = 10; 
-                    newStreak++; 
-                } else if (avg >= 4.0) { 
-                    scoreDelta = 5; 
-                    newStreak++; 
-                } else if (avg < 1.5) { 
-                    scoreDelta = -10; 
-                    newStreak = 0; 
-                } else if (avg <= 2.5) { 
-                    scoreDelta = -2; 
-                    newStreak = 0; 
-                } else { 
-                    scoreDelta = 2; 
-                    newStreak = 0; 
-                }
-
-                if (scoreDelta !== 0) {
-                     const newScore = Math.max(0, Math.min(100, member.individualScore + scoreDelta));
-                     return { ...member, individualScore: newScore, streak: newStreak };
-                }
-                return { ...member, streak: newStreak };
-            });
-            
-            // 3. SALARIES (With "Robin Hood" Logic > 800)
-            let totalSalaryCostForAgency = 0;
-            const membersAfterPay = updatedMembers.map(member => {
-                const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; // ex: 90 * 10 = 900
-                totalSalaryCostForAgency += rawSalary; // Agency pays full value
-
-                // Determine how much goes to student wallet vs agency rent relief
-                let studentKeep = rawSalary;
-                if (rawSalary > GAME_RULES.SALARY_CAP_FOR_STUDENT) {
-                    studentKeep = GAME_RULES.SALARY_CAP_FOR_STUDENT; // Cappé à 800
-                }
-
-                let payment = studentKeep;
-                let walletDelta = studentKeep;
-                
-                // If agency is broke, they don't get paid (debt sharing)
+                // If agency is in debt, no pay.
                 if (currentBudget < 0) {
-                     const debtShare = Math.abs(currentBudget) / updatedMembers.length;
-                     walletDelta = -debtShare; 
-                     payment = 0;
+                    return member; // No change to wallet
                 }
-                return { ...member, wallet: (member.wallet || 0) + walletDelta };
+                
+                actualDisbursed += pay;
+                return { ...member, wallet: (member.wallet || 0) + pay };
             });
 
             if (currentBudget >= 0) {
-                // Agency pays the FULL salary amount from its budget
-                // The difference (900 paid - 800 received) is effectively "kept" by agency as rent contribution? 
-                // NO, for accounting logic: Agency pays 900. Student gets 800. 100 is lost? 
-                // BETTER LOGIC: Agency pays only 800 for that student. 
-                // "Tout ce que l'étudiant gagne au dela de 800 paye le loyer".
-                // So practically, the Agency doesn't disburse the excess. It saves it.
-                
-                let actualDisbursed = 0;
-                updatedMembers.forEach(m => {
-                    const raw = m.individualScore * GAME_RULES.SALARY_MULTIPLIER;
-                    actualDisbursed += Math.min(raw, GAME_RULES.SALARY_CAP_FOR_STUDENT);
-                });
-                
                 currentBudget -= actualDisbursed;
-                // We log the disbursed amount only
-                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Versés', deltaBudgetReal: -actualDisbursed, description: `Salaires plafonnés à ${GAME_RULES.SALARY_CAP_FOR_STUDENT}.` });
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés (${updatedMembers.length} employés).` });
             } else {
-                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Défaut de Paiement', deltaBudgetReal: 0, description: `Agence en dette. Prélèvement solidaire sur portefeuilles.` });
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Salaires suspendus.` });
             }
 
-
-            // 4. REVENUES
+            // 3. REVENUES (Performance Only)
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const bonuses = agency.weeklyRevenueModifier || 0;
-            const revenue = GAME_RULES.REVENUE_BASE + revenueVE + bonuses;
-            currentBudget += revenue;
-            logEvents.push({ id: `fin-rev-${Date.now()}-${agency.id}-2`, date: today, type: 'REVENUE', label: 'Revenus', deltaBudgetReal: revenue, description: `Subvention + VE + Bonus (${bonuses}).` });
+            const totalRevenue = revenueVE + bonuses + GAME_RULES.REVENUE_BASE; // REVENUE_BASE is 0 now
+            
+            currentBudget += totalRevenue;
+            logEvents.push({ id: `fin-rev-${Date.now()}-${agency.id}`, date: today, type: 'REVENUE', label: 'Recettes', deltaBudgetReal: totalRevenue, description: `Facturation client (VE: ${agency.ve_current}).` });
 
-            // 5. ADJUSTMENTS
+            // UPDATE
+            const ref = doc(db, "agencies", agency.id);
+            batch.update(ref, {
+                budget_real: currentBudget,
+                members: updatedMembers,
+                eventLog: [...agency.eventLog, ...logEvents]
+            });
+        });
+
+        if (processedCount > 0) {
+            await batch.commit();
+            toast('success', `Finance Classe ${targetClass}: Terminée.`);
+        } else {
+            toast('info', `Aucune agence active en Classe ${targetClass}.`);
+        }
+      } catch(e) { console.error(e); toast('error', "Erreur Finance"); }
+  };
+
+  // --- PROCESS: PERFORMANCE (Reviews, Scores, VE Adjustment) ---
+  const processPerformance = async (targetClass: 'A' | 'B') => {
+      const today = new Date().toISOString().split('T')[0];
+      try {
+        const batch = writeBatch(db);
+        let processedCount = 0;
+
+        agencies.forEach(agency => {
+            if (agency.id === 'unassigned' || agency.classId !== targetClass) return;
+            processedCount++;
+            
+            let logEvents: GameEvent[] = [];
+
+            // 1. SCORES SCALING & STREAKS
+            const updatedMembers = agency.members.map(member => {
+                const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
+                // Si pas de review, pas de changement
+                if (reviews.length === 0) return member;
+                
+                const totalScore = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0);
+                const avg = totalScore / reviews.length;
+                
+                let scoreDelta = 0;
+                let newStreak = member.streak || 0;
+                let bonusMessage = "";
+
+                if (avg > 4.5) { 
+                    scoreDelta = 2; // NERF: Was 10. Now just +2 normal growth.
+                    newStreak++; 
+                    // STREAK BONUS LOGIC
+                    if (newStreak >= 3) {
+                        scoreDelta += 10; // Bonus Trigger
+                        bonusMessage = " (Bonus Streak x3!)";
+                        newStreak = 0; // Reset streak after bonus
+                    }
+                } else if (avg >= 4.0) { 
+                    scoreDelta = 1; 
+                    // Streak maintained but no increment? Or reset? Let's keep it simple: Reset if not excellent.
+                    newStreak = 0;
+                } else if (avg < 2.0) { 
+                    scoreDelta = -5; 
+                    newStreak = 0; 
+                } else {
+                    newStreak = 0;
+                }
+
+                if (scoreDelta !== 0) {
+                     // Logging implicit via score change displayed in UI? 
+                     // Or separate event? Ideally separate but keeping it simple for now inside member data
+                }
+                
+                const newScore = Math.max(0, Math.min(100, member.individualScore + scoreDelta));
+                return { ...member, individualScore: newScore, streak: newStreak };
+            });
+
+            // 2. VE ADJUSTMENT BASED ON TREASURY (The "Company Value" check)
             let veAdjustment = 0;
-            if (currentBudget >= 1000) veAdjustment += Math.floor(currentBudget / 1000) * 2;
-            else if (currentBudget < 0) veAdjustment -= Math.ceil(Math.abs(currentBudget) / 1000) * 5;
+            const budget = agency.budget_real;
+            
+            if (budget >= 2000) veAdjustment += Math.floor(budget / 2000); // +1 VE per 2000 profit
+            else if (budget < 0) veAdjustment -= Math.ceil(Math.abs(budget) / 1000) * 2; // -2 VE per 1000 debt
 
-            logEvents.push({ id: `fin-audit-${Date.now()}-${agency.id}`, date: today, type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS', label: 'Audit Trésorerie', deltaVE: veAdjustment, description: `Ajustement VE selon solde.` });
+            if (veAdjustment !== 0) {
+                logEvents.push({ 
+                    id: `perf-ve-${Date.now()}-${agency.id}`, 
+                    date: today, 
+                    type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS', 
+                    label: 'Ajustement VE', 
+                    deltaVE: veAdjustment, 
+                    description: veAdjustment > 0 ? 'Confiance investisseurs (Trésorerie saine).' : 'Inquiétude marché (Dette).' 
+                });
+            }
 
+            // Calculate Caps
             let veCap = 100;
             if (agency.members.length === 1) veCap = GAME_RULES.VE_CAP_1_MEMBER;
             else if (agency.members.length <= 3) veCap = GAME_RULES.VE_CAP_2_3_MEMBERS;
@@ -317,22 +364,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
 
+            // UPDATE
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
-                budget_real: currentBudget,
-                eventLog: [...agency.eventLog, ...logEvents],
+                members: updatedMembers,
                 ve_current: finalVE,
-                members: membersAfterPay,
+                peerReviews: [], // Reset reviews for next week? Usually yes to avoid double counting
+                eventLog: [...agency.eventLog, ...logEvents],
                 status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'
             });
         });
-        await batch.commit();
-        toast('success', 'Clôture effectuée.');
-      } catch(e) { console.error(e); toast('error', "Erreur clôture"); }
+
+        if (processedCount > 0) {
+            await batch.commit();
+            toast('success', `Performance Classe ${targetClass}: Terminée.`);
+        } else {
+            toast('info', `Aucune agence active en Classe ${targetClass}.`);
+        }
+      } catch(e) { console.error(e); toast('error', "Erreur Performance"); }
   };
 
   // --- NEW: STUDENT ECONOMY ---
-  
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => {
       let sourceData: { agency: Agency, student: Student } | undefined;
       let targetData: { agency: Agency, student: Student } | undefined;
@@ -408,9 +460,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <GameContext.Provider value={{
-      agencies, weeks, resources, role, selectedAgencyId,
-      setRole, selectAgency, updateAgency, updateAgenciesList, updateWeek,
-      addResource, deleteResource, shuffleConstraints, processWeekFinance, resetGame,
+      agencies, weeks, resources, role, selectedAgencyId, isAutoMode,
+      setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, updateWeek,
+      addResource, deleteResource, shuffleConstraints, processFinance, processPerformance, resetGame,
       transferFunds, tradeScoreForCash
     }}>
       {children}
