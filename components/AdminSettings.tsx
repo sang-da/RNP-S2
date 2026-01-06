@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
 import { updateProfile } from '../services/firebase';
 import { auth } from '../services/firebase';
-import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2 } from 'lucide-react';
+import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2, Bell } from 'lucide-react';
 
 interface AdminSettingsProps {
     readOnly?: boolean;
@@ -54,6 +53,24 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
         }
     };
 
+    const handleTestNotification = async () => {
+        if (!("Notification" in window)) {
+            toast('error', "Notifications non supportées sur ce navigateur.");
+            return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            new Notification("Test RNP Manager", {
+                body: "Les notifications fonctionnent !",
+                icon: "https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png"
+            });
+            toast('success', "Notification envoyée !");
+        } else {
+            toast('warning', "Permission refusée pour les notifications.");
+        }
+    };
+
     return (
         <div className="animate-in fade-in duration-500 pb-20">
             <div className="mb-8">
@@ -91,14 +108,22 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
                                 />
                             </div>
                             {!readOnly && (
-                            <button 
-                                onClick={handleUpdateProfile}
-                                disabled={isSaving}
-                                className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                            >
-                                {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
-                                Enregistrer
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                                <button 
+                                    onClick={handleUpdateProfile}
+                                    disabled={isSaving}
+                                    className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
+                                    Enregistrer
+                                </button>
+                                <button 
+                                    onClick={handleTestNotification}
+                                    className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2"
+                                >
+                                    <Bell size={18}/> Activer Notifs
+                                </button>
+                            </div>
                             )}
                          </div>
                     </div>

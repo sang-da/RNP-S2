@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, HelpCircle } from 'lucide-react';
 import { Modal } from '../components/Modal';
@@ -71,12 +70,12 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     <UIContext.Provider value={{ toast, confirm }}>
       {children}
       
-      {/* TOAST CONTAINER */}
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+      {/* TOAST CONTAINER - MOVED TO TOP */}
+      <div className="fixed top-4 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[100] flex flex-col gap-3 pointer-events-none">
         {toasts.map((t) => (
           <div 
             key={t.id} 
-            className="pointer-events-auto min-w-[300px] max-w-md bg-white rounded-xl shadow-xl border border-slate-100 p-4 flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300"
+            className="pointer-events-auto w-full bg-white rounded-xl shadow-xl border border-slate-100 p-4 flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300"
           >
             <div className={`mt-0.5 ${
               t.type === 'success' ? 'text-emerald-500' :
