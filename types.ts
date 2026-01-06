@@ -1,4 +1,5 @@
 
+
 export enum CycleType {
   MARQUE_BRIEF = "Cycle 1: Marque & Brief",
   NARRATION_IA = "Cycle 2: Narration & IA",
@@ -65,7 +66,7 @@ export interface StudentHistoryEntry {
     date: string;
     agencyId: string;
     agencyName: string;
-    action: 'JOINED' | 'LEFT' | 'FIRED' | 'RESIGNED';
+    action: 'JOINED' | 'LEFT' | 'FIRED' | 'RESIGNED' | 'MERGED';
     contextVE: number;      // VE de l'agence au moment du départ/arrivée
     contextBudget: number;  // Tréso de l'agence au moment du départ/arrivée
     reason?: string;        // Motif (ex: "Licenciement économique", "Démission")
@@ -94,7 +95,7 @@ export interface Student {
   streak?: number; // NEW: Streak for performance
 }
 
-export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE';
+export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE' | 'BLACK_OP' | 'MERGER';
 
 export interface GameEvent {
   id: string;
@@ -126,6 +127,17 @@ export interface MercatoRequest {
   date: string;
   motivation?: string; // Texte justificatif
   votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; // Système de vote démocratique
+}
+
+// --- NEW: MERGER REQUEST ---
+export interface MergerRequest {
+    id: string;
+    requesterAgencyId: string;
+    requesterAgencyName: string;
+    targetAgencyId: string; // L'agence qui va se faire absorber
+    status: 'PENDING' | 'REJECTED';
+    date: string;
+    offerDetails: string; // Description de l'offre (ex: "Rachat de dette")
 }
 
 // --- NEW: FINANCIAL REQUESTS ---
@@ -179,6 +191,9 @@ export interface Agency {
   
   // Financial Requests (Pending)
   transactionRequests: TransactionRequest[];
+
+  // Merger Requests (Pending)
+  mergerRequests?: MergerRequest[];
 
   // Legacy constraints
   constraints: {

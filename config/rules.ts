@@ -20,6 +20,18 @@ export const GAME_RULES = {
     VE_CAP_1_MEMBER: 60,
     VE_CAP_2_3_MEMBERS: 80,
     VE_CAP_4_PLUS_MEMBERS: 100,
+
+    // UNLOCKS (Semaines d'activation)
+    UNLOCK_WEEK_BLACK_OPS: 3,
+    UNLOCK_WEEK_MERGERS: 6,
+
+    // BLACK OPS COSTS
+    COST_AUDIT: 500, // Cher mais peut rapporter gros (baisse VE adverse)
+    COST_LEAK: 300, // Pour voir le brief en avance
+    
+    // MERGERS
+    MERGER_VE_THRESHOLD: 40, // Une agence doit être sous 40 VE pour être rachetée
+    MERGER_MAX_MEMBERS: 6, // Impossible de fusionner si total > 6
 };
 
 export const CONSTRAINTS_POOL = {

@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
-import { Agency, Student, MercatoRequest } from '../../types';
+import { Agency, Student, MercatoRequest, MergerRequest } from '../../types';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
+import { GAME_RULES } from '../../constants';
+import { Building2, ArrowRightLeft, Check, X } from 'lucide-react';
 
 // IMPORT SUB-COMPONENTS
 import { CVModal, MotivationModal } from './mercato/MercatoModals';
@@ -23,11 +25,12 @@ interface MercatoViewProps {
 
 export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies }) => {
   const { toast } = useUI();
-  const { submitMercatoVote } = useGame();
+  const { submitMercatoVote, getCurrentGameWeek, proposeMerger, finalizeMerger } = useGame();
   const { currentUser: authUser } = useAuth();
   
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
   const [isMotivationModalOpen, setIsMotivationModalOpen] = useState(false);
+  const [showMergerModal, setShowMergerModal] = useState(false);
   
   // State for Actions
   const [actionType, setActionType] = useState<'HIRE' | 'FIRE' | 'RESIGN'>('HIRE');
@@ -43,11 +46,13 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   const currentUser = agency.members.find(m => m.id === authUser?.uid);
 
   // Lists Logic
-  // CORRECTION: Filter available agencies based on the CURRENT USER'S CLASS, not the first member of the unemployment pool.
   const availableAgencies = allAgencies.filter(a => a.id !== 'unassigned' && a.classId === currentUser?.classId);
-  
   const unemployedAgency = allAgencies.find(a => a.id === 'unassigned');
   const allUnemployed = unemployedAgency ? unemployedAgency.members : [];
+
+  // Rules Check
+  const currentWeek = getCurrentGameWeek();
+  const canMerge = currentWeek >= GAME_RULES.UNLOCK_WEEK_MERGERS;
 
   // --- GENERIC REQUEST HANDLER ---
   const handleSubmitRequest = () => {
@@ -62,34 +67,30 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       let newRequest: MercatoRequest | null = null;
 
       if (actionType === 'HIRE' && targetStudent) {
-          // Agency wants to hire Unemployed
           newRequest = {
             id: `req-${Date.now()}`, type: 'HIRE',
             studentId: targetStudent.id, studentName: targetStudent.name,
             requesterId: currentUser.id, targetAgencyId: agency.id,
             status: 'PENDING', date: today, motivation: motivationText,
-            votes: { [currentUser.id]: 'APPROVE' } // Auto-vote yes for requester
+            votes: { [currentUser.id]: 'APPROVE' } 
           };
       } else if (actionType === 'FIRE' && targetStudent) {
-          // Agency wants to fire Member
           newRequest = {
             id: `req-${Date.now()}`, type: 'FIRE',
             studentId: targetStudent.id, studentName: targetStudent.name,
             requesterId: currentUser.id, targetAgencyId: agency.id,
             status: 'PENDING', date: today, motivation: motivationText,
-            votes: { [currentUser.id]: 'APPROVE' } // Auto-vote yes for requester
+            votes: { [currentUser.id]: 'APPROVE' } 
           };
       } else if (actionType === 'RESIGN') {
-          // Member wants to leave
           newRequest = {
-            id: `req-${Date.now()}`, type: 'FIRE', // Technical type is FIRE (leaving agency)
+            id: `req-${Date.now()}`, type: 'FIRE', 
             studentId: currentUser.id, studentName: currentUser.name,
             requesterId: currentUser.id, targetAgencyId: agency.id,
             status: 'PENDING', date: today, motivation: motivationText,
             votes: {} 
           };
       } else if (actionType === 'HIRE' && targetAgencyId) {
-          // Unemployed wants to join Agency (APPLY)
           newRequest = {
             id: `req-${Date.now()}`, type: 'HIRE',
             studentId: currentUser.id, studentName: currentUser.name,
@@ -97,8 +98,6 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             status: 'PENDING', date: today, motivation: motivationText,
             votes: {} 
           };
-          
-          // Must update target agency, not current (unassigned)
           const targetAgency = allAgencies.find(a => a.id === targetAgencyId);
           if (targetAgency) {
               const updatedAgencies = allAgencies.map(a => 
@@ -124,13 +123,11 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       setMotivationText("");
   };
 
-  // --- VOTING HANDLER ---
   const handleVote = async (request: MercatoRequest, vote: 'APPROVE' | 'REJECT') => {
       if (!currentUser) return;
       await submitMercatoVote(agency.id, request.id, currentUser.id, vote);
   };
 
-  // --- OPEN MODALS HANDLERS ---
   const openHireModal = (student: Student) => {
       setActionType('HIRE');
       setTargetStudent(student);
@@ -152,29 +149,23 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   }
 
   const openApplyModal = (agencyId: string) => {
-      setActionType('HIRE'); // Asking to be hired
+      setActionType('HIRE'); 
       setTargetAgencyId(agencyId);
       setMotivationText("");
       setIsMotivationModalOpen(true);
   }
 
-  // --- HANDLE CV UPLOAD ---
   const handleUploadCV = async () => {
     if(!currentUser || !cvFile) return;
     setIsUploadingCV(true);
-    
     try {
         const storageRef = ref(storage, `resumes/${currentUser.id}_${cvFile.name}`);
         await uploadBytes(storageRef, cvFile);
         const downloadUrl = await getDownloadURL(storageRef);
-
         const updatedMembers = agency.members.map(m => 
             m.id === currentUser.id ? { ...m, cvUrl: downloadUrl } : m
         );
-        onUpdateAgency({
-            ...agency,
-            members: updatedMembers
-        });
+        onUpdateAgency({ ...agency, members: updatedMembers });
         setIsCVModalOpen(false);
         setCvFile(null);
         toast('success', "CV mis à jour !");
@@ -184,6 +175,16 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
     } finally {
         setIsUploadingCV(false);
     }
+  };
+
+  // --- MERGER HANDLERS ---
+  const handleProposeMerger = async (targetId: string) => {
+      await proposeMerger(agency.id, targetId);
+      setShowMergerModal(false);
+  };
+
+  const handleMergerResponse = async (req: MergerRequest, approved: boolean) => {
+      await finalizeMerger(req.id, agency.id, approved);
   };
 
   // -----------------------------------------------------------
@@ -222,9 +223,36 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   // -----------------------------------------------------------
   // VIEW FOR AGENCY MEMBERS
   // -----------------------------------------------------------
+  const potentialTargets = allAgencies.filter(a => a.id !== 'unassigned' && a.id !== agency.id && a.ve_current < GAME_RULES.MERGER_VE_THRESHOLD && a.classId === agency.classId);
+
   return (
     <div className="animate-in fade-in space-y-8">
         
+        {/* MERGER ALERTS (INCOMING OFFERS) */}
+        {agency.mergerRequests && agency.mergerRequests.length > 0 && (
+            <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl border border-indigo-500 relative overflow-hidden">
+                <div className="relative z-10">
+                    <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Building2 className="text-emerald-400"/> Offre de Rachat Reçue !</h3>
+                    <div className="space-y-3">
+                        {agency.mergerRequests.map(req => (
+                            <div key={req.id} className="bg-white/10 p-4 rounded-xl border border-white/20">
+                                <p className="font-bold text-lg mb-1">{req.requesterAgencyName} veut vous absorber.</p>
+                                <p className="text-sm italic opacity-80 mb-4">"{req.offerDetails}"</p>
+                                <div className="flex gap-4">
+                                    <button onClick={() => handleMergerResponse(req, true)} className="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">
+                                        <Check size={16}/> Accepter (Fusion)
+                                    </button>
+                                    <button onClick={() => handleMergerResponse(req, false)} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">
+                                        <X size={16}/> Refuser
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* 1. DEMOCRACY (VOTES) */}
         <AgencyDemocracy 
             agency={agency} 
@@ -232,7 +260,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             onVote={handleVote} 
         />
 
-        {/* 2. TEAM MANAGEMENT & STATUS */}
+        {/* 2. TEAM MANAGEMENT */}
         <TeamManagement 
             agency={agency}
             currentUser={currentUser}
@@ -246,6 +274,50 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             unemployedStudents={allUnemployed}
             onOpenHireModal={openHireModal}
         />
+
+        {/* 4. MERGERS SECTION (Week 6+) */}
+        {canMerge && (
+            <div className="mt-8 pt-8 border-t border-slate-200">
+                <div className="flex justify-between items-center mb-4">
+                     <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <Building2 size={20} className="text-indigo-600"/> Fusions & Acquisitions (M&A)
+                    </h3>
+                </div>
+
+                <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl">
+                    <p className="text-sm text-indigo-800 mb-4">
+                        Vous pouvez proposer de racheter une agence en difficulté (VE &lt; {GAME_RULES.MERGER_VE_THRESHOLD}). 
+                        <br/><strong>Condition :</strong> Vous absorbez leurs membres (Max {GAME_RULES.MERGER_MAX_MEMBERS} total) et leurs dettes.
+                    </p>
+                    
+                    {potentialTargets.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {potentialTargets.map(target => (
+                                <div key={target.id} className="bg-white p-4 rounded-xl border border-indigo-100 flex justify-between items-center">
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">{target.name}</h4>
+                                        <div className="flex gap-2 text-xs mt-1">
+                                            <span className="text-red-500 font-bold">VE: {target.ve_current}</span>
+                                            <span className="text-slate-500">{target.members.length} membres</span>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleProposeMerger(target.id)}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors"
+                                    >
+                                        Proposer Rachat
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-4 text-slate-400 text-sm italic">
+                            Aucune cible potentielle (VE &lt; 40) disponible sur le marché.
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
 
         {/* MODALS */}
         <MotivationModal 

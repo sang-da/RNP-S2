@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, Student } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -36,11 +36,14 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
-  const { transferFunds, injectCapital, requestScorePurchase } = useGame();
+  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  
+  // State for Unlock Modals
+  const [unlockModal, setUnlockModal] = useState<{title: string, message: string, icon: any, confirmText: string} | null>(null);
 
   const brandColor = agency.branding?.color || 'indigo';
   const theme = COLOR_THEMES[brandColor];
@@ -52,6 +55,40 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
   const netWeekly = weeklyRevenue - weeklyCharges;
   const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
+
+  // --- FEATURE UNLOCK CHECKER ---
+  useEffect(() => {
+      const currentWeek = getCurrentGameWeek();
+      
+      // CHECK WEEK 3: BLACK OPS
+      if (currentWeek >= GAME_RULES.UNLOCK_WEEK_BLACK_OPS) {
+          const hasSeenBlackOps = localStorage.getItem(`seen_unlock_blackops_${currentUser?.uid}`);
+          if (!hasSeenBlackOps) {
+              setUnlockModal({
+                  title: "Intelligence Économique Activée",
+                  message: "Le marché se durcit. Vous avez désormais accès aux outils de veille stratégique.\n\nNouveauté : Audits concurrentiels et achat d'informations disponibles dans l'onglet 'Marché'.",
+                  icon: <Eye size={32} className="text-yellow-500"/>,
+                  confirmText: "Compris, je reste vigilant"
+              });
+              localStorage.setItem(`seen_unlock_blackops_${currentUser?.uid}`, 'true');
+              return; // Show only one at a time
+          }
+      }
+
+      // CHECK WEEK 6: MERGERS
+      if (currentWeek >= GAME_RULES.UNLOCK_WEEK_MERGERS) {
+          const hasSeenMergers = localStorage.getItem(`seen_unlock_mergers_${currentUser?.uid}`);
+          if (!hasSeenMergers) {
+              setUnlockModal({
+                  title: "Fusions & Acquisitions (M&A)",
+                  message: "La consolidation du secteur commence. \n\nNouveauté : Il est désormais possible de racheter une agence en faillite (VE < 40) pour absorber ses talents et sa dette.",
+                  icon: <Building2 size={32} className="text-indigo-500"/>,
+                  confirmText: "Voir les opportunités"
+              });
+              localStorage.setItem(`seen_unlock_mergers_${currentUser?.uid}`, 'true');
+          }
+      }
+  }, [getCurrentGameWeek, currentUser]);
 
   const handleColorChange = (color: BrandColor) => {
       onUpdateAgency({ ...agency, branding: { ...agency.branding, color } });
@@ -225,6 +262,26 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 </div>
             </div>
         </Modal>
+
+        {/* ANNOUNCEMENT MODAL (UNLOCKS) */}
+        {unlockModal && (
+            <Modal isOpen={!!unlockModal} onClose={() => setUnlockModal(null)} title={unlockModal.title}>
+                <div className="flex flex-col items-center text-center space-y-6">
+                    <div className="p-6 rounded-full bg-slate-100 mb-2">
+                        {unlockModal.icon}
+                    </div>
+                    <p className="text-slate-600 text-lg leading-relaxed whitespace-pre-line">
+                        {unlockModal.message}
+                    </p>
+                    <button 
+                        onClick={() => setUnlockModal(null)}
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-lg"
+                    >
+                        {unlockModal.confirmText}
+                    </button>
+                </div>
+            </Modal>
+        )}
     </div>
   );
 };

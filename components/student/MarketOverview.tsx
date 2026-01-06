@@ -1,9 +1,12 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Agency } from '../../types';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Skull, Zap, Eye } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { MASCOTS } from '../../constants';
+import { MASCOTS, GAME_RULES } from '../../constants';
+import { useGame } from '../../contexts/GameContext';
+import { useUI } from '../../contexts/UIContext';
+import { Modal } from '../Modal';
 
 interface MarketOverviewProps {
   agency: Agency;
@@ -11,7 +14,13 @@ interface MarketOverviewProps {
 }
 
 export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies }) => {
+  const { getCurrentGameWeek, triggerBlackOp } = useGame();
+  const { confirm } = useUI();
+  const [showBlackOps, setShowBlackOps] = useState(false);
   
+  const currentWeek = getCurrentGameWeek();
+  const canAccessBlackOps = currentWeek >= GAME_RULES.UNLOCK_WEEK_BLACK_OPS;
+
   // Génération dynamique des données basée sur l'historique réel (EventLog)
   const comparisonData = useMemo(() => {
     // 1. Récupérer toutes les dates uniques où il s'est passé quelque chose dans TOUTES les agences
@@ -58,13 +67,28 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   }, [allAgencies, agency.name]);
 
   // Leaderboard logic
-  const leaderboard = [...allAgencies].sort((a, b) => b.ve_current - a.ve_current);
+  const leaderboard = [...allAgencies].filter(a => a.id !== 'unassigned').sort((a, b) => b.ve_current - a.ve_current);
 
   // Mascotte Logic based on VE
   const getMascot = () => {
       if (agency.ve_current >= 60) return MASCOTS.MARKET_RICH;
       if (agency.ve_current <= 30) return MASCOTS.MARKET_POOR;
       return MASCOTS.MARKET_STABLE;
+  };
+
+  const handleBlackOp = async (targetId: string, type: 'AUDIT' | 'LEAK') => {
+      const target = allAgencies.find(a => a.id === targetId);
+      if(!target) return;
+
+      const cost = type === 'AUDIT' ? GAME_RULES.COST_AUDIT : GAME_RULES.COST_LEAK;
+      const message = type === 'AUDIT' 
+        ? `Lancer un AUDIT OFFENSIF sur ${target.name} ?\nCoût: ${cost} PiXi.\n\nRISQUE: Si l'agence est "propre", vous perdrez 20 VE pour diffamation.`
+        : `Acheter une FUITE D'INFO ?\nCoût: ${cost} PiXi.\n\nVous obtiendrez un indice sur le prochain brief.`;
+
+      if (await confirm({ title: "Opération Spéciale", message, isDangerous: true, confirmText: "Payer & Lancer" })) {
+          await triggerBlackOp(agency.id, target.id, type);
+          setShowBlackOps(false);
+      }
   };
 
   return (
@@ -81,18 +105,31 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                 <h3 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
                     <TrendingUp className="text-yellow-500" size={20} /> <span className="hidden xs:inline">Market Overview</span><span className="xs:hidden">Marché</span>
                 </h3>
-                {/* Mini Leaderboard */}
-                <div className="hidden md:flex gap-2">
-                    {leaderboard.slice(0, 3).map((a, i) => (
-                        <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${a.id === agency.id ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-100'}`}>
-                            <span className="font-bold text-slate-400">#{i+1}</span>
-                            <span className={`font-bold ${a.id === agency.id ? 'text-yellow-600' : 'text-slate-700'}`}>{a.name}</span>
-                        </div>
-                    ))}
+                
+                <div className="flex gap-2">
+                    {/* BLACK OPS BUTTON */}
+                    {canAccessBlackOps && (
+                        <button 
+                            onClick={() => setShowBlackOps(true)}
+                            className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-900/20"
+                        >
+                            <Eye size={14}/> Intel
+                        </button>
+                    )}
+
+                    {/* Mini Leaderboard */}
+                    <div className="hidden md:flex gap-2">
+                        {leaderboard.slice(0, 3).map((a, i) => (
+                            <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${a.id === agency.id ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-100'}`}>
+                                <span className="font-bold text-slate-400">#{i+1}</span>
+                                <span className={`font-bold ${a.id === agency.id ? 'text-yellow-600' : 'text-slate-700'}`}>{a.name}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
             
-            {/* Responsive Height: Smaller on mobile to fit Landing Page */}
+            {/* Responsive Height */}
             <div className="h-[260px] xs:h-[300px] md:h-[400px] w-full shrink-0 z-20">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -114,13 +151,58 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                                 strokeOpacity={a.id === agency.id ? 1 : 0.2}
                                 dot={a.id === agency.id ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
                                 activeDot={{ r: 6 }}
-                                isAnimationActive={false} // Désactivé pour éviter les glitchs lors des updates rapides
+                                isAnimationActive={false} 
                             />
                         ))}
                     </LineChart>
                 </ResponsiveContainer>
             </div>
         </div>
+
+        {/* BLACK OPS MODAL */}
+        <Modal isOpen={showBlackOps} onClose={() => setShowBlackOps(false)} title="Intelligence Économique">
+            <div className="space-y-6">
+                <div className="bg-slate-900 text-slate-300 p-4 rounded-xl text-sm">
+                    <p className="mb-2"><strong className="text-white">Opérations Spéciales (Black Ops)</strong></p>
+                    <p>Utilisez votre budget pour obtenir des avantages déloyaux. Attention aux retours de flamme.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                    {/* LEAK OPTION */}
+                    <div className="border border-slate-200 p-4 rounded-xl flex justify-between items-center hover:bg-slate-50 transition-colors">
+                        <div>
+                            <h4 className="font-bold text-slate-900 flex items-center gap-2"><Zap size={16} className="text-yellow-500"/> Fuite Industrielle</h4>
+                            <p className="text-xs text-slate-500">Acheter des infos sur le prochain brief.</p>
+                        </div>
+                        <button 
+                            onClick={() => handleBlackOp(agency.id, 'LEAK')} // Target self for leak info
+                            className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold"
+                        >
+                            -{GAME_RULES.COST_LEAK} PiXi
+                        </button>
+                    </div>
+
+                    <div className="border-t border-slate-100 my-2"></div>
+                    <p className="text-xs font-bold uppercase text-slate-400">Cibler un Concurrent (Audit Hostile)</p>
+
+                    {/* TARGETS LIST */}
+                    {allAgencies.filter(a => a.id !== 'unassigned' && a.id !== agency.id).map(target => (
+                        <div key={target.id} className="border border-slate-200 p-4 rounded-xl flex justify-between items-center hover:bg-slate-50 transition-colors">
+                            <div>
+                                <h4 className="font-bold text-slate-900 flex items-center gap-2"><Skull size={16} className="text-red-500"/> {target.name}</h4>
+                                <p className="text-xs text-slate-500">VE Actuelle: {target.ve_current}</p>
+                            </div>
+                            <button 
+                                onClick={() => handleBlackOp(target.id, 'AUDIT')}
+                                className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                            >
+                                -{GAME_RULES.COST_AUDIT} PiXi
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </Modal>
     </div>
   );
 };
