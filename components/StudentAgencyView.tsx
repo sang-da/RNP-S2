@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Agency, BrandColor, Student } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap } from 'lucide-react';
+import { Agency, BrandColor, Student, GameEvent } from '../types';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -42,8 +42,11 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
-  // State for Unlock Modals
+  // State for Feature Unlock Modals
   const [unlockModal, setUnlockModal] = useState<{title: string, message: string, icon: any, confirmText: string} | null>(null);
+  
+  // State for Real-Time Event Notifications (Crisis/Rewards)
+  const [notificationEvent, setNotificationEvent] = useState<GameEvent | null>(null);
 
   const brandColor = agency.branding?.color || 'indigo';
   const theme = COLOR_THEMES[brandColor];
@@ -56,7 +59,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const netWeekly = weeklyRevenue - weeklyCharges;
   const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
 
-  // --- FEATURE UNLOCK CHECKER ---
+  // --- 1. FEATURE UNLOCK CHECKER ---
   useEffect(() => {
       const currentWeek = getCurrentGameWeek();
       
@@ -89,6 +92,46 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
           }
       }
   }, [getCurrentGameWeek, currentUser]);
+
+  // --- 2. REAL-TIME EVENT NOTIFICATION SYSTEM ---
+  useEffect(() => {
+      if (agency.eventLog.length === 0) return;
+
+      // Get the very last event
+      const latestEvent = agency.eventLog[agency.eventLog.length - 1];
+      
+      // Define types that trigger a popup
+      const NOTIFY_TYPES = ['CRISIS', 'VE_DELTA'];
+      
+      if (NOTIFY_TYPES.includes(latestEvent.type)) {
+          // Check if already seen in LocalStorage to avoid spam on reload
+          const seenKey = `seen_event_${currentUser?.uid}_${latestEvent.id}`;
+          const hasSeen = localStorage.getItem(seenKey);
+
+          if (!hasSeen) {
+              // Ignore old events (older than 1 hour) to avoid spamming historical events on first login
+              const eventDate = new Date(latestEvent.date); // This is usually just YYYY-MM-DD, so approximate
+              // For a better check, we'd need a timestamp in the event ID or a created_at field.
+              // Assuming event.id contains a timestamp (evt-TIMESTAMP-...)
+              const parts = latestEvent.id.split('-');
+              let eventTime = 0;
+              if(parts.length > 1 && !isNaN(Number(parts[1]))) {
+                  eventTime = Number(parts[1]);
+              }
+              
+              // Only show if event is recent (created within last 24h) or if we want to force all unseen
+              // Let's force all unseen for now as "Breaking News"
+              setNotificationEvent(latestEvent);
+          }
+      }
+  }, [agency.eventLog, currentUser]);
+
+  const closeNotification = () => {
+      if (notificationEvent) {
+          localStorage.setItem(`seen_event_${currentUser?.uid}_${notificationEvent.id}`, 'true');
+          setNotificationEvent(null);
+      }
+  };
 
   const handleColorChange = (color: BrandColor) => {
       onUpdateAgency({ ...agency, branding: { ...agency.branding, color } });
@@ -263,7 +306,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             </div>
         </Modal>
 
-        {/* ANNOUNCEMENT MODAL (UNLOCKS) */}
+        {/* --- UNLOCK POP-UP (LEVEL UP) --- */}
         {unlockModal && (
             <Modal isOpen={!!unlockModal} onClose={() => setUnlockModal(null)} title={unlockModal.title}>
                 <div className="flex flex-col items-center text-center space-y-6">
@@ -278,6 +321,74 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-lg"
                     >
                         {unlockModal.confirmText}
+                    </button>
+                </div>
+            </Modal>
+        )}
+
+        {/* --- EVENT NOTIFICATION POP-UP (CRISIS / REWARD) --- */}
+        {notificationEvent && (
+            <Modal isOpen={!!notificationEvent} onClose={closeNotification} title={notificationEvent.type === 'CRISIS' ? "ALERTE PRIORITAIRE" : "NOUVELLE IMPORTANTE"}>
+                <div className="flex flex-col items-center text-center space-y-6">
+                    
+                    {/* ICON & COLOR THEME */}
+                    <div className={`p-6 rounded-full mb-2 border-4 ${
+                        notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
+                        ? 'bg-red-50 border-red-100 text-red-600 animate-pulse'
+                        : 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                    }`}>
+                        {notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
+                            ? <AlertTriangle size={48} strokeWidth={2.5}/>
+                            : (notificationEvent.deltaVE || 0) > 5 ? <PartyPopper size={48} strokeWidth={2.5}/> : <Zap size={48} strokeWidth={2.5}/>
+                        }
+                    </div>
+
+                    {/* TEXT CONTENT */}
+                    <div>
+                        <h3 className={`text-2xl font-black uppercase mb-2 ${
+                            notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0 ? 'text-red-600' : 'text-emerald-600'
+                        }`}>
+                            {notificationEvent.label}
+                        </h3>
+                        <p className="text-slate-600 text-lg leading-relaxed font-medium">
+                            {notificationEvent.description}
+                        </p>
+                    </div>
+
+                    {/* IMPACT BADGES */}
+                    <div className="flex justify-center gap-4 w-full">
+                        {notificationEvent.deltaVE !== 0 && (
+                            <div className={`flex flex-col items-center p-3 rounded-xl border w-full ${
+                                (notificationEvent.deltaVE || 0) > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                            }`}>
+                                <span className="text-[10px] font-bold uppercase text-slate-500">Impact VE</span>
+                                <span className={`text-2xl font-black ${(notificationEvent.deltaVE || 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    {(notificationEvent.deltaVE || 0) > 0 ? '+' : ''}{notificationEvent.deltaVE}
+                                </span>
+                            </div>
+                        )}
+                        
+                        {notificationEvent.deltaBudgetReal !== undefined && notificationEvent.deltaBudgetReal !== 0 && (
+                            <div className={`flex flex-col items-center p-3 rounded-xl border w-full ${
+                                (notificationEvent.deltaBudgetReal || 0) > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                            }`}>
+                                <span className="text-[10px] font-bold uppercase text-slate-500">Impact Budget</span>
+                                <span className={`text-2xl font-black ${(notificationEvent.deltaBudgetReal || 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    {(notificationEvent.deltaBudgetReal || 0) > 0 ? '+' : ''}{notificationEvent.deltaBudgetReal}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <button 
+                        onClick={closeNotification}
+                        className={`w-full py-4 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 ${
+                            notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
+                            ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
+                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                        }`}
+                    >
+                        {notificationEvent.type === 'CRISIS' ? "J'AI PRIS CONNAISSANCE" : "GÉNIAL !"}
                     </button>
                 </div>
             </Modal>
