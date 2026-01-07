@@ -142,7 +142,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getCurrentGameWeek = () => {
       // Logic: Find the highest week number that is unlocked.
       // Or simply return 3 for dev purposes if needed, but better to calculate.
-      const unlockedWeeks = Object.values(weeks).filter(w => !w.locked).map(w => parseInt(w.id));
+      // Cast Object.values(weeks) to WeekModule[] to fix 'unknown' type errors for property 'locked' and 'id'
+      const unlockedWeeks = (Object.values(weeks) as WeekModule[]).filter(w => !w.locked).map(w => parseInt(w.id));
       return unlockedWeeks.length > 0 ? Math.max(...unlockedWeeks) : 1;
   };
 
@@ -397,9 +398,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Execution Logic (Simplified for context update)
           const targetAgency = agencies.find(a => a.id === 'unassigned');
           if(targetAgency) {
-               // Execute Move... (Requires robust implementation matching MercatoView logic)
-               // For brevity, relying on MercatoView logic or implementing fully here.
-               // Re-implementing simplified execute:
+               // Execution Logic (Simplified for context update)
                const student = agency.members.find(m => m.id === request.studentId);
                if(student) {
                    const updatedSource = agency.members.filter(m => m.id !== request.studentId);

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, Student, GameEvent } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -109,18 +109,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
           const hasSeen = localStorage.getItem(seenKey);
 
           if (!hasSeen) {
-              // Ignore old events (older than 1 hour) to avoid spamming historical events on first login
-              const eventDate = new Date(latestEvent.date); // This is usually just YYYY-MM-DD, so approximate
-              // For a better check, we'd need a timestamp in the event ID or a created_at field.
-              // Assuming event.id contains a timestamp (evt-TIMESTAMP-...)
-              const parts = latestEvent.id.split('-');
-              let eventTime = 0;
-              if(parts.length > 1 && !isNaN(Number(parts[1]))) {
-                  eventTime = Number(parts[1]);
-              }
-              
-              // Only show if event is recent (created within last 24h) or if we want to force all unseen
-              // Let's force all unseen for now as "Breaking News"
               setNotificationEvent(latestEvent);
           }
       }
@@ -173,16 +161,15 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                     <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tight drop-shadow-lg leading-none mb-3">{agency.name}</h2>
                     {/* Badges */}
                     <div className="flex items-center gap-1">
-                        {BADGE_DEFINITIONS.map(def => {
-                            if(Math.random() > 0.8) return <div key={def.id} className="w-6 h-6 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center shadow-lg border border-yellow-200"><Shield size={12}/></div>;
-                            return null;
-                        })}
+                        {agency.badges && agency.badges.map(b => (
+                            <div key={b.id} title={b.label} className="w-6 h-6 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center shadow-lg border border-yellow-200"><Shield size={12}/></div>
+                        ))}
                     </div>
                 </div>
 
                 {agency.id !== 'unassigned' && (
                 <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                    {/* Personal Wallet Button - Now Redirects to Tab */}
+                    {/* Personal Wallet Stats */}
                     {myMemberProfile && (
                         <div onClick={() => setActiveTab('WALLET')} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
                             <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline flex items-center gap-1 md:justify-end">
@@ -193,6 +180,17 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                             </div>
                         </div>
                     )}
+                    
+                    {/* NEW: Agency Balance Display */}
+                    <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
+                        <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest block mb-1 flex items-center gap-1 md:justify-end">
+                            <Landmark size={12}/> Trésorerie Studio
+                        </span>
+                        <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
+                            <span className={`font-mono ${agency.budget_real < 0 ? 'text-red-400' : 'text-white'}`}>{agency.budget_real} PiXi</span>
+                        </div>
+                    </div>
+
                     <div className="flex items-center justify-between md:justify-start gap-6 pl-2">
                         <div className="text-center">
                             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
@@ -246,7 +244,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 )}
                 <NavButton active={activeTab === 'RESOURCES'} onClick={() => setActiveTab('RESOURCES')} icon={<BookOpen size={20} />} label="Wiki" theme={theme} />
                 <NavButton active={activeTab === 'RECRUITMENT' || agency.id === 'unassigned'} onClick={() => setActiveTab('RECRUITMENT')} icon={<Briefcase size={20} />} label={agency.id === 'unassigned' ? "Mon Statut" : "Recrutement"} theme={theme} />
-                <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY')} icon={<History size={20} />} label="Journal" theme={theme} />
+                <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY'} icon={<History size={20} />} label="Journal" theme={theme} />
              </div>
         </div>
 
@@ -330,8 +328,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
         {notificationEvent && (
             <Modal isOpen={!!notificationEvent} onClose={closeNotification} title={notificationEvent.type === 'CRISIS' ? "ALERTE PRIORITAIRE" : "NOUVELLE IMPORTANTE"}>
                 <div className="flex flex-col items-center text-center space-y-6">
-                    
-                    {/* ICON & COLOR THEME */}
                     <div className={`p-6 rounded-full mb-2 border-4 ${
                         notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
                         ? 'bg-red-50 border-red-100 text-red-600 animate-pulse'
@@ -343,7 +339,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         }
                     </div>
 
-                    {/* TEXT CONTENT */}
                     <div>
                         <h3 className={`text-2xl font-black uppercase mb-2 ${
                             notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0 ? 'text-red-600' : 'text-emerald-600'
@@ -355,7 +350,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         </p>
                     </div>
 
-                    {/* IMPACT BADGES */}
                     <div className="flex justify-center gap-4 w-full">
                         {notificationEvent.deltaVE !== 0 && (
                             <div className={`flex flex-col items-center p-3 rounded-xl border w-full ${
@@ -397,7 +391,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   );
 };
 
-// --- WALLET VIEW COMPONENT ---
 const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Student[], onTransfer: any, onInjectCapital: any, onRequestScore: any}> = ({student, agency, allStudents, onTransfer, onInjectCapital, onRequestScore}) => {
     const [targetId, setTargetId] = useState('');
     const [amount, setAmount] = useState(0);
@@ -424,7 +417,6 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
 
     return (
         <div className="animate-in fade-in space-y-6">
-            {/* SOLDE CARD */}
             <div className="bg-indigo-900 text-white p-8 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-20 bg-white/5 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
                 <div className="relative z-10 text-center md:text-left mb-4 md:mb-0">
@@ -437,10 +429,7 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                 </div>
             </div>
 
-            {/* ACTIONS GRID */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* 1. INVESTIR AGENCE */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                     <div className="mb-4">
                         <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-3">
@@ -459,7 +448,6 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                     </div>
                 </div>
 
-                {/* 2. SOUTIEN EXTERNE (PRÊT ENTREPRISE) */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                     <div className="mb-4">
                         <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mb-3">
@@ -485,7 +473,6 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                     </div>
                 </div>
 
-                {/* 3. ACHAT SCORE */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                     <div className="mb-4">
                         <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-3">
@@ -505,7 +492,6 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
     );
