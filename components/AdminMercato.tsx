@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, GameEvent, MercatoRequest, StudentHistoryEntry, CycleType } from '../types';
-import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote, User, Info, Building2 } from 'lucide-react';
+import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote, User, Info, Building2, School, Wallet } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { GAME_RULES, INITIAL_WEEKS } from '../constants';
+import { Modal } from './Modal';
 
 interface AdminMercatoProps {
   agencies: Agency[];
@@ -16,8 +17,23 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [targetAgencyId, setTargetAgencyId] = useState<string | null>(null);
 
+  // --- CREATE MODAL STATE ---
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+      name: '',
+      classId: 'A' as 'A' | 'B',
+      founderId: 'NONE', // 'NONE' or student ID
+      applyCost: false // If true, deducts PiXi from student
+  });
+
   const unassignedAgency = agencies.find(a => a.id === 'unassigned');
   const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
+
+  // Filter unemployed students based on selected class in form
+  const availableFounders = useMemo(() => {
+      if (!unassignedAgency) return [];
+      return unassignedAgency.members.filter(m => m.classId === createForm.classId);
+  }, [unassignedAgency, createForm.classId]);
 
   const pendingRequests = useMemo(() => {
       const requests: {req: MercatoRequest, agency: Agency}[] = [];
@@ -149,13 +165,14 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       if(readOnly) return;
       
       if (request.type === 'FOUND_AGENCY') {
+          // Utilise la même logique que la création manuelle, mais pilotée par la demande
           const studentData = findStudentData(request.studentId);
           if(!studentData) return;
           
+          // Redirige vers la logique de création manuelle avec les infos pré-remplies si besoin,
+          // ou exécute directement ici (implémenté directement pour simplifier)
           const student = studentData.student;
           const newAgencyId = `a-${Date.now()}`;
-          
-          // CRÉATION DE LA NOUVELLE AGENCE
           const newAgency: Agency = {
               id: newAgencyId, 
               name: `Studio de ${student.name}`, 
@@ -173,37 +190,20 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                   individualScore: Math.max(0, student.individualScore - GAME_RULES.CREATION_COST_SCORE)
               }], 
               peerReviews: [], 
-              eventLog: [{ 
-                  id: `e-${newAgencyId}-1`, 
-                  date: new Date().toISOString().split('T')[0], 
-                  type: "INFO", 
-                  label: "Ouverture Studio", 
-                  deltaVE: 0, 
-                  description: `Fondé par ${student.name}.` 
-              }],
+              eventLog: [{ id: `e-${newAgencyId}-1`, date: new Date().toISOString().split('T')[0], type: "INFO", label: "Ouverture Studio", deltaVE: 0, description: `Fondé par ${student.name}.` }],
               currentCycle: CycleType.MARQUE_BRIEF, 
               constraints: { space: "À définir", style: "À définir", client: "À définir" },
               projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
-              mercatoRequests: [], 
-              transactionRequests: [], 
-              mergerRequests: [],
+              mercatoRequests: [], transactionRequests: [], mergerRequests: [],
               branding: { color: student.classId === 'A' ? 'indigo' : 'cyan' }, 
               badges: [], 
               progress: JSON.parse(JSON.stringify(INITIAL_WEEKS))
           };
 
-          // MISE À JOUR ATOMIQUE DE TOUTES LES AGENCES
           const updatedAgencies = agencies.map(a => {
-              if (a.id === 'unassigned') {
-                  return { 
-                      ...a, 
-                      members: a.members.filter(m => m.id !== student.id), 
-                      mercatoRequests: a.mercatoRequests.filter(r => r.id !== request.id) 
-                  };
-              }
+              if (a.id === 'unassigned') return { ...a, members: a.members.filter(m => m.id !== student.id), mercatoRequests: a.mercatoRequests.filter(r => r.id !== request.id) };
               return a;
           });
-
           onUpdateAgencies([...updatedAgencies, newAgency]);
           toast('success', `Studio créé pour ${student.name}`);
           return;
@@ -238,45 +238,75 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       toast('info', 'Demande rejetée.');
   };
 
-  const handleCreateAgencyManual = async () => {
-      if(readOnly) return;
+  const handleCreateSubmit = () => {
       const newAgencyId = `a-manual-${Date.now()}`;
-      
-      const proceed = await confirm({
-          title: "Créer un nouveau studio ?",
-          message: "Voulez-vous créer une agence vide ? Vous devrez y transférer des membres manuellement ensuite.",
-          confirmText: "Créer Agence"
-      });
+      let initialMembers: any[] = [];
+      let startBudget = 2000;
 
-      if (!proceed) return;
+      // 1. GESTION DU FONDATEUR
+      if (createForm.founderId !== 'NONE') {
+          const founder = unassignedAgency?.members.find(m => m.id === createForm.founderId);
+          if (founder) {
+              const updatedFounder = { ...founder };
+              if (createForm.applyCost) {
+                  updatedFounder.wallet = (updatedFounder.wallet || 0) - GAME_RULES.CREATION_COST_PIXI;
+                  updatedFounder.individualScore = Math.max(0, updatedFounder.individualScore - GAME_RULES.CREATION_COST_SCORE);
+                  startBudget += 0; // Le budget de l'agence commence à 2000 (financé par l'étudiant)
+              } else {
+                  // Si l'admin paie (subvention), l'étudiant ne paie rien, et l'agence reçoit le budget
+                  // startBudget reste 2000 (Subvention Admin)
+              }
+              initialMembers.push(updatedFounder);
+          }
+      }
 
+      // 2. CRÉATION AGENCE
       const newAgency: Agency = {
           id: newAgencyId, 
-          name: "Nouveau Studio Admin", 
+          name: createForm.name || "Nouveau Studio", 
           tagline: "En construction...", 
           ve_current: 20, 
           status: 'critique',
-          classId: 'A', 
-          budget_real: 2000, 
+          classId: createForm.classId, 
+          budget_real: startBudget, 
           budget_valued: 0, 
           weeklyTax: 0, 
           weeklyRevenueModifier: 0,
-          members: [], 
+          members: initialMembers, 
           peerReviews: [], 
-          eventLog: [{ id: `e-${newAgencyId}-1`, date: new Date().toISOString().split('T')[0], type: "INFO", label: "Ouverture Studio", deltaVE: 0, description: "Action administrative." }],
+          eventLog: [{ 
+              id: `e-${newAgencyId}-1`, 
+              date: new Date().toISOString().split('T')[0], 
+              type: "INFO", 
+              label: "Ouverture Studio", 
+              deltaVE: 0, 
+              description: initialMembers.length > 0 
+                ? `Fondé par ${initialMembers[0].name} (${createForm.applyCost ? 'Fonds Propres' : 'Subvention Admin'}).` 
+                : "Création administrative vide." 
+          }],
           currentCycle: CycleType.MARQUE_BRIEF, 
           constraints: { space: "À définir", style: "À définir", client: "À définir" },
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [], 
           transactionRequests: [], 
           mergerRequests: [],
-          branding: { color: 'indigo' }, 
+          branding: { color: createForm.classId === 'A' ? 'indigo' : 'cyan' }, 
           badges: [], 
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS))
       };
 
-      onUpdateAgencies([...agencies, newAgency]);
-      toast('success', 'Studio créé.');
+      // 3. RETRAIT DU FONDATEUR DU VIVIER (Si applicable)
+      const updatedAgencies = agencies.map(a => {
+          if (a.id === 'unassigned' && createForm.founderId !== 'NONE') {
+              return { ...a, members: a.members.filter(m => m.id !== createForm.founderId) };
+          }
+          return a;
+      });
+
+      onUpdateAgencies([...updatedAgencies, newAgency]);
+      toast('success', 'Studio créé avec succès.');
+      setIsCreateModalOpen(false);
+      setCreateForm({ name: '', classId: 'A', founderId: 'NONE', applyCost: false });
   };
 
   return (
@@ -287,11 +317,96 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                 <p className="text-slate-500 text-sm">Gérez les candidatures et les nouveaux studios.</p>
             </div>
             {!readOnly && (
-                <button onClick={handleCreateAgencyManual} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors shadow-lg">
-                    <Plus size={18} /> Créer un Studio Vide
+                <button 
+                    onClick={() => setIsCreateModalOpen(true)} 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors shadow-lg"
+                >
+                    <Plus size={18} /> Ouvrir un Nouveau Studio
                 </button>
             )}
         </div>
+
+        {/* --- MODAL DE CREATION --- */}
+        <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Création de Studio (Admin)">
+            <div className="space-y-6">
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom du Studio</label>
+                    <input 
+                        type="text" 
+                        value={createForm.name}
+                        onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
+                        placeholder="Ex: Studio Alpha"
+                        className="w-full p-3 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Classe de rattachement</label>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={() => setCreateForm({...createForm, classId: 'A'})}
+                            className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${createForm.classId === 'A' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400'}`}
+                        >
+                            CLASSE A
+                        </button>
+                        <button 
+                            onClick={() => setCreateForm({...createForm, classId: 'B'})}
+                            className={`flex-1 py-3 rounded-xl border-2 font-bold transition-all ${createForm.classId === 'B' ? 'border-purple-500 bg-purple-50 text-purple-600' : 'border-slate-100 text-slate-400'}`}
+                        >
+                            CLASSE B
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Premier Membre (Fondateur)</label>
+                    <select 
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm font-medium"
+                        value={createForm.founderId}
+                        onChange={(e) => setCreateForm({...createForm, founderId: e.target.value})}
+                    >
+                        <option value="NONE">-- Aucun (Studio Vide) --</option>
+                        {availableFounders.map(s => (
+                            <option key={s.id} value={s.id}>{s.name} (Score: {s.individualScore})</option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1 italic">
+                        {createForm.founderId !== 'NONE' ? "L'étudiant sera retiré du vivier." : "Vous devrez ajouter des membres manuellement plus tard."}
+                    </p>
+                </div>
+
+                {createForm.founderId !== 'NONE' && (
+                    <div className={`p-4 rounded-xl border transition-all ${createForm.applyCost ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={createForm.applyCost} 
+                                onChange={(e) => setCreateForm({...createForm, applyCost: e.target.checked})}
+                                className="w-5 h-5 accent-indigo-600"
+                            />
+                            <div>
+                                <span className={`font-bold text-sm block ${createForm.applyCost ? 'text-amber-800' : 'text-emerald-800'}`}>
+                                    {createForm.applyCost ? "Facturer l'étudiant (Mode Normal)" : "Subvention Admin (Gratuit)"}
+                                </span>
+                                <span className="text-xs text-slate-500 block mt-0.5">
+                                    {createForm.applyCost 
+                                        ? `L'étudiant paie ${GAME_RULES.CREATION_COST_PIXI} PiXi et ${GAME_RULES.CREATION_COST_SCORE} Score.` 
+                                        : "L'administration offre les frais de création."}
+                                </span>
+                            </div>
+                        </label>
+                    </div>
+                )}
+
+                <button 
+                    onClick={handleCreateSubmit}
+                    disabled={!createForm.name}
+                    className={`w-full py-4 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all ${!createForm.name ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                >
+                    <Building2 size={20}/> Créer le Studio
+                </button>
+            </div>
+        </Modal>
 
         {/* --- SECTION: PENDING REQUESTS --- */}
         {pendingRequests.length > 0 && (
