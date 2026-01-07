@@ -33,31 +33,25 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   const [showMergerModal, setShowMergerModal] = useState(false);
   
   // State for Actions
-  const [actionType, setActionType] = useState<'HIRE' | 'FIRE' | 'RESIGN'>('HIRE');
+  const [actionType, setActionType] = useState<'HIRE' | 'FIRE' | 'RESIGN' | 'FOUND'>('HIRE');
   const [targetStudent, setTargetStudent] = useState<Student | null>(null);
   const [targetAgencyId, setTargetAgencyId] = useState<string | null>(null);
   const [motivationText, setMotivationText] = useState("");
 
-  // CV Upload State
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isUploadingCV, setIsUploadingCV] = useState(false);
 
-  // Identity logic
   const currentUser = agency.members.find(m => m.id === authUser?.uid);
 
-  // Lists Logic
   const availableAgencies = allAgencies.filter(a => a.id !== 'unassigned' && a.classId === currentUser?.classId);
   const unemployedAgency = allAgencies.find(a => a.id === 'unassigned');
-  const allUnemployed = unemployedAgency ? unemployedAgency.members : [];
 
-  // Rules Check
   const currentWeek = getCurrentGameWeek();
   const canMerge = currentWeek >= GAME_RULES.UNLOCK_WEEK_MERGERS;
 
-  // --- GENERIC REQUEST HANDLER ---
   const handleSubmitRequest = () => {
-      if(motivationText.length < 10) {
-          toast('error', 'La motivation doit faire au moins 10 caractères.');
+      if(motivationText.length < 5) {
+          toast('error', 'La motivation doit faire au moins 5 caractères.');
           return;
       }
 
@@ -66,7 +60,20 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       const today = new Date().toISOString().split('T')[0];
       let newRequest: MercatoRequest | null = null;
 
-      if (actionType === 'HIRE' && targetStudent) {
+      if (actionType === 'FOUND') {
+          newRequest = {
+            id: `req-found-${Date.now()}`, type: 'FOUND_AGENCY',
+            studentId: currentUser.id, studentName: currentUser.name,
+            requesterId: currentUser.id, targetAgencyId: 'new',
+            status: 'PENDING', date: today, motivation: motivationText,
+            votes: {} 
+          };
+          if (unemployedAgency) {
+              const updatedUnassigned = { ...unemployedAgency, mercatoRequests: [...unemployedAgency.mercatoRequests, newRequest] };
+              onUpdateAgency(updatedUnassigned);
+              toast('success', "Demande de fondation envoyée à l'enseignant !");
+          }
+      } else if (actionType === 'HIRE' && targetStudent) {
           newRequest = {
             id: `req-${Date.now()}`, type: 'HIRE',
             studentId: targetStudent.id, studentName: targetStudent.name,
@@ -112,7 +119,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
           }
       }
 
-      if (newRequest && agency.id !== 'unassigned') {
+      if (newRequest && agency.id !== 'unassigned' && actionType !== 'FOUND') {
           onUpdateAgency({
               ...agency,
               mercatoRequests: [...agency.mercatoRequests, newRequest]
@@ -149,8 +156,13 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   }
 
   const openApplyModal = (agencyId: string) => {
-      setActionType('HIRE'); 
-      setTargetAgencyId(agencyId);
+      if (agencyId === 'new') {
+          setActionType('FOUND');
+          setTargetAgencyId(null);
+      } else {
+          setActionType('HIRE'); 
+          setTargetAgencyId(agencyId);
+      }
       setMotivationText("");
       setIsMotivationModalOpen(true);
   }
@@ -177,7 +189,6 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
     }
   };
 
-  // --- MERGER HANDLERS ---
   const handleProposeMerger = async (targetId: string) => {
       await proposeMerger(agency.id, targetId);
       setShowMergerModal(false);
@@ -187,9 +198,6 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       await finalizeMerger(req.id, agency.id, approved);
   };
 
-  // -----------------------------------------------------------
-  // VIEW FOR UNEMPLOYED
-  // -----------------------------------------------------------
   if (agency.id === 'unassigned') {
       return (
           <>
@@ -213,22 +221,17 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                 onSubmit={handleSubmitRequest} 
                 motivation={motivationText} 
                 setMotivation={setMotivationText} 
-                title="Pourquoi vous ?" 
-                subtitle="Expliquez à l'agence pourquoi elle devrait vous recruter."
+                title={actionType === 'FOUND' ? "Nom & Vision du Studio" : "Pourquoi vous ?"} 
+                subtitle={actionType === 'FOUND' ? "Décrivez brièvement votre projet de studio." : "Expliquez à l'agence pourquoi elle devrait vous recruter."}
             />
           </>
       );
   }
 
-  // -----------------------------------------------------------
-  // VIEW FOR AGENCY MEMBERS
-  // -----------------------------------------------------------
   const potentialTargets = allAgencies.filter(a => a.id !== 'unassigned' && a.id !== agency.id && a.ve_current < GAME_RULES.MERGER_VE_THRESHOLD && a.classId === agency.classId);
 
   return (
     <div className="animate-in fade-in space-y-8">
-        
-        {/* MERGER ALERTS (INCOMING OFFERS) */}
         {agency.mergerRequests && agency.mergerRequests.length > 0 && (
             <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl border border-indigo-500 relative overflow-hidden">
                 <div className="relative z-10">
@@ -253,14 +256,12 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             </div>
         )}
 
-        {/* 1. DEMOCRACY (VOTES) */}
         <AgencyDemocracy 
             agency={agency} 
             currentUser={currentUser} 
             onVote={handleVote} 
         />
 
-        {/* 2. TEAM MANAGEMENT */}
         <TeamManagement 
             agency={agency}
             currentUser={currentUser}
@@ -268,14 +269,13 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             onOpenFireModal={openFireModal}
         />
 
-        {/* 3. RECRUITMENT POOL */}
+        {/* Fix: Changed unassignedAgency?.members to unemployedAgency?.members */}
         <RecruitmentPool 
             agency={agency}
-            unemployedStudents={allUnemployed}
+            unemployedStudents={unemployedAgency?.members || []}
             onOpenHireModal={openHireModal}
         />
 
-        {/* 4. MERGERS SECTION (Week 6+) */}
         {canMerge && (
             <div className="mt-8 pt-8 border-t border-slate-200">
                 <div className="flex justify-between items-center mb-4">
@@ -319,15 +319,14 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
             </div>
         )}
 
-        {/* MODALS */}
         <MotivationModal 
             isOpen={isMotivationModalOpen} 
             onClose={() => setIsMotivationModalOpen(false)} 
             onSubmit={handleSubmitRequest} 
             motivation={motivationText} 
             setMotivation={setMotivationText} 
-            title={actionType === 'FIRE' ? "Motif du renvoi" : actionType === 'RESIGN' ? "Motif de départ" : "Proposition d'embauche"}
-            subtitle={actionType === 'FIRE' ? "Expliquez pourquoi vous souhaitez vous séparer de ce collaborateur (Vote requis 75%)." : actionType === 'RESIGN' ? "Pourquoi quittez-vous le navire ?" : "Message pour l'équipe (Vote requis 66%)."}
+            title={actionType === 'FIRE' ? "Motif du renvoi" : actionType === 'RESIGN' ? "Motif de départ" : actionType === 'FOUND' ? "Fondation de Studio" : "Proposition d'embauche"}
+            subtitle={actionType === 'FIRE' ? "Expliquez pourquoi vous souhaitez vous séparer de ce collaborateur (Vote requis 75%)." : actionType === 'RESIGN' ? "Pourquoi quittez-vous le navire ?" : actionType === 'FOUND' ? "Donnez un nom provisoire et votre vision." : "Message pour l'équipe (Vote requis 66%)."}
         />
         
         <CVModal 

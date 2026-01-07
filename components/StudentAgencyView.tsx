@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, Student, GameEvent } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -42,10 +42,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
-  // State for Feature Unlock Modals
   const [unlockModal, setUnlockModal] = useState<{title: string, message: string, icon: any, confirmText: string} | null>(null);
-  
-  // State for Real-Time Event Notifications (Crisis/Rewards)
   const [notificationEvent, setNotificationEvent] = useState<GameEvent | null>(null);
 
   const brandColor = agency.branding?.color || 'indigo';
@@ -59,11 +56,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const netWeekly = weeklyRevenue - weeklyCharges;
   const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
 
-  // --- 1. FEATURE UNLOCK CHECKER ---
   useEffect(() => {
       const currentWeek = getCurrentGameWeek();
-      
-      // CHECK WEEK 3: BLACK OPS
       if (currentWeek >= GAME_RULES.UNLOCK_WEEK_BLACK_OPS) {
           const hasSeenBlackOps = localStorage.getItem(`seen_unlock_blackops_${currentUser?.uid}`);
           if (!hasSeenBlackOps) {
@@ -74,11 +68,9 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                   confirmText: "Compris, je reste vigilant"
               });
               localStorage.setItem(`seen_unlock_blackops_${currentUser?.uid}`, 'true');
-              return; // Show only one at a time
+              return; 
           }
       }
-
-      // CHECK WEEK 6: MERGERS
       if (currentWeek >= GAME_RULES.UNLOCK_WEEK_MERGERS) {
           const hasSeenMergers = localStorage.getItem(`seen_unlock_mergers_${currentUser?.uid}`);
           if (!hasSeenMergers) {
@@ -93,24 +85,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
       }
   }, [getCurrentGameWeek, currentUser]);
 
-  // --- 2. REAL-TIME EVENT NOTIFICATION SYSTEM ---
   useEffect(() => {
       if (agency.eventLog.length === 0) return;
-
-      // Get the very last event
       const latestEvent = agency.eventLog[agency.eventLog.length - 1];
-      
-      // Define types that trigger a popup
       const NOTIFY_TYPES = ['CRISIS', 'VE_DELTA'];
-      
       if (NOTIFY_TYPES.includes(latestEvent.type)) {
-          // Check if already seen in LocalStorage to avoid spam on reload
           const seenKey = `seen_event_${currentUser?.uid}_${latestEvent.id}`;
           const hasSeen = localStorage.getItem(seenKey);
-
-          if (!hasSeen) {
-              setNotificationEvent(latestEvent);
-          }
+          if (!hasSeen) setNotificationEvent(latestEvent);
       }
   }, [agency.eventLog, currentUser]);
 
@@ -159,7 +141,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         <span className="text-slate-300 italic text-sm truncate">"{agency.tagline}"</span>
                     </div>
                     <h2 className="text-4xl md:text-5xl font-display font-bold tracking-tight drop-shadow-lg leading-none mb-3">{agency.name}</h2>
-                    {/* Badges */}
                     <div className="flex items-center gap-1">
                         {agency.badges && agency.badges.map(b => (
                             <div key={b.id} title={b.label} className="w-6 h-6 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center shadow-lg border border-yellow-200"><Shield size={12}/></div>
@@ -169,7 +150,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
                 {agency.id !== 'unassigned' && (
                 <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                    {/* Personal Wallet Stats */}
                     {myMemberProfile && (
                         <div onClick={() => setActiveTab('WALLET')} className="flex-1 md:text-right md:border-r border-white/20 md:pr-4 cursor-pointer group hover:bg-white/10 rounded-lg p-1 transition-colors">
                             <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest block mb-1 group-hover:underline flex items-center gap-1 md:justify-end">
@@ -181,7 +161,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         </div>
                     )}
                     
-                    {/* NEW: Agency Balance Display */}
                     <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
                         <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest block mb-1 flex items-center gap-1 md:justify-end">
                             <Landmark size={12}/> Trésorerie Studio
@@ -244,11 +223,11 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 )}
                 <NavButton active={activeTab === 'RESOURCES'} onClick={() => setActiveTab('RESOURCES')} icon={<BookOpen size={20} />} label="Wiki" theme={theme} />
                 <NavButton active={activeTab === 'RECRUITMENT' || agency.id === 'unassigned'} onClick={() => setActiveTab('RECRUITMENT')} icon={<Briefcase size={20} />} label={agency.id === 'unassigned' ? "Mon Statut" : "Recrutement"} theme={theme} />
-                <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY'} icon={<History size={20} />} label="Journal" theme={theme} />
+                <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY')} icon={<History size={20} />} label="Journal" theme={theme} />
              </div>
         </div>
 
-        {/* SETTINGS & HELP MODALS */}
+        {/* MODALS */}
         <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="Personnalisation Agence">
             <div className="space-y-6">
                 <div>
@@ -279,32 +258,10 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         La <strong>Valeur d'Entreprise (VE)</strong> est votre "note de groupe" dynamique (/100). 
                         <br/>Elle fluctue selon vos rendus, vos choix et les événements.
                     </p>
-                    <div className="flex gap-2 mt-4">
-                        <div className="flex-1 bg-white p-2 rounded border text-center">
-                            <div className="text-xs font-bold text-emerald-600 uppercase">Impact Revenus</div>
-                            <div className="text-sm font-bold">1 Point VE = {GAME_RULES.REVENUE_VE_MULTIPLIER} PiXi/sem</div>
-                        </div>
-                        <div className="flex-1 bg-white p-2 rounded border text-center">
-                            <div className="text-xs font-bold text-indigo-600 uppercase">Note Finale</div>
-                            <div className="text-sm font-bold">Compte pour 40%</div>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <h4 className="font-bold text-slate-900 text-sm mb-2">Derniers Mouvements</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                        {agency.eventLog.filter(e => e.deltaVE).map(e => (
-                            <div key={e.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
-                                <span className="text-slate-600 text-xs">{e.label}</span>
-                                <span className={`font-mono font-bold text-xs ${(e.deltaVE || 0) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{(e.deltaVE || 0) > 0 ? '+' : ''}{e.deltaVE}</span>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
         </Modal>
 
-        {/* --- UNLOCK POP-UP (LEVEL UP) --- */}
         {unlockModal && (
             <Modal isOpen={!!unlockModal} onClose={() => setUnlockModal(null)} title={unlockModal.title}>
                 <div className="flex flex-col items-center text-center space-y-6">
@@ -324,7 +281,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             </Modal>
         )}
 
-        {/* --- EVENT NOTIFICATION POP-UP (CRISIS / REWARD) --- */}
         {notificationEvent && (
             <Modal isOpen={!!notificationEvent} onClose={closeNotification} title={notificationEvent.type === 'CRISIS' ? "ALERTE PRIORITAIRE" : "NOUVELLE IMPORTANTE"}>
                 <div className="flex flex-col items-center text-center space-y-6">
@@ -348,30 +304,6 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         <p className="text-slate-600 text-lg leading-relaxed font-medium">
                             {notificationEvent.description}
                         </p>
-                    </div>
-
-                    <div className="flex justify-center gap-4 w-full">
-                        {notificationEvent.deltaVE !== 0 && (
-                            <div className={`flex flex-col items-center p-3 rounded-xl border w-full ${
-                                (notificationEvent.deltaVE || 0) > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
-                            }`}>
-                                <span className="text-[10px] font-bold uppercase text-slate-500">Impact VE</span>
-                                <span className={`text-2xl font-black ${(notificationEvent.deltaVE || 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {(notificationEvent.deltaVE || 0) > 0 ? '+' : ''}{notificationEvent.deltaVE}
-                                </span>
-                            </div>
-                        )}
-                        
-                        {notificationEvent.deltaBudgetReal !== undefined && notificationEvent.deltaBudgetReal !== 0 && (
-                            <div className={`flex flex-col items-center p-3 rounded-xl border w-full ${
-                                (notificationEvent.deltaBudgetReal || 0) > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
-                            }`}>
-                                <span className="text-[10px] font-bold uppercase text-slate-500">Impact Budget</span>
-                                <span className={`text-2xl font-black ${(notificationEvent.deltaBudgetReal || 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {(notificationEvent.deltaBudgetReal || 0) > 0 ? '+' : ''}{notificationEvent.deltaBudgetReal}
-                                </span>
-                            </div>
-                        )}
                     </div>
 
                     <button 
@@ -417,14 +349,37 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
 
     return (
         <div className="animate-in fade-in space-y-6">
-            <div className="bg-indigo-900 text-white p-8 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
+            {/* AGENCY TREASURY CARD - VERY VISIBLE NOW */}
+            <div className="bg-slate-900 rounded-3xl p-6 border border-slate-700 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="p-4 bg-indigo-500/20 rounded-2xl text-indigo-400 border border-indigo-500/30">
+                        <Bank size={32}/>
+                    </div>
+                    <div>
+                        <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest">Trésorerie de l'Entreprise</p>
+                        <p className="text-3xl font-display font-bold text-white">{agency.budget_real} <span className="text-sm text-slate-500">PiXi</span></p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-center md:items-end">
+                    <p className="text-slate-500 text-xs uppercase font-bold mb-1">Santé Financière</p>
+                    <div className={`px-4 py-1.5 rounded-full text-xs font-bold border ${
+                        agency.budget_real > 1000 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                        agency.budget_real > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
+                        'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse'
+                    }`}>
+                        {agency.budget_real > 1000 ? 'SOLVABLE' : agency.budget_real > 0 ? 'FRAGILE' : 'ENDETTÉ'}
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-indigo-600 text-white p-8 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-20 bg-white/5 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
                 <div className="relative z-10 text-center md:text-left mb-4 md:mb-0">
-                    <p className="text-indigo-300 text-sm font-bold uppercase mb-1 tracking-widest">Solde Disponible</p>
+                    <p className="text-indigo-200 text-sm font-bold uppercase mb-1 tracking-widest">Mon Solde Personnel</p>
                     <p className="text-5xl font-display font-bold text-yellow-400">{student?.wallet || 0} <span className="text-2xl text-yellow-200">PiXi</span></p>
                 </div>
                 <div className="relative z-10 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/20">
-                    <p className="text-xs text-indigo-200 mb-1">Salaire Hebdo</p>
+                    <p className="text-xs text-indigo-100 mb-1">Salaire Hebdo</p>
                     <p className="font-bold text-white text-lg">+{student.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi</p>
                 </div>
             </div>
@@ -436,15 +391,11 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                             <ArrowUpRight size={24}/>
                         </div>
                         <h3 className="font-bold text-slate-900 text-lg">Investir dans mon Agence</h3>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Injectez votre argent personnel pour sauver la trésorerie ou payer le loyer.
-                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Injection de fonds personnels.</p>
                     </div>
                     <div className="mt-auto space-y-3">
                         <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant" onChange={e => setAmount(Number(e.target.value))} />
-                        <button onClick={handleInject} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                            Confirmer l'injection
-                        </button>
+                        <button onClick={handleInject} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50">Injecter</button>
                     </div>
                 </div>
 
@@ -453,11 +404,8 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                         <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mb-3">
                             <Send size={24}/>
                         </div>
-                        <h3 className="font-bold text-slate-900 text-lg">Soutien & Prêt Inter-Agences</h3>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Envoyez des fonds à un collègue d'une autre agence pour les aider.
-                            <br/><span className="text-xs text-indigo-600 font-bold">Conseil : Négociez un gain de VE en retour !</span>
-                        </p>
+                        <h3 className="font-bold text-slate-900 text-lg">Virement à un collègue</h3>
+                        <p className="text-sm text-slate-500 mt-1">Soutien inter-agences.</p>
                     </div>
                     <div className="mt-auto space-y-3">
                         <select className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm" onChange={e => setTargetId(e.target.value)} value={targetId}>
@@ -467,9 +415,7 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                             ))}
                         </select>
                         <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant" onChange={e => setAmount(Number(e.target.value))} />
-                        <button onClick={handleTransfer} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">
-                            Envoyer les fonds
-                        </button>
+                        <button onClick={handleTransfer} disabled={amount <= 0 || amount > (student.wallet || 0)} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">Envoyer</button>
                     </div>
                 </div>
 
@@ -478,18 +424,12 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                         <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-3">
                             <TrendingUp size={24}/>
                         </div>
-                        <h3 className="font-bold text-slate-900 text-lg">Formation (Achat Score)</h3>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Convertissez votre argent en compétence. 
-                            <br/><strong>200 PiXi = 1 Point Score</strong>.
-                        </p>
+                        <h3 className="font-bold text-slate-900 text-lg">Achat Score (Formation)</h3>
+                        <p className="text-sm text-slate-500 mt-1">200 PiXi = 1 Point Score.</p>
                     </div>
                     <div className="mt-auto space-y-3">
                         <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Points voulus" onChange={e => setScoreToBuy(Number(e.target.value))} />
-                        <div className="text-right text-xs font-bold text-slate-400">Coût: {scoreToBuy * 200} PiXi</div>
-                        <button onClick={handleBuyScore} disabled={scoreToBuy <= 0 || (scoreToBuy * 200) > (student.wallet || 0)} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50">
-                            Demander la validation
-                        </button>
+                        <button onClick={handleBuyScore} disabled={scoreToBuy <= 0 || (scoreToBuy * 200) > (student.wallet || 0)} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50">Acheter</button>
                     </div>
                 </div>
             </div>

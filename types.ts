@@ -1,5 +1,4 @@
 
-
 export enum CycleType {
   MARQUE_BRIEF = "Cycle 1: Marque & Brief",
   NARRATION_IA = "Cycle 2: Narration & IA",
@@ -118,15 +117,15 @@ export interface ProjectDefinition {
 
 export interface MercatoRequest {
   id: string;
-  type: 'HIRE' | 'FIRE'; // HIRE = Agence veut un chômeur, FIRE = Étudiant veut partir
+  type: 'HIRE' | 'FIRE' | 'FOUND_AGENCY'; 
   studentId: string; // La cible du mouvement
   studentName: string;
-  requesterId?: string; // Qui a fait la demande (pour différencier démission/renvoi)
-  targetAgencyId: string; // L'agence concernée
+  requesterId?: string; // Qui a fait la demande
+  targetAgencyId: string; // L'agence concernée (ou 'new' pour foundation)
   status: 'PENDING' | 'REJECTED';
   date: string;
   motivation?: string; // Texte justificatif
-  votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; // Système de vote démocratique
+  votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; 
 }
 
 // --- NEW: MERGER REQUEST ---
