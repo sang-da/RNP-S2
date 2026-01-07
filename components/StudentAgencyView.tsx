@@ -8,6 +8,7 @@ import { TeamView } from './student/TeamView';
 import { HistoryView } from './student/HistoryView';
 import { MercatoView } from './student/MercatoView';
 import { WikiView } from './student/WikiView';
+import { FAQView } from './student/FAQView';
 import { Modal } from './Modal';
 import { GAME_RULES, BADGE_DEFINITIONS } from '../constants';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -22,7 +23,7 @@ interface StudentViewProps {
   onUpdateAgency: (agency: Agency) => void;
 }
 
-type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'HISTORY' | 'RESOURCES' | 'WALLET';
+type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'HISTORY' | 'RESOURCES' | 'WALLET' | 'HELP';
 
 const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
     indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600' },
@@ -215,6 +216,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             )}
             {activeTab === 'RESOURCES' && <WikiView agency={agency} />}
             {activeTab === 'HISTORY' && <HistoryView agency={agency} />}
+            {activeTab === 'HELP' && <FAQView />}
         </div>
 
         {/* FOOTER NAV */}
@@ -231,6 +233,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 <NavButton active={activeTab === 'RESOURCES'} onClick={() => setActiveTab('RESOURCES')} icon={<BookOpen size={20} />} label="Wiki" theme={theme} />
                 <NavButton active={activeTab === 'RECRUITMENT' || agency.id === 'unassigned'} onClick={() => setActiveTab('RECRUITMENT')} icon={<Briefcase size={20} />} label={agency.id === 'unassigned' ? "Mon Statut" : "Recrutement"} theme={theme} />
                 <NavButton active={activeTab === 'HISTORY'} onClick={() => setActiveTab('HISTORY')} icon={<History size={20} />} label="Journal" theme={theme} />
+                <NavButton active={activeTab === 'HELP'} onClick={() => setActiveTab('HELP')} icon={<HelpCircle size={20} />} label="Aide" theme={theme} />
              </div>
         </div>
 

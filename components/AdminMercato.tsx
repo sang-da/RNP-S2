@@ -154,6 +154,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           
           const student = studentData.student;
           const newAgencyId = `a-${Date.now()}`;
+          
+          // CRÉATION DE LA NOUVELLE AGENCE
           const newAgency: Agency = {
               id: newAgencyId, 
               name: `Studio de ${student.name}`, 
@@ -184,15 +186,24 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
               projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
               mercatoRequests: [], 
               transactionRequests: [], 
+              mergerRequests: [],
               branding: { color: student.classId === 'A' ? 'indigo' : 'cyan' }, 
               badges: [], 
               progress: JSON.parse(JSON.stringify(INITIAL_WEEKS))
           };
 
+          // MISE À JOUR ATOMIQUE DE TOUTES LES AGENCES
           const updatedAgencies = agencies.map(a => {
-              if (a.id === 'unassigned') return { ...a, members: a.members.filter(m => m.id !== student.id), mercatoRequests: a.mercatoRequests.filter(r => r.id !== request.id) };
+              if (a.id === 'unassigned') {
+                  return { 
+                      ...a, 
+                      members: a.members.filter(m => m.id !== student.id), 
+                      mercatoRequests: a.mercatoRequests.filter(r => r.id !== request.id) 
+                  };
+              }
               return a;
           });
+
           onUpdateAgencies([...updatedAgencies, newAgency]);
           toast('success', `Studio créé pour ${student.name}`);
           return;
@@ -258,6 +269,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [], 
           transactionRequests: [], 
+          mergerRequests: [],
           branding: { color: 'indigo' }, 
           badges: [], 
           progress: JSON.parse(JSON.stringify(INITIAL_WEEKS))
