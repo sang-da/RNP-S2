@@ -4,8 +4,7 @@ import { Agency, Student, MercatoRequest, MergerRequest } from '../../types';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL, storage } from '../../services/firebase';
 import { GAME_RULES } from '../../constants';
 import { Building2, ArrowRightLeft, Check, X } from 'lucide-react';
 

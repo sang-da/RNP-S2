@@ -12,6 +12,11 @@ export const GAME_RULES = {
     SALARY_CAP_FOR_STUDENT: 800, // Au delà de 800 (Score 80), l'argent part dans le loyer
     AGENCY_RENT: 500, // Charges fixes hebdomadaires (Loyer)
 
+    // COÛT DE LA VIE & TAXES (NOUVEAU)
+    COST_OF_LIVING: 200, // Déduit chaque semaine du portefeuille étudiant
+    INJECTION_TAX: 0.20, // 20% de l'argent injecté disparait (Frais de dossier/Transac)
+    POVERTY_SCORE_PENALTY: 5, // Malus de score si l'étudiant est à découvert (< 0 PiXi)
+
     // CREATION
     CREATION_COST_PIXI: 2000,
     CREATION_COST_SCORE: 20,

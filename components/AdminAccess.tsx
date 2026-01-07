@@ -2,8 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student, StudentHistoryEntry } from '../types';
 import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, ArrowRight, UserX, Briefcase, Eye, Trash2, Edit, Save, X } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext'; 
 import { Modal } from './Modal';

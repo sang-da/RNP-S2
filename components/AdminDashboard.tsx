@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, WeekModule, TransactionRequest } from '../types';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from '../services/firebase';
 import { db } from '../services/firebase';
 
 // IMPORTS SUB-COMPONENTS

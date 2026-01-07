@@ -2,8 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, TrendingUp, Wallet, Users, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut, auth, db } from '../services/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { signOut, auth, db, doc, onSnapshot } from '../services/firebase';
 import { MASCOTS } from '../constants';
 
 const ONBOARDING_SLIDES = [

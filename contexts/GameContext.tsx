@@ -3,8 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest, MercatoRequest, StudentHistoryEntry, MergerRequest } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
 import { useUI } from './UIContext';
-import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, collection, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from '../services/firebase';
 import { useAuth } from './AuthContext';
 
 interface GameContextType {
@@ -256,7 +255,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     toast('info', 'Contraintes régénérées');
   };
 
-  // --- PROCESS: FINANCE (Rent, Salary, Revenue) ---
+  // --- PROCESS: FINANCE (Rent, Solidarity, Salary, Cost of Living) ---
   const processFinance = async (targetClass: 'A' | 'B') => {
       const today = new Date().toISOString().split('T')[0];
       try {
@@ -269,47 +268,103 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             let currentBudget = agency.budget_real;
             let logEvents: GameEvent[] = [];
+            let agencyMembers = [...agency.members];
 
-            // 1. RENT
-            currentBudget -= GAME_RULES.AGENCY_RENT;
-            logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -GAME_RULES.AGENCY_RENT, description: `Prélèvement automatique.` });
-
-            // 2. SALARIES
-            let actualDisbursed = 0;
-            const updatedMembers = agency.members.map(member => {
-                const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
-                const pay = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
-                if (currentBudget < 0) return member; 
-                actualDisbursed += pay;
-                return { ...member, wallet: (member.wallet || 0) + pay };
-            });
-
-            if (currentBudget >= 0) {
-                currentBudget -= actualDisbursed;
-                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés.` });
-            } else {
-                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active.` });
-            }
-
-            // 3. REVENUES
+            // 1. REVENUES (Income first)
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const bonuses = agency.weeklyRevenueModifier || 0;
             const totalRevenue = revenueVE + bonuses + GAME_RULES.REVENUE_BASE;
             
             currentBudget += totalRevenue;
-            logEvents.push({ id: `fin-rev-${Date.now()}-${agency.id}`, date: today, type: 'REVENUE', label: 'Recettes', deltaBudgetReal: totalRevenue, description: `Facturation client (VE: ${agency.ve_current}).` });
+            logEvents.push({ 
+                id: `fin-rev-${Date.now()}-${agency.id}`, 
+                date: today, 
+                type: 'REVENUE', 
+                label: 'Recettes', 
+                deltaBudgetReal: totalRevenue, 
+                description: `Facturation client (VE: ${agency.ve_current}).` 
+            });
+
+            // 2. RENT & SOLIDARITY CLAUSE
+            const rent = GAME_RULES.AGENCY_RENT;
+            if (currentBudget >= rent) {
+                // Scenario A: Agency can pay
+                currentBudget -= rent;
+                logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -rent, description: `Prélèvement automatique.` });
+            } else {
+                // Scenario B: Default -> Solidarity Clause
+                // Agency pays what it can (goes to 0), rest is split among members
+                const paidByAgency = Math.max(0, currentBudget); // If budget was already negative, it pays 0
+                const deficit = rent - paidByAgency;
+                const membersCount = Math.max(1, agencyMembers.length);
+                const sharePerStudent = Math.ceil(deficit / membersCount);
+
+                currentBudget = 0; // Budget reset to 0 (or stays negative if it was debt, but logic implies we drain existing funds first)
+                
+                // If it was already in debt, the debt remains. Here simplified: existing cash is used for rent.
+                
+                logEvents.push({ 
+                    id: `fin-rent-solidarity-${Date.now()}-${agency.id}`, 
+                    date: today, 
+                    type: 'CRISIS', 
+                    label: 'CLAUSE SOLIDARITÉ', 
+                    deltaBudgetReal: -paidByAgency, 
+                    description: `Défaut de paiement. ${sharePerStudent} PiXi saisis sur chaque membre.` 
+                });
+
+                // Deduct from students immediately
+                agencyMembers = agencyMembers.map(m => ({
+                    ...m,
+                    wallet: (m.wallet || 0) - sharePerStudent
+                }));
+            }
+
+            // 3. SALARIES (Only if budget allows, otherwise frozen)
+            let actualDisbursed = 0;
+            if (currentBudget >= 0) {
+                agencyMembers = agencyMembers.map(member => {
+                    const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
+                    const pay = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+                    actualDisbursed += pay;
+                    return { ...member, wallet: (member.wallet || 0) + pay };
+                });
+                
+                // If paying salaries puts agency in negative, it goes into debt (allowed for salaries)
+                currentBudget -= actualDisbursed;
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés.` });
+            } else {
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Pas de salaire.` });
+            }
+
+            // 4. COST OF LIVING & PRECARITY (The "Burn Rate")
+            agencyMembers = agencyMembers.map(member => {
+                // Deduct Cost of Living
+                let newWallet = (member.wallet || 0) - GAME_RULES.COST_OF_LIVING;
+                let newScore = member.individualScore;
+                
+                // Check Poverty
+                if (newWallet < 0) {
+                    newScore = Math.max(0, newScore - GAME_RULES.POVERTY_SCORE_PENALTY);
+                }
+
+                return { 
+                    ...member, 
+                    wallet: newWallet, 
+                    individualScore: newScore
+                };
+            });
 
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 budget_real: currentBudget,
-                members: updatedMembers,
+                members: agencyMembers,
                 eventLog: [...agency.eventLog, ...logEvents]
             });
         });
 
         if (processedCount > 0) {
             await batch.commit();
-            toast('success', `Finance Classe ${targetClass}: Terminée.`);
+            toast('success', `Finance Classe ${targetClass}: Traitement Terminé.`);
         }
       } catch(e) { console.error(e); toast('error', "Erreur Finance"); }
   };
@@ -372,20 +427,52 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch(e) { console.error(e); toast('error', "Erreur Performance"); }
   };
 
-  const transferFunds = async (sourceId: string, targetId: string, amount: number) => { /* Impl */ };
+  const transferFunds = async (sourceId: string, targetId: string, amount: number) => { 
+      // Logic placeholder for student-to-student transfer
+      const sourceAgency = agencies.find(a => a.members.some(m => m.id === sourceId));
+      if (!sourceAgency) return;
+      // ... implementation ...
+  };
+  
   const tradeScoreForCash = async (studentId: string, scoreAmount: number) => { /* Impl */ };
+  
   const injectCapital = async (studentId: string, agencyId: string, amount: number) => { 
       const agency = agencies.find(a => a.id === agencyId);
       if(!agency) return;
       const student = agency.members.find(m => m.id === studentId);
-      if(!student || (student.wallet || 0) < amount) return;
+      if(!student || (student.wallet || 0) < amount) {
+          toast('error', "Fonds insuffisants.");
+          return;
+      }
       
+      // Calculate tax
+      const tax = Math.floor(amount * GAME_RULES.INJECTION_TAX);
+      const netInjection = amount - tax;
+
       const batch = writeBatch(db);
+      
       const updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - amount } : m);
-      const updatedAgency = { ...agency, members: updatedMembers, budget_real: agency.budget_real + amount };
+      
+      const today = new Date().toISOString().split('T')[0];
+      const newEvent: GameEvent = {
+          id: `inj-${Date.now()}`,
+          date: today,
+          type: 'INFO',
+          label: 'Injection Capital',
+          deltaBudgetReal: netInjection,
+          description: `${student.name} injecte ${amount} PiXi (Taxe: ${tax}).`
+      };
+
+      const updatedAgency = { 
+          ...agency, 
+          members: updatedMembers, 
+          budget_real: agency.budget_real + netInjection,
+          eventLog: [...agency.eventLog, newEvent] 
+      };
+      
       batch.set(doc(db, "agencies", agency.id), updatedAgency, { merge: true });
       await batch.commit();
-      toast('success', 'Injection réussie');
+      toast('success', `Injection: +${netInjection} PiXi (Taxe -${tax})`);
   };
   
   const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 

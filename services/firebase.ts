@@ -1,8 +1,36 @@
 
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { initializeApp } from "firebase/app";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile,
+  User 
+} from "firebase/auth";
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  writeBatch, 
+  deleteDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
+import { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from "firebase/storage";
 
 // Configuration officielle RNP1001
 const firebaseConfig = {
@@ -15,30 +43,50 @@ const firebaseConfig = {
   measurementId: "G-QSVQW2K3CX"
 };
 
-// Initialize Firebase using compat to ensure Auth availability
-const app = firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
-// Initialize Analytics safely
-const analytics = null;
-
-// Auth Exports (v8 compat wrapped as v9 style)
-export const auth = app.auth();
-export const googleProvider = new firebase.auth.GoogleAuthProvider();
-
-export const signInWithPopup = (authInstance: any, provider: any) => authInstance.signInWithPopup(provider);
-// Wrapper spécifique pour Google utilisé dans LoginPage
-export const signInWithGoogle = () => auth.signInWithPopup(googleProvider);
-
-export const signInWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.signInWithEmailAndPassword(email, pass);
-export const createUserWithEmailAndPassword = (authInstance: any, email: string, pass: string) => authInstance.createUserWithEmailAndPassword(email, pass);
-export const signOut = (authInstance: any) => authInstance.signOut();
-export const onAuthStateChanged = (authInstance: any, observer: any) => authInstance.onAuthStateChanged(observer);
-export const updateProfile = (user: any, profile: any) => user.updateProfile(profile);
-
-export type User = firebase.User;
-
-// Firestore & Storage (v9 modular style)
+// Initialize Services
+export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const googleProvider = new GoogleAuthProvider();
+export const analytics = null;
 
-export { doc, setDoc, getDoc, updateDoc, analytics };
+// Helper for Google Sign In
+export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+
+// Re-export Auth functions
+export { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  updateProfile 
+};
+
+// Re-export Firestore functions
+export { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  writeBatch, 
+  deleteDoc, 
+  serverTimestamp 
+};
+
+// Re-export Storage functions
+export { 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+};
+
+// Export Types
+export type { User };
