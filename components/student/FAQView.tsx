@@ -5,14 +5,14 @@ import { HelpCircle, TrendingUp, Coins, Zap, ShieldAlert, Rocket, Info, Landmark
 export const FAQView: React.FC = () => {
     const sections = [
         {
-            title: "C'est quoi la VE ?",
+            title: "C'est quoi les Notes ?",
             icon: <TrendingUp className="text-indigo-500" />,
-            content: "La Valeur d'Entreprise (VE) est votre 'Note de Groupe' dynamique. Elle commence à 0 et peut monter jusqu'à 100. Elle reflète la qualité de vos rendus, votre sérieux et votre réactivité face aux crises."
+            content: "Il y a 2 notes : Note de GROUPE (60% VE, 10% Trésorerie, 30% Projet) et Note INDIVIDUELLE (50% Score, 20% Tréso Perso, 30% Projet)."
         },
         {
             title: "Le PiXi, c'est quoi ?",
             icon: <Coins className="text-yellow-500" />,
-            content: "Le PiXi est la monnaie officielle du studio. Il sert à payer votre loyer (500/semaine) et vos salaires personnels. Si votre compte est à sec, vos salaires sont gelés et votre VE chute (Malus de dette)."
+            content: "Le PiXi est la monnaie officielle du studio. Il sert à payer votre loyer (500/semaine) et vos salaires personnels. Si votre compte est à sec, vos salaires sont gelés et vous risquez la faillite."
         },
         {
             title: "Comment gagne-t-on de l'argent ?",
@@ -27,12 +27,12 @@ export const FAQView: React.FC = () => {
         {
             title: "Quelles sont les règles vitales ?",
             icon: <ShieldAlert className="text-red-500" />,
-            content: "1. Un rendu non fait = Chute de VE massive. 2. Une agence avec un seul membre est plafonnée à 60 VE (Plafond de verre). 3. Sous 40 VE, votre studio est 'Vulnérable' et peut être racheté par un concurrent."
+            content: "1. FAILLITE TOTALE si l'agence atteint -5000 PiXi. 2. VE à 0 = Crise majeure mais pas de fermeture immédiate. 3. Sous 40 VE, votre studio est 'Vulnérable' et peut être racheté."
         },
         {
             title: "L'Objectif Final ?",
             icon: <Rocket className="text-purple-500" />,
-            content: "Le but est d'arriver au Jury Final avec la plus grosse Levée de Fonds possible. Elle est calculée sur : Votre VE finale + Votre Trésorerie accumulée + La qualité de votre projet spatial."
+            content: "Le but est d'arriver au Jury Final avec la plus grosse Levée de Fonds possible et une VE maximum. Votre note finale dépend de votre capacité à générer de la valeur (VE + Cash)."
         }
     ];
 

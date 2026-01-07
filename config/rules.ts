@@ -37,6 +37,9 @@ export const GAME_RULES = {
     // MERGERS
     MERGER_VE_THRESHOLD: 40, // Une agence doit être sous 40 VE pour être rachetée
     MERGER_MAX_MEMBERS: 6, // Impossible de fusionner si total > 6
+
+    // BANKRUPTCY
+    BANKRUPTCY_THRESHOLD: -5000, // Seuil de faillite définitive
 };
 
 export const CONSTRAINTS_POOL = {

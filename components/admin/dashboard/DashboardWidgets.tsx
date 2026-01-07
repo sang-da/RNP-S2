@@ -3,6 +3,7 @@ import React from 'react';
 import { Agency, Deliverable, TransactionRequest } from '../../../types';
 import { UserPlus, Briefcase, UserMinus, Wallet, CheckCircle2, UserCog, ArrowRight, X, Check, Eye } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
+import { GAME_RULES } from '../../../constants';
 
 interface DashboardWidgetsProps {
     pendingUsersCount: number;
@@ -25,7 +26,9 @@ const detectAnomalies = (agency: Agency): string[] => {
             acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / agency.peerReviews.length;
         if (averageScore > 4.8) anomalies.push("Notes Suspectes");
     }
-    if (agency.budget_real < 0) anomalies.push("Faillite imminente");
+    if (agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD) anomalies.push("FAILLITE !!!");
+    else if (agency.budget_real < 0) anomalies.push("Dette (Gel Salaire)");
+    
     if (agency.eventLog.length < 2) anomalies.push("Inactivité détectée");
     return anomalies;
 };

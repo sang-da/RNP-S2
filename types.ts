@@ -151,6 +151,21 @@ export interface TransactionRequest {
     date: string;
 }
 
+// --- NEW: AI ANALYSIS TYPES ---
+export interface AIInsight {
+    id: string;
+    type: 'URGENT' | 'WARNING' | 'OPPORTUNITY';
+    title: string;
+    analysis: string; // L'explication du "Pourquoi"
+    suggestedAction: {
+        label: string;
+        actionType: 'CRISIS' | 'REWARD' | 'MESSAGE' | 'AUDIT';
+        payload?: any; // Données pour pré-remplir l'action
+    };
+    targetAgencyId?: string;
+    targetStudentId?: string;
+}
+
 // --- NEW TYPES FOR GAMIFICATION ---
 
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';

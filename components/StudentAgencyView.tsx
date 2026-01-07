@@ -266,6 +266,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                     <p className="text-sm text-slate-600 leading-relaxed mb-2">
                         La <strong>Valeur d'Entreprise (VE)</strong> est votre "note de groupe" dynamique (/100). 
                         <br/>Elle fluctue selon vos rendus, vos choix et les événements.
+                        <br/><br/>
+                        <strong>Attention :</strong> Si votre VE tombe à 0, c'est grave, mais la vraie mort est financière : <strong>-5000 PiXi = FAILLITE</strong>.
                     </p>
                 </div>
             </div>
@@ -338,6 +340,7 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
     const [scoreToBuy, setScoreToBuy] = useState(0);
 
     const isPrecarious = (student.wallet || 0) < 0;
+    const isBankrupt = agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD;
 
     const handleTransfer = async () => {
         if(!targetId || amount <= 0) return;
@@ -361,7 +364,7 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
     return (
         <div className="animate-in fade-in space-y-6">
             {/* AGENCY TREASURY CARD - VERY VISIBLE NOW */}
-            <div className="bg-slate-900 rounded-3xl p-6 border border-slate-700 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className={`bg-slate-900 rounded-3xl p-6 border shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 ${isBankrupt ? 'border-red-500 ring-4 ring-red-500/30' : 'border-slate-700'}`}>
                 <div className="flex items-center gap-4">
                     <div className="p-4 bg-indigo-500/20 rounded-2xl text-indigo-400 border border-indigo-500/30">
                         <Bank size={32}/>
@@ -376,9 +379,13 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                     <div className={`px-4 py-1.5 rounded-full text-xs font-bold border ${
                         agency.budget_real > 1000 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
                         agency.budget_real > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
-                        'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse'
+                        agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD ? 'bg-red-600 text-white border-red-500 animate-pulse' :
+                        'bg-red-500/10 text-red-400 border-red-500/20'
                     }`}>
-                        {agency.budget_real > 1000 ? 'SOLVABLE' : agency.budget_real > 0 ? 'FRAGILE' : 'ENDETTÉ (RISQUE SAISIE)'}
+                        {agency.budget_real > 1000 ? 'SOLVABLE' : 
+                         agency.budget_real > 0 ? 'FRAGILE' : 
+                         agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD ? 'FAILLITE (-5000)' : 
+                         'ENDETTÉ (GEL)'}
                     </div>
                 </div>
             </div>

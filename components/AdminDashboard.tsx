@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Agency, Deliverable, WeekModule, TransactionRequest } from '../types';
+import { Agency, Deliverable, WeekModule, TransactionRequest, AIInsight } from '../types';
 import { collection, query, where, onSnapshot } from '../services/firebase';
 import { db } from '../services/firebase';
+import { useUI } from '../contexts/UIContext'; // Added useUI
 
 // IMPORTS SUB-COMPONENTS
 import { ActionToolbar } from './admin/dashboard/ActionToolbar';
@@ -10,6 +11,7 @@ import { DashboardWidgets } from './admin/dashboard/DashboardWidgets';
 import { AgencyLeaderboard } from './admin/dashboard/AgencyLeaderboard';
 import { ActivityFeed } from './admin/dashboard/ActivityFeed';
 import { GradingModal, AuditRHModal, ControlPanelModal } from './admin/dashboard/DashboardModals';
+import { AIBriefing } from './admin/dashboard/AIBriefing'; // IMPORT AI BRIEFING
 
 interface AdminDashboardProps {
   agencies: Agency[];
@@ -22,6 +24,7 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onNavigate, readOnly }) => {
+  const { toast } = useUI(); // Added hook
   
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
@@ -90,6 +93,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
     return reviews;
   }, [activeAgencies]);
 
+  // --- AI ACTION HANDLER ---
+  const handleAIAction = (insight: AIInsight) => {
+      if(readOnly) return;
+      
+      const targetAgency = agencies.find(a => a.id === insight.targetAgencyId);
+      if(!targetAgency) return;
+
+      // Ici, on pourrait implémenter une logique automatique complexe.
+      // Pour l'instant, on ouvre les modales correspondantes ou on applique un effet simple.
+      
+      if (insight.suggestedAction.actionType === 'AUDIT') {
+          setAuditAgency(targetAgency);
+          toast('info', `Ouverture Audit RH pour ${targetAgency.name}`);
+      } else if (insight.suggestedAction.actionType === 'CRISIS' || insight.suggestedAction.actionType === 'REWARD') {
+          onNavigate('CRISIS');
+          toast('info', `Redirection vers Zone de Crise pour appliquer: ${insight.title}`);
+      } else {
+          toast('info', `Action "${insight.suggestedAction.label}" notée. À traiter manuellement.`);
+      }
+  };
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 font-sans pb-20">
       
@@ -101,6 +125,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         onOpenControlPanel={() => setShowControlPanel(true)}
         readOnly={readOnly}
       />
+
+      {/* --- AI BRIEFING SECTION (NEW) --- */}
+      {!readOnly && (
+          <AIBriefing agencies={activeAgencies} onApplyAction={handleAIAction} />
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         
