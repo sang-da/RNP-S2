@@ -140,9 +140,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // HELPER: Get Current Week
   const getCurrentGameWeek = () => {
-      // Logic: Find the highest week number that is unlocked.
-      // Or simply return 3 for dev purposes if needed, but better to calculate.
-      // Cast Object.values(weeks) to WeekModule[] to fix 'unknown' type errors for property 'locked' and 'id'
       const unlockedWeeks = (Object.values(weeks) as WeekModule[]).filter(w => !w.locked).map(w => parseInt(w.id));
       return unlockedWeeks.length > 0 ? Math.max(...unlockedWeeks) : 1;
   };
@@ -183,7 +180,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const batch = writeBatch(db);
         newAgencies.forEach(a => {
             const ref = doc(db, "agencies", a.id);
-            batch.update(ref, { ...a });
+            // Use batch.set with merge:true instead of batch.update 
+            // to support creating new documents (like a new agency)
+            batch.set(ref, a, { merge: true });
         });
         await batch.commit();
       } catch(e) {
@@ -356,7 +355,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const batch = writeBatch(db);
       const updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - amount } : m);
       const updatedAgency = { ...agency, members: updatedMembers, budget_real: agency.budget_real + amount };
-      batch.update(doc(db, "agencies", agency.id), updatedAgency);
+      batch.set(doc(db, "agencies", agency.id), updatedAgency, { merge: true });
       await batch.commit();
       toast('success', 'Injection réussie');
   };
@@ -398,11 +397,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Execution Logic (Simplified for context update)
           const targetAgency = agencies.find(a => a.id === 'unassigned');
           if(targetAgency) {
-               // Execution Logic (Simplified for context update)
                const student = agency.members.find(m => m.id === request.studentId);
                if(student) {
                    const updatedSource = agency.members.filter(m => m.id !== request.studentId);
-                   const updatedTarget = [...targetAgency.members, { ...student, history: [] }]; // Simplified history update
+                   const updatedTarget = [...targetAgency.members, { ...student, history: [] }];
                    batch.update(doc(db, "agencies", agency.id), { members: updatedSource, mercatoRequests: agency.mercatoRequests.filter(r => r.id !== requestId) });
                    batch.update(doc(db, "agencies", targetAgency.id), { members: updatedTarget });
                }
@@ -448,15 +446,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // 2. Execute Effect
       if (type === 'LEAK') {
-          // Leak logic: Just a notification for now (Simulated "Intel")
           toast('success', "Fuite obtenue : Le brief de la semaine prochaine contient une contrainte 'Low Tech'.");
       } else if (type === 'AUDIT') {
-          // Audit Logic: Check Target Health
-          // Vulnerability: < 50% attendance (mocked by low VE) or Negative Budget
           const isVulnerable = targetAgency.budget_real < 0 || targetAgency.ve_current < 40;
-          
           if (isVulnerable) {
-               // SUCCESSFUL ATTACK
                const targetRef = doc(db, "agencies", targetAgency.id);
                batch.update(targetRef, {
                    ve_current: Math.max(0, targetAgency.ve_current - 10),
@@ -466,7 +459,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                });
                toast('success', `Audit réussi ! ${targetAgency.name} perd 10 VE.`);
           } else {
-               // BACKFIRE
                batch.update(sourceRef, {
                    ve_current: Math.max(0, sourceAgency.ve_current - 20),
                    eventLog: [...sourceAgency.eventLog, {
@@ -476,7 +468,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                toast('error', `Echec ! ${targetAgency.name} est clean. Vous perdez 20 VE pour diffamation.`);
           }
       }
-
       await batch.commit();
   };
 
@@ -520,8 +511,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if(!request) return;
 
       const batch = writeBatch(db);
-      
-      // Update Target Requests (Remove pending)
       const updatedRequests = targetAgency.mergerRequests?.filter(r => r.id !== mergerId);
       
       if (!approved) {
@@ -534,20 +523,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const sourceAgency = agencies.find(a => a.id === request.requesterAgencyId);
       if(!sourceAgency) return;
 
-      // CHECK LIMITS
       if (sourceAgency.members.length + targetAgency.members.length > GAME_RULES.MERGER_MAX_MEMBERS) {
           toast('error', `Fusion impossible : La nouvelle équipe dépasserait ${GAME_RULES.MERGER_MAX_MEMBERS} membres.`);
           return;
       }
 
-      // EXECUTE FUSION
-      // 1. Move Members
       const newMembers = [...sourceAgency.members, ...targetAgency.members];
-      
-      // 2. Absorb Budget (Debts included!)
       const newBudget = sourceAgency.budget_real + targetAgency.budget_real;
       
-      // 3. Update Source
       batch.update(doc(db, "agencies", sourceAgency.id), {
           members: newMembers,
           budget_real: newBudget,
@@ -556,8 +539,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }]
       });
 
-      // 4. Delete Target (or Reset to empty shell)
-      // Ideally delete, but to avoid bugs with references, let's empty it and mark as DISSOLVED
       batch.update(doc(db, "agencies", targetAgency.id), {
           members: [],
           status: 'critique',

@@ -36,7 +36,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
-  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek } = useGame();
+  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
@@ -205,7 +205,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                     onRequestScore={requestScorePurchase}
                 />
             )}
-            {(activeTab === 'RECRUITMENT' || agency.id === 'unassigned') && <MercatoView agency={agency} allAgencies={allAgencies} onUpdateAgency={onUpdateAgency} onUpdateAgencies={() => {}} />}
+            {(activeTab === 'RECRUITMENT' || agency.id === 'unassigned') && (
+              <MercatoView 
+                agency={agency} 
+                allAgencies={allAgencies} 
+                onUpdateAgency={onUpdateAgency} 
+                onUpdateAgencies={updateAgenciesList} 
+              />
+            )}
             {activeTab === 'RESOURCES' && <WikiView agency={agency} />}
             {activeTab === 'HISTORY' && <HistoryView agency={agency} />}
         </div>
