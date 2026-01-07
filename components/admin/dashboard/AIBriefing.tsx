@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Agency, AIInsight } from '../../../types';
 import { analyzeAgenciesWithGroq } from '../../../services/groqService';
-import { Sparkles, AlertTriangle, TrendingUp, Zap, RefreshCw, Lock, KeyRound } from 'lucide-react';
+import { Sparkles, AlertTriangle, TrendingUp, RefreshCw, Lock } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
 
 interface AIBriefingProps {
@@ -14,73 +14,22 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({ agencies, onApplyAction 
     const { toast } = useUI();
     const [insights, setInsights] = useState<AIInsight[]>([]);
     const [loading, setLoading] = useState(false);
-    const [apiKey, setApiKey] = useState(localStorage.getItem('GROQ_API_KEY') || '');
-    const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem('GROQ_API_KEY'));
-
-    const handleSaveKey = () => {
-        if(apiKey.startsWith('gsk_')) {
-            localStorage.setItem('GROQ_API_KEY', apiKey);
-            setShowKeyInput(false);
-            toast('success', 'Clé API enregistrée localement');
-        } else {
-            toast('error', 'Format de clé invalide (doit commencer par gsk_)');
-        }
-    };
 
     const runAnalysis = async () => {
-        if (!apiKey) {
-            setShowKeyInput(true);
-            return;
-        }
-        
         setLoading(true);
         try {
-            const results = await analyzeAgenciesWithGroq(agencies, apiKey);
+            // L'appel ne prend plus la clé en paramètre, elle est gérée dans le service/config
+            const results = await analyzeAgenciesWithGroq(agencies);
             setInsights(results);
             if(results.length > 0) toast('success', 'Analyse IA terminée');
             else toast('info', 'Aucun signal détecté pour le moment');
-        } catch (error) {
-            toast('error', 'Erreur IA. Vérifiez la clé API.');
-            setShowKeyInput(true);
+        } catch (error: any) {
+            console.error(error);
+            toast('error', `Erreur IA : ${error.message}`);
         } finally {
             setLoading(false);
         }
     };
-
-    if (showKeyInput) {
-        return (
-            <div className="bg-slate-900 text-white rounded-3xl p-6 mb-8 border border-indigo-500/30 shadow-xl relative overflow-hidden">
-                <div className="flex items-center justify-between mb-4 relative z-10">
-                    <h3 className="text-xl font-display font-bold flex items-center gap-2">
-                        <Sparkles className="text-yellow-400" /> Morning Briefing (IA)
-                    </h3>
-                </div>
-                <div className="relative z-10 max-w-md">
-                    <p className="text-slate-400 text-sm mb-4">Pour activer l'analyste virtuel, entrez votre clé API Groq (gratuite).</p>
-                    <div className="flex gap-2">
-                        <div className="relative flex-1">
-                            <KeyRound size={16} className="absolute left-3 top-3 text-slate-500"/>
-                            <input 
-                                type="password" 
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="gsk_..."
-                                className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                        <button onClick={handleSaveKey} className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl font-bold text-sm transition-colors">
-                            Activer
-                        </button>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-2 italic">La clé est stockée uniquement dans votre navigateur.</p>
-                </div>
-                {/* Decoration */}
-                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                    <Sparkles size={200} />
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-3xl p-6 mb-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700">
@@ -93,20 +42,17 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({ agencies, onApplyAction 
                         <h3 className="text-2xl font-display font-bold flex items-center gap-2">
                             <Sparkles className="text-yellow-400 animate-pulse" /> Morning Briefing
                         </h3>
-                        <p className="text-slate-400 text-sm">Votre analyste IA a scanné les {agencies.length} agences.</p>
+                        <p className="text-slate-400 text-sm">Analyste virtuel : Llama 3.3 70B (Groq)</p>
                     </div>
                     
-                    <div className="flex gap-2">
-                        <button 
-                            onClick={runAnalysis}
-                            disabled={loading}
-                            className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all disabled:opacity-50"
-                        >
-                            {loading ? <RefreshCw className="animate-spin" size={16}/> : <Zap size={16} className="text-yellow-400"/>}
-                            {loading ? 'Analyse en cours...' : 'Lancer l\'Audit IA'}
-                        </button>
-                        <button onClick={() => setShowKeyInput(true)} className="p-2 text-slate-500 hover:text-white transition-colors" title="Changer Clé API"><KeyRound size={16}/></button>
-                    </div>
+                    <button 
+                        onClick={runAnalysis}
+                        disabled={loading}
+                        className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                    >
+                        {loading ? <RefreshCw className="animate-spin" size={16}/> : <Sparkles size={16} className="text-yellow-400"/>}
+                        {loading ? 'Analyse en cours...' : 'Lancer l\'Audit IA'}
+                    </button>
                 </div>
 
                 {loading ? (
@@ -144,16 +90,18 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({ agencies, onApplyAction 
                                 <h4 className="font-bold text-lg leading-tight mb-2">{insight.title}</h4>
                                 <p className="text-sm text-slate-300 mb-4 flex-1">{insight.analysis}</p>
                                 
-                                <button 
-                                    onClick={() => onApplyAction(insight)}
-                                    className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors ${
-                                        insight.type === 'URGENT' ? 'bg-red-600 hover:bg-red-500 text-white' : 
-                                        insight.type === 'WARNING' ? 'bg-amber-500 hover:bg-amber-400 text-black' : 
-                                        'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                    }`}
-                                >
-                                    {insight.suggestedAction.label}
-                                </button>
+                                {insight.suggestedAction && (
+                                    <button 
+                                        onClick={() => onApplyAction(insight)}
+                                        className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors ${
+                                            insight.type === 'URGENT' ? 'bg-red-600 hover:bg-red-500 text-white' : 
+                                            insight.type === 'WARNING' ? 'bg-amber-500 hover:bg-amber-400 text-black' : 
+                                            'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                        }`}
+                                    >
+                                        {insight.suggestedAction.label}
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>

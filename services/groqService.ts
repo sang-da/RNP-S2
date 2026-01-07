@@ -1,38 +1,39 @@
 
 import { Agency, AIInsight } from '../types';
-
-// Nous utilisons fetch directement pour éviter les dépendances lourdes et pour le prototypage rapide.
-// Dans un environnement de prod, la clé API serait sécurisée côté serveur ou via un proxy.
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+import { GROQ_KEY, GROQ_MODEL, GROQ_API_URL } from '../functions/groqConfig';
 
 const SYSTEM_PROMPT = `
 Tu es le "Chief Operating Officer" (COO) IA d'une école de design. Tu assistes l'enseignant principal.
 Ta mission est d'analyser les données financières, pédagogiques et humaines des agences étudiantes pour détecter :
-1. URGENT : Risques de faillite imminente (-5000 PiXi), décrochage technique grave, ou conflit humain (basé sur les reviews).
+1. URGENT : Risques de faillite imminente (-5000 PiXi), décrochage technique grave, ou conflit humain.
 2. WARNING : Signaux faibles (baisse de VE, trésorerie qui fond trop vite, passager clandestin).
 3. OPPORTUNITY : Groupes qui sur-performent et s'ennuient, méritant un challenge "Dungeon Master" ou un investissement.
 
-Tu dois analyser non seulement les chiffres mais aussi le CONTEXTE (Description du projet, Charte) pour proposer des scénarios narratifs adaptés.
-Par exemple, si un groupe travaille sur un projet "Écologique" et sur-performe, propose une opportunité liée à une "Subvention Verte". Si un groupe est en faillite, propose un "Rachat de dette contre perte de contrôle".
-
-FORMAT DE RÉPONSE ATTENDU (JSON Array uniquement) :
+IMPORTANT : Tu dois retourner UNIQUEMENT un tableau JSON valide. Pas de texte avant ou après.
+Format :
 [
   {
-    "id": "unique_id",
+    "id": "unique_string",
     "type": "URGENT" | "WARNING" | "OPPORTUNITY",
-    "title": "Titre court et percutant",
-    "analysis": "Analyse concise du problème ou de l'opportunité (max 2 phrases).",
+    "title": "Titre court",
+    "analysis": "Analyse concise.",
     "targetAgencyId": "id_agence",
     "suggestedAction": {
-        "label": "Nom du bouton d'action",
+        "label": "Action",
         "actionType": "CRISIS" | "REWARD" | "MESSAGE" | "AUDIT"
     }
   }
 ]
 `;
 
-export const analyzeAgenciesWithGroq = async (agencies: Agency[], apiKey: string): Promise<AIInsight[]> => {
-    // 1. Préparation de la Payload (On nettoie pour économiser des tokens)
+export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIInsight[]> => {
+    // Vérification de sécurité pour la clé
+    if (!GROQ_KEY || GROQ_KEY === "TA_CLE_GROQ_ICI") {
+        console.error("Clé Groq manquante dans functions/groqConfig.ts");
+        throw new Error("Clé API Groq non configurée.");
+    }
+
+    // 1. Préparation de la Payload optimisée
     const gameContext = agencies
         .filter(a => a.id !== 'unassigned')
         .map(a => ({
@@ -40,38 +41,33 @@ export const analyzeAgenciesWithGroq = async (agencies: Agency[], apiKey: string
             name: a.name,
             ve: a.ve_current,
             budget: a.budget_real,
-            members_count: a.members.length,
-            project_context: {
-                problem: a.projectDef.problem,
-                target: a.projectDef.target,
-                gesture: a.projectDef.gesture
-            },
-            recent_events: a.eventLog.slice(-3).map(e => ({ type: e.type, label: e.label, ve: e.deltaVE })),
-            // Calcul simple de variance pour détecter les conflits (simulé ici si pas de reviews récentes)
-            team_cohesion: "Inconnue (Pas assez de reviews)" 
+            project: a.projectDef.problem ? `${a.projectDef.problem} pour ${a.projectDef.target}` : "Non défini",
+            recent_events: a.eventLog.slice(-2).map(e => ({ label: e.label, ve: e.deltaVE })),
         }));
 
     try {
         const response = await fetch(GROQ_API_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
+                'Authorization': `Bearer ${GROQ_KEY}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "llama3-70b-8192", // Modèle performant et rapide
+                model: GROQ_MODEL,
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
-                    { role: "user", content: `Voici l'état actuel des agences (JSON): ${JSON.stringify(gameContext)}. Analyse-les et propose 3 à 5 insights majeurs.` }
+                    { role: "user", content: `Analyse ces données d'agences : ${JSON.stringify(gameContext)}` }
                 ],
-                temperature: 0.7,
-                max_tokens: 1024,
-                response_format: { type: "json_object" } // Force le JSON si supporté, sinon le prompt le demande déjà
+                temperature: 0.5, // Plus bas pour plus de rigueur JSON
+                max_tokens: 2048,
+                response_format: { type: "json_object" } // Force le mode JSON (supporté par Llama 3.3)
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Groq API Error: ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Groq API Error Detail:", errorData);
+            throw new Error(`Erreur API Groq (${response.status}): ${errorData?.error?.message || response.statusText}`);
         }
 
         const data = await response.json();
@@ -80,17 +76,26 @@ export const analyzeAgenciesWithGroq = async (agencies: Agency[], apiKey: string
         // Parsing robuste
         let insights: AIInsight[] = [];
         try {
-            // Parfois les modèles bavardent, on essaie d'extraire le JSON
-            const jsonMatch = content.match(/\[.*\]/s);
-            const jsonStr = jsonMatch ? jsonMatch[0] : content;
-            insights = JSON.parse(jsonStr);
+            const jsonResponse = JSON.parse(content);
+            // Parfois le modèle met le tableau dans une clé (ex: "insights": [...])
+            if (Array.isArray(jsonResponse)) {
+                insights = jsonResponse;
+            } else if (jsonResponse.insights && Array.isArray(jsonResponse.insights)) {
+                insights = jsonResponse.insights;
+            } else {
+                // Tentative de récupération des valeurs si c'est un objet étrange
+                insights = Object.values(jsonResponse).filter(v => typeof v === 'object') as any;
+            }
         } catch (parseError) {
             console.error("JSON Parse Error", parseError, content);
-            // Fallback manuel ou tableau vide
             return [];
         }
 
-        return insights;
+        // Ajout d'ID uniques si manquants
+        return insights.map((insight, idx) => ({
+            ...insight,
+            id: insight.id || `ai-insight-${Date.now()}-${idx}`
+        }));
 
     } catch (error) {
         console.error("Analysis Failed", error);
