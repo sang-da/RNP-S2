@@ -22,6 +22,7 @@ interface GameContextType {
   toggleAutoMode: () => void;
   updateAgency: (agency: Agency) => void;
   updateAgenciesList: (agencies: Agency[]) => void;
+  deleteAgency: (agencyId: string) => Promise<void>; // NEW
   updateWeek: (weekId: string, week: WeekModule) => void;
   
   // Wiki Actions
@@ -180,14 +181,41 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const batch = writeBatch(db);
         newAgencies.forEach(a => {
             const ref = doc(db, "agencies", a.id);
-            // Use batch.set with merge:true instead of batch.update 
-            // to support creating new documents (like a new agency)
             batch.set(ref, a, { merge: true });
         });
         await batch.commit();
       } catch(e) {
          console.error(e);
          toast('error', 'Erreur mise à jour multiple');
+      }
+  };
+
+  const deleteAgency = async (agencyId: string) => {
+      try {
+          const agencyToDelete = agencies.find(a => a.id === agencyId);
+          if (!agencyToDelete) return;
+
+          const batch = writeBatch(db);
+
+          // 1. Move existing members to 'unassigned' if any
+          if (agencyToDelete.members.length > 0) {
+              const unassignedRef = doc(db, "agencies", "unassigned");
+              const unassignedAgency = agencies.find(a => a.id === 'unassigned');
+              if (unassignedAgency) {
+                  const updatedMembers = [...unassignedAgency.members, ...agencyToDelete.members];
+                  batch.update(unassignedRef, { members: updatedMembers });
+              }
+          }
+
+          // 2. Delete the agency document
+          const agencyRef = doc(db, "agencies", agencyId);
+          batch.delete(agencyRef);
+
+          await batch.commit();
+          toast('success', `Agence supprimée. Membres transférés au vivier.`);
+      } catch (e) {
+          console.error(e);
+          toast('error', "Erreur lors de la suppression");
       }
   };
 
@@ -394,7 +422,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const batch = writeBatch(db);
       if (approvals / totalVoters > threshold) {
-          // Execution Logic (Simplified for context update)
           const targetAgency = agencies.find(a => a.id === 'unassigned');
           if(targetAgency) {
                const student = agency.members.find(m => m.id === request.studentId);
@@ -557,7 +584,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <GameContext.Provider value={{
       agencies, weeks, resources, role, selectedAgencyId, isAutoMode,
-      setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, updateWeek,
+      setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, deleteAgency, updateWeek,
       addResource, deleteResource, shuffleConstraints, processFinance, processPerformance, resetGame,
       transferFunds, tradeScoreForCash, injectCapital, requestScorePurchase, handleTransactionRequest,
       submitMercatoVote, triggerBlackOp, proposeMerger, finalizeMerger, getCurrentGameWeek

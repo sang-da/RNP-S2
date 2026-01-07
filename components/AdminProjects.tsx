@@ -1,7 +1,9 @@
 
 import React, { useState } from 'react';
 import { Agency } from '../types';
-import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List } from 'lucide-react';
+import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2 } from 'lucide-react';
+import { useUI } from '../contexts/UIContext';
+import { useGame } from '../contexts/GameContext';
 
 interface AdminProjectsProps {
   agencies: Agency[];
@@ -10,6 +12,9 @@ interface AdminProjectsProps {
 }
 
 export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdateAgency, readOnly }) => {
+  const { confirm, toast } = useUI();
+  const { deleteAgency } = useGame();
+  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ problem: '', target: '', location: '', gesture: '' });
 
@@ -29,6 +34,26 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
         }
     });
     setEditingId(null);
+  };
+
+  const handleDelete = async (agency: Agency) => {
+      if(readOnly) return;
+      
+      const memberCount = agency.members.length;
+      const message = memberCount > 0 
+        ? `ATTENTION : Cette agence contient ${memberCount} membres.\n\nSi vous supprimez, ils seront transférés automatiquement dans le vivier "Chômage".`
+        : "Voulez-vous supprimer définitivement cette agence ?";
+
+      const isConfirmed = await confirm({
+          title: `Supprimer ${agency.name} ?`,
+          message: message,
+          confirmText: "Supprimer Définitivement",
+          isDangerous: true
+      });
+
+      if(isConfirmed) {
+          await deleteAgency(agency.id);
+      }
   };
 
   return (
@@ -53,6 +78,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                             <th className="p-4 text-right">VE</th>
                             <th className="p-4 text-right hidden md:table-cell">Budget</th>
                             <th className="p-4 text-right">Membres</th>
+                            <th className="p-4 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -97,6 +123,17 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                 </td>
                                 <td className="p-3 text-right">
                                     <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{agency.members.length}</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                    {!readOnly && (
+                                        <button 
+                                            onClick={() => handleDelete(agency)}
+                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Supprimer l'agence"
+                                        >
+                                            <Trash2 size={16}/>
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}

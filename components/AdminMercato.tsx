@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Agency, GameEvent, MercatoRequest, StudentHistoryEntry, CycleType } from '../types';
-import { ArrowRightLeft, UserPlus, UserMinus, Briefcase, Plus, AlertCircle, Check, X, FileSearch, UserX, Coins, Quote, User, Info, Building2, School, Wallet } from 'lucide-react';
+import { Agency, MercatoRequest, CycleType } from '../types';
+import { ArrowRightLeft, UserPlus, Briefcase, Plus, AlertCircle, Check, X, Quote, Building2 } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { GAME_RULES, INITIAL_WEEKS } from '../constants';
 import { Modal } from './Modal';
@@ -69,7 +69,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
     if (!sourceAgency || !targetAgency || !student) return;
 
     const today = new Date().toISOString().split('T')[0];
-    const newHistory: StudentHistoryEntry[] = [...(student.history || [])];
+    const newHistory = [...(student.history || [])];
     
     if (sourceAgencyId !== 'unassigned') {
         newHistory.push({
@@ -94,8 +94,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
     const updatedTargetMembers = [...targetAgency.members, updatedStudent];
     const updatedTarget = { ...targetAgency, members: updatedTargetMembers };
 
-    let eventSource: GameEvent | null = null;
-    let eventTarget: GameEvent | null = null;
+    let eventSource: any = null;
+    let eventTarget: any = null;
     let sourceVEDelta = 0;
     let targetVEDelta = 0;
 
@@ -165,12 +165,9 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       if(readOnly) return;
       
       if (request.type === 'FOUND_AGENCY') {
-          // Utilise la même logique que la création manuelle, mais pilotée par la demande
           const studentData = findStudentData(request.studentId);
           if(!studentData) return;
           
-          // Redirige vers la logique de création manuelle avec les infos pré-remplies si besoin,
-          // ou exécute directement ici (implémenté directement pour simplifier)
           const student = studentData.student;
           const newAgencyId = `a-${Date.now()}`;
           const newAgency: Agency = {
