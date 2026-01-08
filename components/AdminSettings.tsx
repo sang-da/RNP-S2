@@ -1,10 +1,12 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
 import { updateProfile } from '../services/firebase';
 import { auth } from '../services/firebase';
-import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2, Bell } from 'lucide-react';
+import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2, Bell, FileSpreadsheet } from 'lucide-react';
+import { DataExportModal } from './admin/DataExportModal'; // IMPORT
 
 interface AdminSettingsProps {
     readOnly?: boolean;
@@ -12,12 +14,13 @@ interface AdminSettingsProps {
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
     const { userData, currentUser } = useAuth();
-    const { resetGame } = useGame();
+    const { resetGame, agencies } = useGame(); // GET AGENCIES
     const { confirm, toast } = useUI();
     
     const [displayName, setDisplayName] = useState(userData?.displayName || '');
     const [isSaving, setIsSaving] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false); // MODAL STATE
 
     const handleUpdateProfile = async () => {
         if(readOnly) return;
@@ -129,6 +132,22 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
                     </div>
                 </div>
 
+                {/* SECTION EXPORT */}
+                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                    <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                        <FileSpreadsheet size={20}/> Exports & Rapports
+                    </h3>
+                    <p className="text-sm text-emerald-700/80 mb-4">
+                        Générez des fichiers CSV contenant toutes les données brutes (Agences, Notes, Livrables, Historique) pour traitement dans Excel.
+                    </p>
+                    <button 
+                        onClick={() => setIsExportModalOpen(true)}
+                        className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                    >
+                        <FileSpreadsheet size={18}/> Exporter les données
+                    </button>
+                </div>
+
                 {/* DANGER ZONE */}
                 {!readOnly && (
                 <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
@@ -162,6 +181,13 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
                      </button>
                 </div>
             </div>
+
+            {/* EXPORT MODAL */}
+            <DataExportModal 
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                agencies={agencies}
+            />
         </div>
     );
 };
