@@ -4,6 +4,7 @@ import { Agency } from '../types';
 import { askGroq } from '../services/groqService';
 import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
+import { GAME_RULES } from '../constants'; // Import des règles économiques
 
 interface AdminAIAssistantProps {
     agencies: Agency[];
@@ -33,17 +34,64 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [chatHistory, loading]);
 
-    // --- PREPARER LA DATA CONTEXTUELLE (VERSION LIGHT) ---
-    const getContextData = () => {
-        return agencies.filter(a => a.id !== 'unassigned').map(a => ({
-            nom: a.name,
-            classe: a.classId,
-            ve: a.ve_current,
-            tresorerie: a.budget_real,
-            membres: a.members.map(m => `${m.name} (Score: ${m.individualScore})`),
-            statut: a.status,
-            projet: a.projectDef.problem
-        }));
+    // --- CONTEXTE RICHE & RÈGLES DU JEU ---
+    const getRichContextData = () => {
+        // 1. Définition des règles pour l'IA
+        const rulesContext = {
+            currency: "PiXi",
+            rent_cost: GAME_RULES.AGENCY_RENT, // 500
+            salary_formula: "Score Individuel * 10",
+            bankruptcy_threshold: GAME_RULES.BANKRUPTCY_THRESHOLD, // -5000
+            revenue_formula: "(VE * 30) + Bonus",
+            ve_meaning: "Note de l'agence (0-100). Impacte les revenus.",
+            critical_status: "VE < 40 ou Budget < 0"
+        };
+
+        // 2. Analyse financière de chaque agence
+        const agenciesAnalysis = agencies.filter(a => a.id !== 'unassigned').map(a => {
+            const memberCount = a.members.length;
+            const totalScore = a.members.reduce((sum, m) => sum + m.individualScore, 0);
+            
+            // Calculs économiques
+            const weeklyPayroll = totalScore * GAME_RULES.SALARY_MULTIPLIER;
+            const weeklyRent = GAME_RULES.AGENCY_RENT;
+            const totalExpenses = weeklyPayroll + weeklyRent;
+            
+            const weeklyRevenue = (a.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER) + (a.weeklyRevenueModifier || 0) + GAME_RULES.REVENUE_BASE;
+            const netFlow = weeklyRevenue - totalExpenses; // Cashflow net
+
+            // Estimation survie
+            let weeksToDeath = "Illimité";
+            if (netFlow < 0) {
+                const remainingBudget = a.budget_real - GAME_RULES.BANKRUPTCY_THRESHOLD; // Distance avant -5000
+                weeksToDeath = Math.floor(remainingBudget / Math.abs(netFlow)) + " semaines";
+            }
+
+            return {
+                name: a.name,
+                class: a.classId,
+                metrics: {
+                    ve: a.ve_current,
+                    cash: a.budget_real,
+                    members: memberCount,
+                    avg_score: memberCount > 0 ? Math.round(totalScore / memberCount) : 0
+                },
+                financials: {
+                    weekly_expenses: totalExpenses,
+                    weekly_revenue: weeklyRevenue,
+                    net_cashflow: netFlow,
+                    burn_rate_alert: weeksToDeath
+                },
+                project: a.projectDef.problem ? `${a.projectDef.problem} (${a.projectDef.target})` : "Non défini",
+                top_talent: a.members.reduce((prev, current) => (prev.individualScore > current.individualScore) ? prev : current).name,
+                weakest_link: a.members.reduce((prev, current) => (prev.individualScore < current.individualScore) ? prev : current).name
+            };
+        });
+
+        return {
+            rules: rulesContext,
+            market_state: agenciesAnalysis
+        };
     };
 
     const handleChatSubmit = async (e?: React.FormEvent) => {
@@ -56,11 +104,22 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         setLoading(true);
 
         try {
-            const context = getContextData();
+            const context = getRichContextData();
+            const systemPrompt = `
+                Tu es l'Oracle Financier et Pédagogique du RNP Manager.
+                
+                TES RÈGLES D'OR :
+                1. L'argent (PiXi) est crucial. Une agence meurt à -5000 PiXi.
+                2. Tu dois juger la rentabilité. Une agence avec un Cashflow négatif est en danger, même si elle a une bonne VE.
+                3. Sois direct, un peu cynique, style "Corporate Finance".
+                4. Utilise les données fournies (Burn Rate, Top Talent) pour tes réponses.
+                5. Si on te demande "Qui va couler ?", regarde le 'burn_rate_alert'.
+            `;
+
             const answer = await askGroq(
                 userMsg, 
                 context, 
-                "Tu es l'Oracle du RNP Manager. Tu as accès à toutes les données. Réponds de manière précise, un peu cynique (style Corpo/Cyberpunk). Si on te demande des stats, calcule-les."
+                systemPrompt
             );
             setChatHistory(prev => [...prev, { role: 'ai', content: answer }]);
         } catch (error) {
@@ -74,14 +133,15 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     const handleGenerateScenario = async () => {
         setLoading(true);
         const targetAgency = agencies.find(a => a.id === targetAgencyId);
+        const context = getRichContextData(); // On passe tout le contexte pour qu'il puisse comparer
         
         let prompt = "";
-        if (scenarioType === "CRISIS") prompt = `Génère un scénario de crise narrative pour l'agence "${targetAgency?.name}". Le scénario doit être lié à leur projet "${targetAgency?.projectDef.problem}". Propose un titre, une description dramatique, et un impact suggéré sur la VE et le Budget.`;
-        if (scenarioType === "EMAIL") prompt = `Rédige un email formel et intimidant de la part de l'Administration à l'agence "${targetAgency?.name}" concernant leur performance actuelle (VE: ${targetAgency?.ve_current}, Budget: ${targetAgency?.budget_real}).`;
-        if (scenarioType === "BRIEF") prompt = `Invente une contrainte technique surprise ("Wildcard") pour le prochain rendu de l'agence "${targetAgency?.name}", qui soit ironique par rapport à leur style "${targetAgency?.constraints.style}".`;
+        if (scenarioType === "CRISIS") prompt = `Génère un scénario de crise financière ou technique pour l'agence "${targetAgency?.name}". Prends en compte qu'ils ont ${targetAgency?.budget_real} PiXi et une VE de ${targetAgency?.ve_current}. Si leur cashflow est négatif, appuie là où ça fait mal. Format: Titre, Description, Impact suggéré.`;
+        if (scenarioType === "EMAIL") prompt = `Rédige un email de la Direction Financière à "${targetAgency?.name}". Ton ton doit dépendre de leur santé financière (Cash: ${targetAgency?.budget_real}). S'ils sont riches, félicite-les mais incite à l'investissement. S'ils sont pauvres, menace-les de tutelle.`;
+        if (scenarioType === "BRIEF") prompt = `Invente une "Wildcard" (Contrainte surprise) pour le projet "${targetAgency?.projectDef.problem}" de l'agence "${targetAgency?.name}". Ça doit être ironique et difficile.`;
 
         try {
-            const result = await askGroq(prompt, { agency: targetAgency }, "Tu es un Maître du Jeu sadique mais juste.");
+            const result = await askGroq(prompt, context, "Tu es un Maître du Jeu sadique mais juste. Tu connais parfaitement les finances des étudiants.");
             setResponse(result);
         } catch (error) {
             toast('error', "Erreur génération.");
@@ -96,10 +156,23 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         
         // Find student data across all agencies
         let studentData = null;
+        let agencyContext = null;
+
         for (const a of agencies) {
             const s = a.members.find(m => m.name.toLowerCase().includes(targetStudentName.toLowerCase()));
             if (s) {
-                studentData = { ...s, agencyName: a.name, agencyStatus: a.status };
+                const salary = s.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                studentData = { 
+                    ...s, 
+                    cost_to_agency: salary, 
+                    is_profitable: s.individualScore > 60 // Simple heuristic
+                };
+                agencyContext = { 
+                    name: a.name, 
+                    ve: a.ve_current, 
+                    budget: a.budget_real, 
+                    status: a.status 
+                };
                 break;
             }
         }
@@ -111,11 +184,16 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         }
 
         const prompt = `Analyse le profil de l'étudiant ${studentData.name}. 
-        Données : Score ${studentData.individualScore}/100, Rôle ${studentData.role}, Agence ${studentData.agencyName} (${studentData.agencyStatus}).
-        Donne un avis psychologique sur sa performance, ses forces probables et ses risques de décrochage. Sois perspicace.`;
+        
+        Données : 
+        - Score: ${studentData.individualScore}/100
+        - Coût Salarial: ${studentData.cost_to_agency} PiXi/semaine
+        - Agence: ${agencyContext?.name} (Budget: ${agencyContext?.budget}, VE: ${agencyContext?.ve})
+        
+        Question: Est-ce un atout ou un poids mort pour son agence ? Donne un avis psychologique et financier tranché.`;
 
         try {
-            const result = await askGroq(prompt, studentData, "Tu es un psychologue du travail et DRH expert.");
+            const result = await askGroq(prompt, { student: studentData, agency: agencyContext }, "Tu es un DRH impitoyable qui analyse la rentabilité des employés.");
             setResponse(result);
         } catch (error) {
             toast('error', "Erreur analyse.");
@@ -137,7 +215,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                         <div className="p-2 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl text-white shadow-lg shadow-indigo-200"><Bot size={32}/></div>
                         Co-Pilote IA
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Générez du contenu, analysez des profils et interrogez vos données en langage naturel.</p>
+                    <p className="text-slate-500 text-sm mt-1">L'IA a désormais accès aux bilans comptables, salaires et risques de faillite.</p>
                 </div>
 
                 <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
@@ -163,9 +241,9 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                             {chatHistory.length === 0 && (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                                     <Sparkles size={48} className="mb-4"/>
-                                    <p className="text-lg font-bold">Posez une question sur vos données.</p>
-                                    <p className="text-sm">"Quelle est l'agence la plus riche ?"</p>
-                                    <p className="text-sm">"Qui risque la faillite cette semaine ?"</p>
+                                    <p className="text-lg font-bold">Posez une question financière ou stratégique.</p>
+                                    <p className="text-sm">"Quelle agence perd le plus d'argent chaque semaine ?"</p>
+                                    <p className="text-sm">"Est-ce que l'agence X peut survivre au loyer ?"</p>
                                 </div>
                             )}
                             {chatHistory.map((msg, idx) => (
@@ -183,7 +261,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                             {loading && (
                                 <div className="flex justify-start">
                                     <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-slate-500 text-sm">
-                                        <RefreshCw size={14} className="animate-spin"/> Réflexion en cours...
+                                        <RefreshCw size={14} className="animate-spin"/> Analyse des flux financiers...
                                     </div>
                                 </div>
                             )}
@@ -194,7 +272,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                 type="text" 
                                 value={chatInput}
                                 onChange={e => setChatInput(e.target.value)}
-                                placeholder="Interrogez le système..."
+                                placeholder="Interrogez le système (ex: Qui est le maillon faible ?)..."
                                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                             />
                             <button type="submit" disabled={loading || !chatInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition-colors disabled:opacity-50">
@@ -216,7 +294,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
                                     <option value="CRISIS">🔥 Scénario de Crise</option>
-                                    <option value="EMAIL">📧 Email Administratif</option>
+                                    <option value="EMAIL">📧 Email Administratif (Finances)</option>
                                     <option value="BRIEF">🎲 Contrainte Surprise (Wildcard)</option>
                                 </select>
                             </div>
@@ -228,7 +306,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
                                     {agencies.filter(a => a.id !== 'unassigned').map(a => (
-                                        <option key={a.id} value={a.id}>{a.name} (VE: {a.ve_current})</option>
+                                        <option key={a.id} value={a.id}>{a.name} (VE: {a.ve_current} | Cash: {a.budget_real})</option>
                                     ))}
                                 </select>
                             </div>
@@ -281,7 +359,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                 className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors disabled:opacity-50"
                             >
                                 {loading ? <RefreshCw className="animate-spin"/> : <Fingerprint/>}
-                                Analyser
+                                Rentabilité
                             </button>
                         </div>
 
@@ -289,7 +367,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                             {response ? (
                                 <div className="prose prose-slate max-w-none">
                                     <h3 className="flex items-center gap-2 text-indigo-600 font-bold mb-4">
-                                        <Fingerprint/> Rapport Psychologique & Performance
+                                        <Fingerprint/> Rapport Psychologique & Financier
                                     </h3>
                                     <div className="whitespace-pre-wrap text-slate-700 leading-relaxed">
                                         {response}
@@ -298,7 +376,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                                     <User size={48} className="mb-4"/>
-                                    <p className="font-bold">Recherchez un profil pour lancer l'analyse IA.</p>
+                                    <p className="font-bold">Recherchez un profil pour lancer l'audit IA.</p>
                                 </div>
                             )}
                         </div>

@@ -1,79 +1,124 @@
 
-import React from 'react';
-import { HelpCircle, TrendingUp, Coins, Zap, ShieldAlert, Rocket, Info, Landmark } from 'lucide-react';
+import React, { useState } from 'react';
+import { HelpCircle, TrendingUp, Coins, Zap, ShieldAlert, Rocket, Info, Landmark, Book, ArrowRight, ChevronRight } from 'lucide-react';
+import { GAME_MANUALS } from '../../constants';
 
 export const FAQView: React.FC = () => {
-    const sections = [
-        {
-            title: "C'est quoi les Notes ?",
-            icon: <TrendingUp className="text-indigo-500" />,
-            content: "Il y a 2 notes : Note de GROUPE (60% VE, 10% Trésorerie, 30% Projet) et Note INDIVIDUELLE (50% Score, 20% Tréso Perso, 30% Projet)."
-        },
-        {
-            title: "Le PiXi, c'est quoi ?",
-            icon: <Coins className="text-yellow-500" />,
-            content: "Le PiXi est la monnaie officielle du studio. Il sert à payer votre loyer (500/semaine) et vos salaires personnels. Si votre compte est à sec, vos salaires sont gelés et vous risquez la faillite."
-        },
-        {
-            title: "Comment gagne-t-on de l'argent ?",
-            icon: <Zap className="text-emerald-500" />,
-            content: "Chaque semaine, votre studio facture ses clients. Le gain est calculé ainsi : (VE x 30) + Bonus Prof. Plus votre VE est haute, plus vos revenus hebdomadaires sont importants."
-        },
-        {
-            title: "À quoi sert mon Wallet Perso ?",
-            icon: <Landmark className="text-amber-600" />,
-            content: "L'argent que vous recevez sur votre compte personnel peut être ré-injecté dans le studio pour éponger une dette, ou utilisé pour acheter des points de Score (Formation) ou des bonus stratégiques (Délais, Infos)."
-        },
-        {
-            title: "Quelles sont les règles vitales ?",
-            icon: <ShieldAlert className="text-red-500" />,
-            content: "1. FAILLITE TOTALE si l'agence atteint -5000 PiXi. 2. VE à 0 = Crise majeure mais pas de fermeture immédiate. 3. Sous 40 VE, votre studio est 'Vulnérable' et peut être racheté."
-        },
-        {
-            title: "L'Objectif Final ?",
-            icon: <Rocket className="text-purple-500" />,
-            content: "Le but est d'arriver au Jury Final avec la plus grosse Levée de Fonds possible et une VE maximum. Votre note finale dépend de votre capacité à générer de la valeur (VE + Cash)."
-        }
-    ];
+    const [selectedManualId, setSelectedManualId] = useState<string | null>(null);
+
+    const activeManual = GAME_MANUALS.find(m => m.id === selectedManualId);
+
+    // Fonction simple pour rendre le markdown "maison"
+    const renderContent = (content: string) => {
+        return content.split('\n').map((line, idx) => {
+            if (line.startsWith('# ')) return <h3 key={idx} className="text-2xl font-bold text-slate-900 mt-6 mb-4">{line.replace('# ', '')}</h3>;
+            if (line.startsWith('### ')) return <h4 key={idx} className="text-lg font-bold text-indigo-700 mt-4 mb-2">{line.replace('### ', '')}</h4>;
+            if (line.startsWith('* ')) return <li key={idx} className="ml-4 list-disc text-slate-700 mb-1">{parseBold(line.replace('* ', ''))}</li>;
+            if (line.startsWith('> ')) return <div key={idx} className="border-l-4 border-amber-400 bg-amber-50 p-4 my-4 text-amber-900 italic rounded-r-lg">{parseBold(line.replace('> ', ''))}</div>;
+            if (/^\d+\./.test(line)) return <div key={idx} className="font-bold text-slate-800 mt-2 mb-1">{parseBold(line)}</div>;
+            if (line.trim() === '') return <br key={idx}/>;
+            return <p key={idx} className="text-slate-600 leading-relaxed mb-2">{parseBold(line)}</p>;
+        });
+    };
+
+    const parseBold = (text: string) => {
+        const parts = text.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i} className="text-slate-900 font-bold">{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
+    };
 
     return (
-        <div className="animate-in slide-in-from-right-4 duration-500 pb-20 max-w-4xl mx-auto">
-            <div className="mb-8 text-center">
-                <div className="inline-flex p-3 bg-indigo-100 rounded-2xl text-indigo-600 mb-4">
-                    <HelpCircle size={32} />
-                </div>
-                <h2 className="text-3xl font-display font-bold text-slate-900">Guide de Survie du Studio</h2>
-                <p className="text-slate-500 mt-2">Comprendre l'économie et les mécaniques du semestre.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {sections.map((item, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
-                                {item.icon}
+        <div className="animate-in slide-in-from-right-4 duration-500 pb-20 h-[calc(100vh-12rem)]">
+            
+            <div className="flex flex-col lg:flex-row h-full gap-6">
+                
+                {/* SIDEBAR NAVIGATION */}
+                <div className={`lg:w-1/3 flex flex-col h-full ${selectedManualId ? 'hidden lg:flex' : 'flex'}`}>
+                    <div className="mb-6 shrink-0">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                                <Book size={24} />
                             </div>
-                            <h3 className="font-bold text-slate-900">{item.title}</h3>
+                            <div>
+                                <h2 className="text-2xl font-display font-bold text-slate-900">Le Codex RNP</h2>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Manuel de l'Employé S2</p>
+                            </div>
                         </div>
-                        <p className="text-sm text-slate-600 leading-relaxed">
-                            {item.content}
-                        </p>
+                        <p className="text-sm text-slate-500">Toutes les règles pour survivre et gagner.</p>
                     </div>
-                ))}
-            </div>
 
-            <div className="mt-12 bg-slate-900 text-white p-8 rounded-[40px] relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                    <Info size={120} />
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                        {GAME_MANUALS.map((manual) => (
+                            <button
+                                key={manual.id}
+                                onClick={() => setSelectedManualId(manual.id)}
+                                className={`w-full p-4 rounded-xl border-2 text-left transition-all group relative overflow-hidden ${
+                                    selectedManualId === manual.id 
+                                    ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
+                                    : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between relative z-10">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-2 rounded-lg ${selectedManualId === manual.id ? 'bg-white/20 text-white' : 'bg-slate-50 ' + manual.color}`}>
+                                            <manual.icon size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className={`font-bold text-sm ${selectedManualId === manual.id ? 'text-white' : 'text-slate-800'}`}>{manual.title}</h4>
+                                            <p className={`text-xs ${selectedManualId === manual.id ? 'text-slate-300' : 'text-slate-400'}`}>{manual.subtitle}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className={`transition-transform ${selectedManualId === manual.id ? 'text-white translate-x-1' : 'text-slate-300 group-hover:text-indigo-400'}`} />
+                                </div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <div className="relative z-10">
-                    <h4 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Info className="text-indigo-400" /> Note de l'administration
-                    </h4>
-                    <p className="text-slate-300 text-sm leading-relaxed max-w-2xl">
-                        Ce simulateur est une aide pédagogique. En cas de litige ou de bug, la décision de l'enseignant prévaut. L'économie est ajustée chaque semaine pour garantir l'équité entre les petites et grandes équipes.
-                    </p>
+
+                {/* CONTENT READER */}
+                <div className={`lg:w-2/3 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col ${!selectedManualId ? 'hidden lg:flex' : 'flex'}`}>
+                    {selectedManualId ? (
+                        <>
+                            {/* Reader Header */}
+                            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+                                <button onClick={() => setSelectedManualId(null)} className="lg:hidden text-slate-500 hover:text-slate-900 flex items-center gap-2 text-sm font-bold">
+                                    <ArrowRight size={16} className="rotate-180"/> Retour
+                                </button>
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg bg-slate-100 ${activeManual?.color}`}>
+                                        {activeManual && <activeManual.icon size={24} />}
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-900">{activeManual?.title}</h3>
+                                </div>
+                                <div className="w-8"></div> {/* Spacer for alignment */}
+                            </div>
+
+                            {/* Reader Content */}
+                            <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar">
+                                <div className="max-w-3xl mx-auto">
+                                    {activeManual && renderContent(activeManual.content)}
+                                </div>
+                                <div className="mt-12 pt-8 border-t border-slate-100 text-center text-xs text-slate-400 italic">
+                                    Dernière mise à jour : Semaine 1
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center bg-slate-50/50">
+                            <Book size={64} className="mb-6 opacity-20"/>
+                            <h3 className="text-lg font-bold text-slate-600 mb-2">Sélectionnez un chapitre</h3>
+                            <p className="text-sm max-w-md">
+                                Pour maîtriser le jeu, vous devez en connaître les règles.
+                                Commencez par le chapitre 01 pour comprendre la philosophie.
+                            </p>
+                        </div>
+                    )}
                 </div>
+
             </div>
         </div>
     );
