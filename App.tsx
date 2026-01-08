@@ -12,6 +12,7 @@ import { AdminAccess } from './components/AdminAccess';
 import { AdminResources } from './components/AdminResources';
 import { AdminSettings } from './components/AdminSettings';
 import { AdminViews } from './components/AdminViews';
+import { AdminAIAssistant } from './components/AdminAIAssistant'; // NOUVEL IMPORT
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
@@ -21,7 +22,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
-type AdminViewType = 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS';
+type AdminViewType = 'OVERVIEW' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -192,6 +193,9 @@ const GameContainer: React.FC = () => {
                             onNavigate={(view: string) => setAdminView(view as AdminViewType)}
                             readOnly={isReadOnly}
                         />
+                    )}
+                    {adminView === 'AI_ASSISTANT' && ( // NOUVELLE VUE
+                        <AdminAIAssistant agencies={agencies} />
                     )}
                     {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
                     {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
