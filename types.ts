@@ -131,6 +131,17 @@ export interface MercatoRequest {
   votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; 
 }
 
+// --- NEW: CHALLENGE REQUEST (AI GENERATED) ---
+export interface ChallengeRequest {
+    id: string;
+    title: string;
+    description: string;
+    status: 'PENDING_VOTE' | 'ACCEPTED' | 'REJECTED';
+    date: string;
+    rewardVE: number; // Bonus si réussi
+    votes: { [studentId: string]: 'APPROVE' | 'REJECT' };
+}
+
 // --- NEW: MERGER REQUEST ---
 export interface MergerRequest {
     id: string;
@@ -212,6 +223,9 @@ export interface Agency {
 
   // Merger Requests (Pending)
   mergerRequests?: MergerRequest[];
+
+  // Active Challenges (AI)
+  challenges?: ChallengeRequest[];
 
   // Legacy constraints
   constraints: {

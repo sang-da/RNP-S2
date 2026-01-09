@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Agency, BrandColor, Student, GameEvent, MercatoRequest } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank, Check, X, Info } from 'lucide-react';
+import { Agency, BrandColor, Student, GameEvent, MercatoRequest, ChallengeRequest } from '../types';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank, Check, X, Info, Rocket } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -36,7 +36,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
-  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList, submitMercatoVote } = useGame();
+  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
@@ -190,13 +190,20 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             </div>
         </div>
 
-        {/* VOTING BOOTH (POPUP AUTOMATIQUE) */}
+        {/* VOTING BOOTHS (POPUP AUTOMATIQUE) */}
         {myMemberProfile && (
-            <VotingBooth 
-                agency={agency} 
-                currentUser={myMemberProfile} 
-                onVote={submitMercatoVote} 
-            />
+            <>
+                <VotingBooth 
+                    agency={agency} 
+                    currentUser={myMemberProfile} 
+                    onVote={submitMercatoVote} 
+                />
+                <ChallengeVotingBooth 
+                    agency={agency}
+                    currentUser={myMemberProfile}
+                    onVote={submitChallengeVote}
+                />
+            </>
         )}
 
         {/* CONTENT */}
@@ -542,6 +549,54 @@ const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}>
                 <p className="text-center text-[10px] text-slate-400 uppercase tracking-widest">
                     Vote anonyme et définitif
                 </p>
+            </div>
+        </Modal>
+    );
+};
+
+// --- NOUVEAU COMPOSANT : CHALLENGE VOTING BOOTH ---
+const ChallengeVotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}> = ({agency, currentUser, onVote}) => {
+    // Filtrer les challenges qui attendent un vote de l'utilisateur
+    const pendingChallenge = agency.challenges?.find(c => c.status === 'PENDING_VOTE' && (!c.votes || !c.votes[currentUser.id]));
+
+    if (!pendingChallenge) return null;
+
+    return (
+        <Modal isOpen={true} onClose={() => {}} title="⚠️ DÉFI SPÉCIAL DÉTECTÉ">
+            <div className="space-y-6">
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Rocket className="text-yellow-400 animate-pulse"/>
+                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-300">Opportunité IA</span>
+                        </div>
+                        <h3 className="text-2xl font-black mb-4 leading-tight">{pendingChallenge.title}</h3>
+                        <p className="text-sm text-indigo-100 leading-relaxed bg-white/10 p-4 rounded-xl border border-white/10">
+                            {pendingChallenge.description}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="text-center">
+                    <p className="text-sm text-slate-600 mb-4">
+                        Si l'équipe accepte ce défi (Majorité > {GAME_RULES.VOTE_THRESHOLD_CHALLENGE * 100}%), une <strong>mission spéciale</strong> sera ajoutée à votre liste de tâches.
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'REJECT')}
+                            className="py-4 bg-white border-2 border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 font-bold rounded-xl transition-all"
+                        >
+                            Refuser
+                        </button>
+                        <button 
+                            onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'APPROVE')}
+                            className="py-4 bg-emerald-600 text-white hover:bg-emerald-500 font-bold rounded-xl transition-all shadow-lg shadow-emerald-200"
+                        >
+                            Accepter le Défi
+                        </button>
+                    </div>
+                </div>
             </div>
         </Modal>
     );

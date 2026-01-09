@@ -2,6 +2,7 @@
 import React from 'react';
 import { Agency, MercatoRequest, Student } from '../../../types';
 import { Vote, Check, X, UserPlus, Info } from 'lucide-react';
+import { GAME_RULES } from '../../../constants';
 
 interface AgencyDemocracyProps {
     agency: Agency;
@@ -29,9 +30,12 @@ export const AgencyDemocracy: React.FC<AgencyDemocracyProps> = ({ agency, curren
                     const hasVoted = req.votes && currentUser && req.votes[currentUser.id];
                     const approvals = Object.values(req.votes || {}).filter(v => v === 'APPROVE').length;
                     
-                    // Logic Threshold: HIRE = 66%, FIRE = 75%
+                    // Logic Threshold using GAME_RULES
                     const isHire = req.type === 'HIRE';
-                    const thresholdPercent = isHire ? 66 : 75;
+                    const thresholdPercent = isHire 
+                        ? (GAME_RULES.VOTE_THRESHOLD_HIRE * 100) 
+                        : (GAME_RULES.VOTE_THRESHOLD_FIRE * 100);
+                        
                     const totalVoters = isHire ? agency.members.length : Math.max(1, agency.members.length - 1);
                     
                     const currentPercent = totalVoters > 0 ? Math.round((approvals / totalVoters) * 100) : 0;

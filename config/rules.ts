@@ -40,6 +40,11 @@ export const GAME_RULES = {
 
     // BANKRUPTCY
     BANKRUPTCY_THRESHOLD: -5000, // Seuil de faillite définitive
+
+    // SEUILS DE VOTE (VOTING THRESHOLDS)
+    VOTE_THRESHOLD_HIRE: 0.66, // 66% pour recruter
+    VOTE_THRESHOLD_FIRE: 0.75, // 75% pour virer
+    VOTE_THRESHOLD_CHALLENGE: 0.50, // 50% pour accepter une mission
 };
 
 export const CONSTRAINTS_POOL = {

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, TrendingUp, Wallet, Users, AlertTriangle } from 'lucide-react';
+import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, Fingerprint } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut, auth, db, doc, onSnapshot } from '../services/firebase';
 import { MASCOTS } from '../constants';
@@ -70,8 +70,10 @@ export const WaitingScreen: React.FC = () => {
             <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">
                 Bienvenue, {userData?.displayName?.split(' ')[0]}
             </h1>
-            <p className="text-slate-500 mb-10">
-                Votre dossier est en cours de validation par l'administration.
+            <p className="text-slate-500 mb-10 max-w-md mx-auto">
+                Votre compte est connecté, mais il n'est pas encore relié à votre profil dans le jeu.
+                <br/><br/>
+                <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">Demandez à votre enseignant de valider la liaison.</span>
             </p>
 
             {/* Carousel Card */}
@@ -101,13 +103,15 @@ export const WaitingScreen: React.FC = () => {
                 </div>
             </div>
 
-            <div className="mt-12 flex flex-col gap-4">
-                <p className="text-xs text-slate-400 font-medium uppercase tracking-widest animate-pulse">
-                    En attente de connexion...
-                </p>
+            <div className="mt-8 flex flex-col gap-4 items-center">
+                {/* DEBUG UID */}
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono bg-slate-100 px-3 py-1.5 rounded-full select-all cursor-text">
+                    <Fingerprint size={12}/> ID: {userData?.uid}
+                </div>
+
                 <button 
                     onClick={() => signOut(auth)}
-                    className="text-slate-400 hover:text-red-500 font-bold text-sm transition-colors"
+                    className="text-slate-400 hover:text-red-500 font-bold text-sm transition-colors mt-2"
                 >
                     Annuler et se déconnecter
                 </button>

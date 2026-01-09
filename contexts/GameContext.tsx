@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest, MercatoRequest, StudentHistoryEntry, MergerRequest } from '../types';
+import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest, MercatoRequest, StudentHistoryEntry, MergerRequest, ChallengeRequest, Deliverable } from '../types';
 import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL, calculateVECap } from '../constants';
 import { useUI } from './UIContext';
 import { db, collection, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from '../services/firebase';
@@ -42,10 +42,14 @@ interface GameContextType {
   handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
   submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 
-  // Black Ops & Mergers
+  // Black Ops & Mergers & Challenges
   triggerBlackOp: (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => Promise<void>;
   proposeMerger: (sourceAgencyId: string, targetAgencyId: string) => Promise<void>;
   finalizeMerger: (mergerId: string, targetAgencyId: string, approved: boolean) => Promise<void>;
+  
+  sendChallenge: (targetAgencyId: string, title: string, description: string) => Promise<void>;
+  submitChallengeVote: (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
+
   getCurrentGameWeek: () => number;
 }
 
@@ -496,8 +500,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newVotes = { ...request.votes, [voterId]: vote };
       const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
       let totalVoters = agency.members.length;
-      let threshold = 0.66;
-      if (request.type === 'FIRE' && request.requesterId !== request.studentId) { totalVoters = Math.max(1, agency.members.length - 1); threshold = 0.75; }
+      let threshold = GAME_RULES.VOTE_THRESHOLD_HIRE; // Default 0.66
+      
+      if (request.type === 'FIRE' && request.requesterId !== request.studentId) { 
+          totalVoters = Math.max(1, agency.members.length - 1); 
+          threshold = GAME_RULES.VOTE_THRESHOLD_FIRE; // Default 0.75
+      }
 
       const batch = writeBatch(db);
       if (approvals / totalVoters > threshold) {
@@ -656,6 +664,89 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', "Fusion confirmée. Agence absorbée.");
   };
 
+  // --- CHALLENGE / AI GENERATED MISSION LOGIC ---
+  const sendChallenge = async (targetAgencyId: string, title: string, description: string) => {
+      const agency = agencies.find(a => a.id === targetAgencyId);
+      if (!agency) return;
+
+      const newChallenge: ChallengeRequest = {
+          id: `chal-${Date.now()}`,
+          title,
+          description,
+          status: 'PENDING_VOTE',
+          date: new Date().toISOString().split('T')[0],
+          rewardVE: 10,
+          votes: {}
+      };
+
+      const agencyRef = doc(db, "agencies", targetAgencyId);
+      await updateDoc(agencyRef, {
+          challenges: [...(agency.challenges || []), newChallenge]
+      });
+      toast('success', "Challenge envoyé au vote !");
+  };
+
+  const submitChallengeVote = async (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if (!agency) return;
+      const challenge = agency.challenges?.find(c => c.id === challengeId);
+      if (!challenge) return;
+
+      const newVotes = { ...challenge.votes, [voterId]: vote };
+      const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
+      const totalVoters = agency.members.length;
+      
+      // Check if voting is complete (majority won) or everyone voted
+      // USE CONSTANT FROM RULES
+      const isAccepted = (approvals / totalVoters) > GAME_RULES.VOTE_THRESHOLD_CHALLENGE;
+      
+      const batch = writeBatch(db);
+      const agencyRef = doc(db, "agencies", agency.id);
+
+      if (isAccepted) {
+          // 1. Mark Challenge Accepted
+          const updatedChallenges = agency.challenges?.map(c => 
+              c.id === challengeId ? { ...c, status: 'ACCEPTED', votes: newVotes } : c
+          );
+          
+          // 2. Create Special Deliverable in Current Week
+          const currentWeekId = getCurrentGameWeek().toString();
+          const weekData = agency.progress[currentWeekId];
+          if (weekData) {
+              const newDeliverable: Deliverable = {
+                  id: `d-special-${Date.now()}`,
+                  name: `CHALLENGE: ${challenge.title}`,
+                  description: challenge.description,
+                  status: 'pending',
+                  score: 0
+              };
+              
+              const updatedWeek = {
+                  ...weekData,
+                  deliverables: [...weekData.deliverables, newDeliverable]
+              };
+
+              batch.update(agencyRef, {
+                  challenges: updatedChallenges,
+                  [`progress.${currentWeekId}`]: updatedWeek,
+                  eventLog: [...agency.eventLog, {
+                      id: `chal-acc-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
+                      label: "Challenge Accepté", description: "L'équipe a accepté le défi spécial. Mission ajoutée."
+                  }]
+              });
+              toast('success', "Challenge accepté ! Mission créée.");
+          }
+      } else {
+          // Just update votes
+          const updatedChallenges = agency.challenges?.map(c => 
+              c.id === challengeId ? { ...c, votes: newVotes } : c
+          );
+          batch.update(agencyRef, { challenges: updatedChallenges });
+      }
+
+      await batch.commit();
+  };
+
   const resetGame = async () => {
       try { await seedDatabase(); } catch (e) { console.error(e); }
   };
@@ -666,7 +757,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setRole, selectAgency, toggleAutoMode, updateAgency, updateAgenciesList, deleteAgency, updateWeek,
       addResource, deleteResource, shuffleConstraints, processFinance, processPerformance, resetGame,
       transferFunds, tradeScoreForCash, injectCapital, requestScorePurchase, handleTransactionRequest,
-      submitMercatoVote, triggerBlackOp, proposeMerger, finalizeMerger, getCurrentGameWeek
+      submitMercatoVote, triggerBlackOp, proposeMerger, finalizeMerger, getCurrentGameWeek,
+      sendChallenge, submitChallengeVote
     }}>
       {children}
     </GameContext.Provider>

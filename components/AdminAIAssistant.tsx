@@ -2,9 +2,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Agency } from '../types';
 import { askGroq } from '../services/groqService';
-import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal } from 'lucide-react';
+import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal, Rocket } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
+import { useGame } from '../contexts/GameContext';
 import { GAME_RULES } from '../constants'; // Import des règles économiques
+import { Modal } from './Modal';
 
 interface AdminAIAssistantProps {
     agencies: Agency[];
@@ -14,6 +16,7 @@ type Mode = 'CHAT' | 'SCENARIO' | 'PROFILE';
 
 export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) => {
     const { toast } = useUI();
+    const { sendChallenge } = useGame();
     const [mode, setMode] = useState<Mode>('CHAT');
     const [loading, setLoading] = useState(false);
     const [response, setResponse] = useState("");
@@ -26,6 +29,8 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     // SCENARIO STATE
     const [scenarioType, setScenarioType] = useState("CRISIS");
     const [targetAgencyId, setTargetAgencyId] = useState(agencies[0]?.id || "");
+    const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
+    const [challengeForm, setChallengeForm] = useState({ title: '', description: '' });
 
     // PROFILE STATE
     const [targetStudentId, setTargetStudentId] = useState("");
@@ -143,6 +148,12 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         try {
             const result = await askGroq(prompt, context, "Tu es un Maître du Jeu sadique mais juste. Tu connais parfaitement les finances des étudiants.");
             setResponse(result);
+            
+            // Auto-fill challenge form just in case
+            setChallengeForm({ 
+                title: scenarioType === 'BRIEF' ? "Wildcard Surprise" : "Défi Spécial", 
+                description: result 
+            });
         } catch (error) {
             toast('error', "Erreur génération.");
         } finally {
@@ -205,6 +216,12 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(response);
         toast('success', 'Copié dans le presse-papier');
+    };
+
+    const handleSendChallenge = async () => {
+        if (!targetAgencyId || !challengeForm.title || !challengeForm.description) return;
+        await sendChallenge(targetAgencyId, challengeForm.title, challengeForm.description);
+        setIsChallengeModalOpen(false);
     };
 
     return (
@@ -324,9 +341,19 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                         <div className="flex-1 bg-slate-900 rounded-2xl p-6 relative overflow-y-auto font-mono text-sm text-slate-300 shadow-inner">
                             {response ? (
                                 <>
-                                    <button onClick={copyToClipboard} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors" title="Copier">
-                                        <Copy size={16}/>
-                                    </button>
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <button onClick={copyToClipboard} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors" title="Copier">
+                                            <Copy size={16}/>
+                                        </button>
+                                        {(scenarioType === 'BRIEF' || scenarioType === 'CRISIS') && (
+                                            <button 
+                                                onClick={() => setIsChallengeModalOpen(true)}
+                                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white font-bold text-xs flex items-center gap-2"
+                                            >
+                                                <Rocket size={16}/> Proposer comme Challenge
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="whitespace-pre-wrap">{response}</div>
                                 </>
                             ) : (
@@ -394,6 +421,41 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                     </div>
                 )}
             </div>
+
+            {/* MODAL: SEND CHALLENGE */}
+            <Modal isOpen={isChallengeModalOpen} onClose={() => setIsChallengeModalOpen(false)} title="Lancer un Challenge Étudiant">
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-500">
+                        Vous allez proposer ce défi à l'agence. Ils devront voter pour l'accepter.
+                        <br/><strong>Si accepté :</strong> Une mission de dépôt de fichier sera créée pour eux.
+                    </p>
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre du Défi</label>
+                        <input 
+                            type="text" 
+                            value={challengeForm.title}
+                            onChange={(e) => setChallengeForm({...challengeForm, title: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                        <textarea 
+                            value={challengeForm.description}
+                            onChange={(e) => setChallengeForm({...challengeForm, description: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl min-h-[150px]"
+                        />
+                    </div>
+
+                    <button 
+                        onClick={handleSendChallenge}
+                        className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Rocket size={18}/> Envoyer au vote
+                    </button>
+                </div>
+            </Modal>
         </div>
     );
 };
