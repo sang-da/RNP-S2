@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
 import { Agency } from '../types';
-import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2 } from 'lucide-react';
+import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2, Settings2 } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
+import { calculateVECap } from '../constants';
 
 interface AdminProjectsProps {
   agencies: Agency[];
@@ -17,23 +18,27 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ problem: '', target: '', location: '', gesture: '' });
+  const [veCapOverride, setVeCapOverride] = useState<number | ''>('');
 
   const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
 
   const startEditing = (agency: Agency) => {
     setEditingId(agency.id);
     setFormData(agency.projectDef);
+    setVeCapOverride(agency.veCapOverride !== undefined ? agency.veCapOverride : '');
   };
 
   const handleSave = (agency: Agency) => {
     onUpdateAgency({
         ...agency,
+        veCapOverride: veCapOverride === '' ? undefined : Number(veCapOverride),
         projectDef: {
             ...agency.projectDef,
             ...formData
         }
     });
     setEditingId(null);
+    toast('success', 'Agence mise à jour');
   };
 
   const handleDelete = async (agency: Agency) => {
@@ -75,7 +80,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                         <tr>
                             <th className="p-4">Agence</th>
                             <th className="p-4 hidden md:table-cell">Statut</th>
-                            <th className="p-4 text-right">VE</th>
+                            <th className="p-4 text-right">VE (Max)</th>
                             <th className="p-4 text-right hidden md:table-cell">Budget</th>
                             <th className="p-4 text-right">Membres</th>
                             <th className="p-4 text-right">Action</th>
@@ -115,6 +120,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                 </td>
                                 <td className="p-3 text-right">
                                     <span className="font-display font-bold text-lg text-slate-900">{agency.ve_current}</span>
+                                    <span className="text-xs text-slate-400 font-medium ml-1">/ {calculateVECap(agency)}</span>
                                 </td>
                                 <td className="p-3 text-right hidden md:table-cell">
                                     <span className={`text-xs font-bold ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-500'}`}>
@@ -144,7 +150,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
 
         {/* --- CARTES PROJETS --- */}
         <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Zap size={20}/> Détails Projets
+            <Zap size={20}/> Détails & Paramètres
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
             {agencies.filter(a => a.id !== 'unassigned').map(agency => (
@@ -171,6 +177,26 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                     <div className="p-5 flex-1">
                         {editingId === agency.id ? (
                             <div className="space-y-4">
+                                {/* GAME SETTINGS */}
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                    <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase">
+                                        <Settings2 size={14}/> Paramètres "Maître du Jeu"
+                                    </div>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <label className="text-xs font-bold text-slate-700">Plafond VE (Manuel)</label>
+                                        <div className="relative w-24">
+                                            <input 
+                                                type="number"
+                                                value={veCapOverride}
+                                                onChange={(e) => setVeCapOverride(e.target.value === '' ? '' : Number(e.target.value))}
+                                                placeholder={`Auto (${calculateVECap({...agency, veCapOverride: undefined})})`}
+                                                className="w-full p-2 text-right border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 italic text-right">Laisser vide pour calcul auto.</p>
+                                </div>
+
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase">Problème</label>
                                     <textarea 

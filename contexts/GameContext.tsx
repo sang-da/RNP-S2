@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Agency, WeekModule, GameEvent, WikiResource, Student, TransactionRequest, MercatoRequest, StudentHistoryEntry, MergerRequest } from '../types';
-import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL } from '../constants';
+import { MOCK_AGENCIES, INITIAL_WEEKS, GAME_RULES, CONSTRAINTS_POOL, calculateVECap } from '../constants';
 import { useUI } from './UIContext';
 import { db, collection, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from '../services/firebase';
 import { useAuth } from './AuthContext';
@@ -160,12 +160,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateAgency = async (updatedAgency: Agency) => {
     try {
-        let veCap = 100;
-        const memberCount = updatedAgency.members.length;
-        if (memberCount === 1) veCap = GAME_RULES.VE_CAP_1_MEMBER;
-        else if (memberCount <= 3) veCap = GAME_RULES.VE_CAP_2_3_MEMBERS;
-        else veCap = GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
-
+        const veCap = calculateVECap(updatedAgency);
         const finalVE = Math.min(updatedAgency.ve_current, veCap);
         const agencyRef = doc(db, "agencies", updatedAgency.id);
         await updateDoc(agencyRef, { ...updatedAgency, ve_current: finalVE });
@@ -403,10 +398,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 logEvents.push({ id: `perf-ve-${Date.now()}-${agency.id}`, date: today, type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS', label: 'Ajustement VE', deltaVE: veAdjustment, description: veAdjustment > 0 ? 'Trésorerie saine.' : 'Dette.' });
             }
 
-            let veCap = 100;
-            if (agency.members.length === 1) veCap = GAME_RULES.VE_CAP_1_MEMBER;
-            else if (agency.members.length <= 3) veCap = GAME_RULES.VE_CAP_2_3_MEMBERS;
-            else veCap = GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
+            const veCap = calculateVECap(agency);
             
             const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
 

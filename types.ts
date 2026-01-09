@@ -186,6 +186,7 @@ export interface Agency {
   
   // Data Driven by Events
   ve_current: number; // 0-100 (La note/valeur)
+  veCapOverride?: number; // NEW: Manual override for the VE Ceiling
   budget_real: number; // En PiXi
   budget_valued: number; // En PiXi
   weeklyTax: number; // Pourcentage de charges hebdo (0.1 = 10%)

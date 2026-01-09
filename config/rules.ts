@@ -66,3 +66,29 @@ export const getAgencyPerformanceMultiplier = (agency: Agency): number => {
     // Clamp de sécurité (Min 0.5x, Max 1.5x)
     return Math.max(0.5, Math.min(1.5, multiplier));
 };
+
+// --- HELPER FUNCTION: VE CAP CALCULATOR ---
+// Détermine le plafond de VE d'une agence en fonction de sa taille.
+// PRIORITY : Manual Override > Founding Agency Rule > Standard Rules
+export const calculateVECap = (agency: Agency): number => {
+    // 1. Manual Override (The "God Mode")
+    if (agency.veCapOverride !== undefined && agency.veCapOverride !== null && !isNaN(agency.veCapOverride)) {
+        return agency.veCapOverride;
+    }
+
+    const memberCount = agency.members.length;
+
+    // 2. Détection Agence Fondatrice (Legacy S1) ou Agence créée manuellement très tôt
+    // L'ID 'agency_' correspond au seed initial.
+    const isFoundingAgency = agency.id.startsWith('agency_');
+
+    if (memberCount === 1) {
+        // Si c'est un fondateur historique, pas de plafond "Solo" (100).
+        // Sinon, plafond standard "Solo" (60) pour inciter au recrutement.
+        return isFoundingAgency ? 100 : GAME_RULES.VE_CAP_1_MEMBER;
+    }
+    
+    if (memberCount <= 3) return GAME_RULES.VE_CAP_2_3_MEMBERS;
+    
+    return GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
+};
