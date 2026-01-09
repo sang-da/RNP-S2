@@ -112,6 +112,9 @@ export interface ProjectDefinition {
   target: string;       // Qui souffre (Persona)
   location: string;     // Où ça se passe
   gesture: string;      // Geste architectural unique
+  theme?: string;       // NOUVEAU: Thématique globale
+  direction?: string;   // NOUVEAU: Direction Artistique / Intention
+  context?: string;     // NOUVEAU: Contexte sociétal ou urbain
   isLocked: boolean;    // Validé par le prof ?
 }
 

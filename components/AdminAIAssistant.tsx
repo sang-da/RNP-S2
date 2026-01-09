@@ -28,7 +28,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     const [targetAgencyId, setTargetAgencyId] = useState(agencies[0]?.id || "");
 
     // PROFILE STATE
-    const [targetStudentName, setTargetStudentName] = useState("");
+    const [targetStudentId, setTargetStudentId] = useState("");
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,15 +151,15 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     };
 
     const handleAnalyzeProfile = async () => {
-        if(!targetStudentName) return;
+        if(!targetStudentId) return;
         setLoading(true);
         
-        // Find student data across all agencies
+        // Find student data by ID
         let studentData = null;
         let agencyContext = null;
 
         for (const a of agencies) {
-            const s = a.members.find(m => m.name.toLowerCase().includes(targetStudentName.toLowerCase()));
+            const s = a.members.find(m => m.id === targetStudentId);
             if (s) {
                 const salary = s.individualScore * GAME_RULES.SALARY_MULTIPLIER;
                 studentData = { 
@@ -344,23 +344,34 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                     <div className="flex flex-col h-full p-6">
                         <div className="flex gap-4 mb-6">
                             <div className="relative flex-1">
-                                <User className="absolute left-3 top-3.5 text-slate-400" size={20}/>
-                                <input 
-                                    type="text" 
-                                    value={targetStudentName}
-                                    onChange={e => setTargetStudentName(e.target.value)}
-                                    placeholder="Nom de l'étudiant..."
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                                />
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Sélectionnez un étudiant</label>
+                                <select 
+                                    value={targetStudentId}
+                                    onChange={e => setTargetStudentId(e.target.value)}
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                                >
+                                    <option value="">-- Choisir un profil --</option>
+                                    {agencies.map(agency => (
+                                        <optgroup key={agency.id} label={agency.name}>
+                                            {agency.members.map(member => (
+                                                <option key={member.id} value={member.id}>
+                                                    {member.name} (Score: {member.individualScore})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
                             </div>
-                            <button 
-                                onClick={handleAnalyzeProfile}
-                                disabled={loading || !targetStudentName}
-                                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors disabled:opacity-50"
-                            >
-                                {loading ? <RefreshCw className="animate-spin"/> : <Fingerprint/>}
-                                Rentabilité
-                            </button>
+                            <div className="flex items-end">
+                                <button 
+                                    onClick={handleAnalyzeProfile}
+                                    disabled={loading || !targetStudentId}
+                                    className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors disabled:opacity-50 h-[48px]"
+                                >
+                                    {loading ? <RefreshCw className="animate-spin"/> : <Fingerprint/>}
+                                    Rentabilité
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 bg-white border-2 border-dashed border-slate-200 rounded-2xl p-8 relative overflow-y-auto">

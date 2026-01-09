@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Agency, BrandColor, Student, GameEvent } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank } from 'lucide-react';
+import { Agency, BrandColor, Student, GameEvent, MercatoRequest } from '../types';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank, Check, X, Info } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -36,7 +36,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
-  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList } = useGame();
+  const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList, submitMercatoVote } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
   const [showVERules, setShowVERules] = useState(false);
@@ -189,6 +189,15 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 )}
             </div>
         </div>
+
+        {/* VOTING BOOTH (POPUP AUTOMATIQUE) */}
+        {myMemberProfile && (
+            <VotingBooth 
+                agency={agency} 
+                currentUser={myMemberProfile} 
+                onVote={submitMercatoVote} 
+            />
+        )}
 
         {/* CONTENT */}
         <div className="flex-1 mb-24 md:mb-8">
@@ -469,6 +478,72 @@ const WalletView: React.FC<{student: Student, agency: Agency, allStudents: Stude
                 </div>
             </div>
         </div>
+    );
+};
+
+// --- NOUVEAU COMPOSANT : VOTING BOOTH (ISOLOIR DE VOTE) ---
+const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}> = ({agency, currentUser, onVote}) => {
+    // 1. Filtrer les votes en attente
+    const pendingVote = agency.mercatoRequests.find(req => {
+        // Le vote est actif ?
+        if (req.status !== 'PENDING') return false;
+        // L'utilisateur a déjà voté ?
+        if (req.votes && req.votes[currentUser.id]) return false;
+        // L'utilisateur est la cible (FIRE) ? Si oui, il ne vote pas.
+        if (req.type === 'FIRE' && req.studentId === currentUser.id) return false;
+        // HIRE : Tout le monde vote. FIRE : Tout le monde sauf cible.
+        return true;
+    });
+
+    if (!pendingVote) return null;
+
+    const isHire = pendingVote.type === 'HIRE';
+
+    return (
+        <Modal isOpen={true} onClose={() => {}} title="Session de Vote en cours">
+            <div className="space-y-6">
+                <div className={`p-4 rounded-xl border-l-4 ${isHire ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-red-50 border-red-500 text-red-800'}`}>
+                    <h4 className="font-bold text-lg mb-1 flex items-center gap-2">
+                        {isHire ? <Users size={20}/> : <Gavel size={20}/>}
+                        {isHire ? "Proposition de Recrutement" : "Proposition de Départ"}
+                    </h4>
+                    <p className="text-sm">Votre avis est requis pour valider cette décision d'agence.</p>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Candidat / Cible</p>
+                    <p className="text-xl font-bold text-slate-900">{pendingVote.studentName}</p>
+                    
+                    <div className="mt-4">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Motivation / Motif</p>
+                        <p className="text-sm italic text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            "{pendingVote.motivation || 'Aucun motif fourni.'}"
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <button 
+                        onClick={() => onVote(agency.id, pendingVote.id, currentUser.id, 'REJECT')}
+                        className="py-4 bg-white border-2 border-slate-200 text-slate-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 font-bold rounded-xl transition-all flex flex-col items-center gap-1"
+                    >
+                        <X size={24}/>
+                        NON (Refuser)
+                    </button>
+                    <button 
+                        onClick={() => onVote(agency.id, pendingVote.id, currentUser.id, 'APPROVE')}
+                        className="py-4 bg-slate-900 text-white hover:bg-emerald-600 font-bold rounded-xl transition-all flex flex-col items-center gap-1 shadow-lg"
+                    >
+                        <Check size={24}/>
+                        OUI (Accepter)
+                    </button>
+                </div>
+                
+                <p className="text-center text-[10px] text-slate-400 uppercase tracking-widest">
+                    Vote anonyme et définitif
+                </p>
+            </div>
+        </Modal>
     );
 };
 

@@ -8,7 +8,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "FUN/CHILL",
     objectives: ["Définir le problème local", "Identifier la cible", "Choisir le lieu", "Nommer l'agence"],
     deliverables: [
-      { id: "d_charter", name: "Charte de Projet", description: "Formulaire de définition du projet (Nom, Problème, Cible, Lieu)", status: 'pending' },
+      { id: "d_report_1", name: "Compte Rendu Hebdo", description: "Résumé des activités, décisions et roadmap.", status: 'pending' },
+      { id: "d_charter", name: "Charte de Projet", description: "Formulaire de définition du projet (Contexte, Problème, Cible, Lieu, Thème)", status: 'pending' },
       { id: "d_branding", name: "Identité & Branding Agence", description: "Logo, Couleurs, Nom final et Tagline.", status: 'pending' },
       { id: "d2", name: "Feuille de route S1", description: "Planning prévisionnel des 4 prochaines semaines", status: 'pending' }
     ],
@@ -22,6 +23,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "THÉORIE",
     objectives: ["Storyboard avant/après", "Plan d'images", "Moodboard"],
     deliverables: [
+      { id: "d_report_2", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d3", name: "Storyboard (12 vignettes)", description: "Esquisse narrative du projet", status: 'pending' }
     ],
     locked: false,
@@ -34,6 +36,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "TECHNIQUE",
     objectives: ["Set-up projet", "Blocages lumière", "Rendu test"],
     deliverables: [
+      { id: "d_report_3", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d4", name: "10 Rendus Bruts", description: "Preuve de concept visuelle", status: 'pending' },
       { id: "d5", name: "Plan clé animé (Brouillon)", description: "Test animation caméra", status: 'pending' }
     ],
@@ -47,6 +50,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "FUN/CHILL",
     objectives: ["Séquence IA 10-15s", "Documentation éthique"],
     deliverables: [
+      { id: "d_report_4", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d6", name: "Séquence IA Intégrée", description: "Vidéo générée/modifiée par IA", status: 'pending' },
       { id: "d7", name: "Justification Écrite", description: "5-8 lignes sur l'usage IA", status: 'pending' }
     ],
@@ -60,6 +64,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "THÉORIE",
     objectives: ["Trajectoires cohérentes", "DOF animé", "Maîtrise Key/Fill/Rim"],
     deliverables: [
+      { id: "d_report_5", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s17_1", name: "2 Plans Avancés", description: "Rendus démontrant la maîtrise lumière/caméra", status: 'pending' },
       { id: "d_s17_2", name: "Notes Techniques", description: "Explication des choix caméra/lumière (Shotlist)", status: 'pending' }
     ],
@@ -73,6 +78,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "TECHNIQUE",
     objectives: ["Livrer version agence lisible", "QA Sheet"],
     deliverables: [
+      { id: "d_report_6", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d8", name: "PoC 45s", description: "Preuve de concept vidéo complète", status: 'pending' },
       { id: "d9", name: "QA Sheet Signée", description: "Gate 1: Go/No-Go", status: 'pending' }
     ],
@@ -86,6 +92,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "FUN/CHILL",
     objectives: ["Explorer variantes (Lumière/Matière)", "A/B Testing", "Documentation variantes"],
     deliverables: [
+      { id: "d_report_7", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s19_1", name: "Contact Sheet (50 rendus)", description: "Planche contact des itérations exploratoires", status: 'pending' },
       { id: "d_s19_2", name: "Rapport Progression", description: "Preuve d'avancement vers les 50 rendus", status: 'pending' }
     ],
@@ -99,6 +106,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "THÉORIE",
     objectives: ["Fixer la DA finale", "Critères de sélection", "Cohérence Marque"],
     deliverables: [
+      { id: "d_report_8", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s20_1", name: "5 Key Visuals (Retouchés)", description: "La sélection finale post-comité DA", status: 'pending' },
       { id: "d_s20_2", name: "Note d'intention", description: "Justification des choix de sélection", status: 'pending' }
     ],
@@ -112,6 +120,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "TECHNIQUE",
     objectives: ["Packaging Pro", "Lisibilité A1", "Portfolio 6-10 pages"],
     deliverables: [
+      { id: "d_report_9", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s21_1", name: "Poster A1", description: "Affiche promotionnelle du projet", status: 'pending' },
       { id: "d_s21_2", name: "Mini-Portfolio PDF", description: "Deck de présentation du projet (6-10 pages)", status: 'pending' }
     ],
@@ -125,6 +134,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "FUN/CHILL",
     objectives: ["Accélérer Shotlist", "Normalisation dossiers", "Scripts répétitifs"],
     deliverables: [
+      { id: "d_report_10", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s22_1", name: "Package Normalisé", description: "Structure de dossiers conforme aux attentes", status: 'pending' },
       { id: "d_s22_2", name: "Sources Propres", description: "Nettoyage des fichiers sources", status: 'pending' }
     ],
@@ -138,6 +148,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "THÉORIE",
     objectives: ["Certification formats (H.264, LUFS)", "Stress Tests", "Checklist Conformité"],
     deliverables: [
+      { id: "d_report_11", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
       { id: "d_s23_1", name: "Release Candidate (Vidéo)", description: "Export quasi-final pour Gate 2 (Conformité OK)", status: 'pending' },
       { id: "d_s23_2", name: "Checklist Conformité", description: "Document QA validé", status: 'pending' }
     ],
@@ -151,6 +162,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     type: "JURY",
     objectives: ["Défendre la démarche", "Démontrer cohérence marque", "Soutenance Orale"],
     deliverables: [
+      { id: "d_report_12", name: "Compte Rendu Final", description: "Bilan global du semestre.", status: 'pending' },
       { id: "d_s24_1", name: "Vidéo Finale (45-60s)", description: "Le rendu définitif Avant/Après", status: 'pending' },
       { id: "d_s24_2", name: "Pack Jury Complet", description: "Vidéo + 5 KV + Poster A1 + A3 Process + Portfolio", status: 'pending' }
     ],

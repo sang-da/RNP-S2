@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency } from '../types';
-import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2, Settings2 } from 'lucide-react';
+import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2, Settings2, Compass, BookOpen } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
 import { calculateVECap } from '../constants';
@@ -17,14 +17,25 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
   const { deleteAgency } = useGame();
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ problem: '', target: '', location: '', gesture: '' });
+  const [formData, setFormData] = useState({ 
+      problem: '', target: '', location: '', gesture: '',
+      theme: '', context: '', direction: ''
+  });
   const [veCapOverride, setVeCapOverride] = useState<number | ''>('');
 
   const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
 
   const startEditing = (agency: Agency) => {
     setEditingId(agency.id);
-    setFormData(agency.projectDef);
+    setFormData({
+        problem: agency.projectDef.problem || '',
+        target: agency.projectDef.target || '',
+        location: agency.projectDef.location || '',
+        gesture: agency.projectDef.gesture || '',
+        theme: agency.projectDef.theme || '',
+        context: agency.projectDef.context || '',
+        direction: agency.projectDef.direction || ''
+    });
     setVeCapOverride(agency.veCapOverride !== undefined ? agency.veCapOverride : '');
   };
 
@@ -197,23 +208,49 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                     <p className="text-[10px] text-slate-400 mt-1 italic text-right">Laisser vide pour calcul auto.</p>
                                 </div>
 
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Problème</label>
-                                    <textarea 
-                                        value={formData.problem} 
-                                        onChange={e => setFormData({...formData, problem: e.target.value})}
-                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-[60px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Cible (Persona)</label>
-                                    <textarea 
-                                        value={formData.target} 
-                                        onChange={e => setFormData({...formData, target: e.target.value})}
-                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-[60px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                                    />
-                                </div>
                                 <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Thème</label>
+                                        <input 
+                                            type="text" 
+                                            value={formData.theme} 
+                                            onChange={e => setFormData({...formData, theme: e.target.value})}
+                                            className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Problème</label>
+                                        <textarea 
+                                            value={formData.problem} 
+                                            onChange={e => setFormData({...formData, problem: e.target.value})}
+                                            className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-[60px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Contexte</label>
+                                        <textarea 
+                                            value={formData.context} 
+                                            onChange={e => setFormData({...formData, context: e.target.value})}
+                                            className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-[60px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Direction Artistique</label>
+                                        <textarea 
+                                            value={formData.direction} 
+                                            onChange={e => setFormData({...formData, direction: e.target.value})}
+                                            className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-[40px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Cible</label>
+                                        <input 
+                                            type="text" 
+                                            value={formData.target} 
+                                            onChange={e => setFormData({...formData, target: e.target.value})}
+                                            className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                        />
+                                    </div>
                                     <div>
                                         <label className="text-xs font-bold text-slate-500 uppercase">Lieu</label>
                                         <input 
@@ -223,7 +260,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                             className="w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
                                         />
                                     </div>
-                                    <div>
+                                    <div className="col-span-2">
                                         <label className="text-xs font-bold text-slate-500 uppercase">Geste Archi</label>
                                         <input 
                                             type="text" 
@@ -250,23 +287,33 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                             </div>
                         ) : (
                             <div className="space-y-4 h-full">
-                                {(!agency.projectDef.problem && !agency.projectDef.location) ? (
+                                {(!agency.projectDef.problem && !agency.projectDef.theme) ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60 min-h-[150px]">
                                         <HelpCircle size={32} className="mb-2"/>
                                         <p className="text-sm italic">Projet non défini</p>
                                     </div>
                                 ) : (
                                     <>
+                                        <div className="flex gap-3 items-start border-b border-slate-50 pb-3">
+                                            <Compass size={18} className="text-indigo-500 shrink-0 mt-0.5"/>
+                                            <div>
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Thème & Direction</span>
+                                                <p className="text-sm font-bold text-slate-900 leading-snug">{agency.projectDef.theme}</p>
+                                                {agency.projectDef.direction && <p className="text-xs text-slate-500 mt-1 italic">"{agency.projectDef.direction}"</p>}
+                                            </div>
+                                        </div>
+
                                         <div className="flex gap-3 items-start">
                                             <Zap size={18} className="text-amber-500 shrink-0 mt-0.5"/>
                                             <div>
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Problème</span>
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Problème & Contexte</span>
                                                 <p className="text-sm font-medium text-slate-800 leading-snug">{agency.projectDef.problem}</p>
+                                                {agency.projectDef.context && <p className="text-xs text-slate-500 mt-1">{agency.projectDef.context}</p>}
                                             </div>
                                         </div>
                                         
                                         <div className="flex gap-3 items-start">
-                                            <Target size={18} className="text-indigo-500 shrink-0 mt-0.5"/>
+                                            <Target size={18} className="text-emerald-500 shrink-0 mt-0.5"/>
                                             <div>
                                                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Cible</span>
                                                 <p className="text-sm font-medium text-slate-800 leading-snug">{agency.projectDef.target}</p>
@@ -275,15 +322,18 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
 
                                         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
                                              <div className="flex gap-2 items-center">
-                                                <MapPin size={16} className="text-emerald-500 shrink-0"/>
+                                                <MapPin size={16} className="text-slate-400 shrink-0"/>
                                                 <div className="overflow-hidden">
                                                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Lieu</span>
-                                                    <p className="text-sm font-bold text-slate-900 truncate" title={agency.projectDef.location}>{agency.projectDef.location}</p>
+                                                    <p className="text-xs font-bold text-slate-900 truncate" title={agency.projectDef.location}>{agency.projectDef.location}</p>
                                                 </div>
                                              </div>
-                                             <div>
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Geste Archi</span>
-                                                <p className="text-sm font-bold text-slate-900 truncate" title={agency.projectDef.gesture}>{agency.projectDef.gesture || '...'}</p>
+                                             <div className="flex gap-2 items-center">
+                                                <BookOpen size={16} className="text-slate-400 shrink-0"/>
+                                                <div>
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Geste Archi</span>
+                                                    <p className="text-xs font-bold text-slate-900 truncate" title={agency.projectDef.gesture}>{agency.projectDef.gesture || '...'}</p>
+                                                </div>
                                              </div>
                                         </div>
                                     </>

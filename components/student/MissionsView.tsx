@@ -27,7 +27,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       problem: "",
       target: "",
       location: "",
-      gesture: ""
+      gesture: "",
+      context: "",
+      theme: "",
+      direction: ""
   });
 
   // Pre-fill charter form if data exists
@@ -37,7 +40,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
               problem: agency.projectDef.problem || "",
               target: agency.projectDef.target || "",
               location: agency.projectDef.location || "",
-              gesture: agency.projectDef.gesture || ""
+              gesture: agency.projectDef.gesture || "",
+              context: agency.projectDef.context || "",
+              theme: agency.projectDef.theme || "",
+              direction: agency.projectDef.direction || ""
           });
       }
   }, [agency.projectDef]);
@@ -140,8 +146,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   };
 
   const handleSubmitCharter = () => { 
-      if (!charterForm.problem || !charterForm.target || !charterForm.location) {
-          toast('error', "Veuillez remplir tous les champs obligatoires.");
+      if (!charterForm.problem || !charterForm.target || !charterForm.location || !charterForm.theme) {
+          toast('error', "Veuillez remplir les champs essentiels (Thème, Problème, Cible, Lieu).");
           return;
       }
 
@@ -156,7 +162,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             type: 'VE_DELTA',
             label: "Charte Projet",
             deltaVE: 10,
-            description: "Définition du projet soumise."
+            description: "Définition complète du projet soumise."
       };
 
       onUpdateAgency({
@@ -286,60 +292,99 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
         {/* MODAL: Charter Form */}
         <Modal isOpen={isCharterModalOpen} onClose={() => setIsCharterModalOpen(false)} title="Charte de Projet">
-             <div className="space-y-4">
+             <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
                      Définissez l'identité de votre projet. Ces informations seront visibles par l'administration et sur votre tableau de bord.
                  </div>
 
-                 <div>
-                     <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Problème Identifié</label>
-                     <textarea 
-                        value={charterForm.problem}
-                        onChange={e => setCharterForm({...charterForm, problem: e.target.value})}
-                        className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="Quel problème local essayez-vous de résoudre ?"
-                        rows={3}
-                     />
-                 </div>
-
-                 <div>
-                     <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Cible (Persona)</label>
-                     <input 
-                        type="text"
-                        value={charterForm.target}
-                        onChange={e => setCharterForm({...charterForm, target: e.target.value})}
-                        className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                        placeholder="Qui est votre utilisateur principal ?"
-                     />
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-4">
+                 {/* SECTION 1: IDENTITÉ */}
+                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">1. Identité</h4>
                      <div>
-                         <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Lieu</label>
+                         <label className="text-xs font-bold text-slate-700 mb-1 block">Thème Principal</label>
                          <input 
                             type="text"
-                            value={charterForm.location}
-                            onChange={e => setCharterForm({...charterForm, location: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            placeholder="Adresse ou Quartier"
+                            value={charterForm.theme}
+                            onChange={e => setCharterForm({...charterForm, theme: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                            placeholder="Ex: Écologie Urbaine / Cyber-Surveillance..."
                          />
                      </div>
                      <div>
-                         <label className="text-xs font-bold uppercase text-slate-500 mb-1 block">Geste Architectural</label>
+                         <label className="text-xs font-bold text-slate-700 mb-1 block">Direction Artistique (Intention)</label>
+                         <textarea 
+                            value={charterForm.direction}
+                            onChange={e => setCharterForm({...charterForm, direction: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
+                            placeholder="Ex: Minimaliste, néon, textures brutes..."
+                         />
+                     </div>
+                 </div>
+
+                 {/* SECTION 2: PROBLÉMATIQUE */}
+                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">2. Problématique</h4>
+                     <div>
+                         <label className="text-xs font-bold text-slate-700 mb-1 block">Contexte (Sociétal/Urbain)</label>
+                         <textarea 
+                            value={charterForm.context}
+                            onChange={e => setCharterForm({...charterForm, context: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
+                            placeholder="Ex: Dans une ville saturée par la publicité..."
+                         />
+                     </div>
+                     <div>
+                         <label className="text-xs font-bold text-slate-700 mb-1 block">Problème Identifié</label>
+                         <textarea 
+                            value={charterForm.problem}
+                            onChange={e => setCharterForm({...charterForm, problem: e.target.value})}
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
+                            placeholder="Quel problème local essayez-vous de résoudre ?"
+                         />
+                     </div>
+                 </div>
+
+                 {/* SECTION 3: CIBLE & LIEU */}
+                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">3. Ancrage</h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                             <label className="text-xs font-bold text-slate-700 mb-1 block">Cible (Persona)</label>
+                             <input 
+                                type="text"
+                                value={charterForm.target}
+                                onChange={e => setCharterForm({...charterForm, target: e.target.value})}
+                                className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                                placeholder="Qui est votre utilisateur ?"
+                             />
+                         </div>
+                         <div>
+                             <label className="text-xs font-bold text-slate-700 mb-1 block">Lieu</label>
+                             <input 
+                                type="text"
+                                value={charterForm.location}
+                                onChange={e => setCharterForm({...charterForm, location: e.target.value})}
+                                className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                                placeholder="Adresse ou Quartier"
+                             />
+                         </div>
+                     </div>
+                     <div>
+                         <label className="text-xs font-bold text-slate-700 mb-1 block">Geste Architectural</label>
                          <input 
                             type="text"
                             value={charterForm.gesture}
                             onChange={e => setCharterForm({...charterForm, gesture: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
                             placeholder="Ex: Kiosque, Passerelle..."
                          />
                      </div>
                  </div>
 
-                 <div className="pt-2">
+                 <div className="pt-2 sticky bottom-0 bg-white pb-2">
                      <button 
                         onClick={handleSubmitCharter}
-                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2 shadow-lg"
                      >
                          <Save size={18} /> Enregistrer & Soumettre
                      </button>
