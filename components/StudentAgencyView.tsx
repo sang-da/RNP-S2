@@ -579,7 +579,7 @@ const ChallengeVotingBooth: React.FC<{agency: Agency, currentUser: Student, onVo
 
                 <div className="text-center">
                     <p className="text-sm text-slate-600 mb-4">
-                        Si l'équipe accepte ce défi (Majorité > {GAME_RULES.VOTE_THRESHOLD_CHALLENGE * 100}%), une <strong>mission spéciale</strong> sera ajoutée à votre liste de tâches.
+                        Si l'équipe accepte ce défi (Majorité &gt; {GAME_RULES.VOTE_THRESHOLD_CHALLENGE * 100}%), une <strong>mission spéciale</strong> sera ajoutée à votre liste de tâches.
                     </p>
                     
                     <div className="grid grid-cols-2 gap-4">
