@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, UserX, Trash2, Edit, Save, AlertCircle, RefreshCw, PlugZap } from 'lucide-react';
+import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, UserX, Trash2, Edit, Save, AlertCircle, RefreshCw, PlugZap, Shield, XCircle } from 'lucide-react';
 import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext'; 
@@ -146,6 +146,26 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
        }
   };
 
+  const handlePromoteSupervisor = async (user: UserProfile) => {
+      if(readOnly) return;
+      if(await confirm({ title: "Promouvoir Superviseur ?", message: `L'utilisateur ${user.displayName} aura accès au Dashboard Admin en lecture seule.`, confirmText: "Promouvoir" })) {
+          try {
+              await updateDoc(doc(db, "users", user.uid), { role: 'supervisor' });
+              toast('success', `${user.displayName} est maintenant Superviseur.`);
+          } catch(e) { console.error(e); toast('error', "Erreur promotion"); }
+      }
+  };
+
+  const handleRejectUser = async (user: UserProfile) => {
+      if(readOnly) return;
+      if(await confirm({ title: "Refuser la connexion ?", message: `Attention : Cela va supprimer le profil de ${user.displayName} de la base de données. Il devra se reconnecter.`, confirmText: "Supprimer", isDangerous: true })) {
+          try {
+              await deleteDoc(doc(db, "users", user.uid));
+              toast('success', "Utilisateur supprimé de la liste d'attente.");
+          } catch(e) { console.error(e); toast('error', "Erreur suppression"); }
+      }
+  };
+
   const filteredStudents = allGameStudents.filter(s => s.student.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
@@ -199,7 +219,27 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     </div>
                                 </div>
 
-                                {/* CENTRE: L'action */}
+                                {/* CENTRE: Les Actions Rapides (Reject / Promote) */}
+                                {!readOnly && (
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => handleRejectUser(user)}
+                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" 
+                                        title="Refuser / Supprimer"
+                                    >
+                                        <XCircle size={20}/>
+                                    </button>
+                                    <button 
+                                        onClick={() => handlePromoteSupervisor(user)}
+                                        className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100" 
+                                        title="Promouvoir Superviseur"
+                                    >
+                                        <Shield size={20}/>
+                                    </button>
+                                </div>
+                                )}
+
+                                {/* CENTRE: L'icone de lien */}
                                 <div className="hidden xl:flex text-slate-300">
                                     <Link size={24} />
                                 </div>

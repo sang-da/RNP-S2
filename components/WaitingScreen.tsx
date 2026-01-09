@@ -1,9 +1,11 @@
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, Fingerprint } from 'lucide-react';
+import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, Fingerprint, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut, auth, db, doc, onSnapshot } from '../services/firebase';
+import { useGame } from '../contexts/GameContext';
+import { signOut, auth, db, doc, onSnapshot, updateDoc } from '../services/firebase';
 import { MASCOTS } from '../constants';
+import { useUI } from '../contexts/UIContext';
 
 const ONBOARDING_SLIDES = [
     {
@@ -30,9 +32,12 @@ const ONBOARDING_SLIDES = [
 
 export const WaitingScreen: React.FC = () => {
     const { userData } = useAuth();
+    const { agencies } = useGame(); // Accès aux données de jeu pour vérifier si l'étudiant est déjà dedans
+    const { toast } = useUI();
     const [currentSlide, setCurrentSlide] = useState(0);
+    const [isChecking, setIsChecking] = useState(false);
 
-    // Auto-reload si le rôle change
+    // Auto-reload si le rôle change dans la base
     useEffect(() => {
         if (!userData?.uid) return;
         try {
@@ -53,6 +58,51 @@ export const WaitingScreen: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
+    // --- SELF REPAIR FUNCTION ---
+    const handleSelfFix = async () => {
+        if (!userData?.uid) return;
+        setIsChecking(true);
+
+        try {
+            // 1. Chercher si l'UID est présent dans une agence
+            let foundAgency = null;
+            let foundMember = null;
+
+            for (const agency of agencies) {
+                const member = agency.members.find(m => m.id === userData.uid);
+                if (member) {
+                    foundAgency = agency;
+                    foundMember = member;
+                    break;
+                }
+            }
+
+            if (foundAgency && foundMember) {
+                // 2. Si trouvé, forcer la mise à jour du profil utilisateur
+                await updateDoc(doc(db, "users", userData.uid), {
+                    role: 'student',
+                    agencyId: foundAgency.id,
+                    studentProfileName: foundMember.name,
+                    linkedStudentId: userData.uid // Confirmer le lien
+                });
+                
+                toast('success', `Compte retrouvé ! Vous êtes dans "${foundAgency.name}". Redirection...`);
+                
+                // Petit délai pour l'UX avant reload
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                toast('info', "Votre dossier n'est pas encore validé par l'enseignant. Veuillez patienter.");
+            }
+        } catch (error) {
+            console.error(error);
+            toast('error', "Erreur lors de la vérification.");
+        } finally {
+            setIsChecking(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans relative overflow-hidden">
             {/* Background Decoration */}
@@ -70,11 +120,21 @@ export const WaitingScreen: React.FC = () => {
             <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">
                 Bienvenue, {userData?.displayName?.split(' ')[0]}
             </h1>
-            <p className="text-slate-500 mb-10 max-w-md mx-auto">
+            <p className="text-slate-500 mb-6 max-w-md mx-auto">
                 Votre compte est connecté, mais il n'est pas encore relié à votre profil dans le jeu.
                 <br/><br/>
                 <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">Demandez à votre enseignant de valider la liaison.</span>
             </p>
+
+            {/* BOUTON DE DÉPANNAGE (SELF FIX) */}
+            <button 
+                onClick={handleSelfFix}
+                disabled={isChecking}
+                className="mb-8 px-6 py-3 bg-white border border-indigo-200 text-indigo-700 font-bold rounded-xl shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2 text-sm"
+            >
+                {isChecking ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>}
+                Je devrais avoir accès (Vérifier mon statut)
+            </button>
 
             {/* Carousel Card */}
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm max-w-md w-full text-center relative overflow-hidden group hover:shadow-md transition-shadow">
