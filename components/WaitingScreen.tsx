@@ -1,9 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, Fingerprint, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useGame } from '../contexts/GameContext';
-import { signOut, auth, db, doc, onSnapshot, updateDoc, writeBatch, collection, getDocs } from '../services/firebase';
+import { signOut, auth, db, doc, updateDoc, writeBatch, collection, getDocs, onSnapshot } from '../services/firebase';
 import { MASCOTS } from '../constants';
 import { useUI } from '../contexts/UIContext';
 
@@ -32,24 +31,9 @@ const ONBOARDING_SLIDES = [
 
 export const WaitingScreen: React.FC = () => {
     const { userData, refreshProfile } = useAuth();
-    const { agencies } = useGame();
     const { toast } = useUI();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isChecking, setIsChecking] = useState(false);
-
-    // Auto-reload si le rôle change dans la base
-    useEffect(() => {
-        if (!userData?.uid) return;
-        try {
-            const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
-                if (doc.exists() && doc.data().role !== 'pending') {
-                    // Force refresh context and reload
-                    window.location.reload(); 
-                }
-            });
-            return () => unsub();
-        } catch (e) { console.error(e); }
-    }, [userData]);
 
     // Carousel Timer
     useEffect(() => {
@@ -59,29 +43,23 @@ export const WaitingScreen: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // --- SELF REPAIR FUNCTION (Updated to be more robust) ---
+    // --- SELF REPAIR FUNCTION ---
+    // En cas de désynchro (étudiant déjà dans l'agence mais mal connecté)
     const handleSelfFix = async () => {
         if (!userData?.uid || !userData.displayName) return;
         setIsChecking(true);
 
         try {
-            // Force refresh from AuthContext logic which now has powerful Auto-Heal
+            // 1. Force refresh from AuthContext logic (checks or creates profile)
             await refreshProfile();
             
-            // Re-check locally if it worked
-            const userDoc = await onSnapshot(doc(db, "users", userData.uid), (snap) => {
-                 if (snap.exists() && snap.data().role === 'student') {
-                     toast('success', "Compte réparé ! Redirection...");
-                     setTimeout(() => window.location.reload(), 1000);
-                 } else {
-                     // Fallback: Manual deep scan if Context scan failed (Redundancy)
-                     manualDeepScan();
-                 }
-            });
+            // 2. Manual deep scan if Context scan failed (Redundancy)
+            await manualDeepScan();
 
         } catch (error) {
             console.error(error);
             toast('error', "Erreur lors de la vérification.");
+        } finally {
             setIsChecking(false);
         }
     };
@@ -107,7 +85,6 @@ export const WaitingScreen: React.FC = () => {
 
                 if (member) {
                     found = true;
-                    // FORCE FIX
                     const batch = writeBatch(db);
                     
                     // Update User
@@ -128,8 +105,7 @@ export const WaitingScreen: React.FC = () => {
                     }
 
                     await batch.commit();
-                    toast('success', `Profil "${member.name}" retrouvé dans ${agency.name}. Connexion...`);
-                    setTimeout(() => window.location.reload(), 1500);
+                    toast('success', `Profil "${member.name}" retrouvé dans ${agency.name}.`);
                     break;
                 }
             }
@@ -140,8 +116,6 @@ export const WaitingScreen: React.FC = () => {
 
         } catch (e) {
             console.error(e);
-        } finally {
-            setIsChecking(false);
         }
     };
 

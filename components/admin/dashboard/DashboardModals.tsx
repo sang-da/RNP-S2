@@ -99,84 +99,94 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const [constraintBroken, setConstraintBroken] = useState<boolean>(false);
     const [feedback, setFeedback] = useState(item.deliverable.feedback || "");
     const [mvpId, setMvpId] = useState<string>("");
+    const [isSaving, setIsSaving] = useState(false);
 
     const agency = agencies.find(a => a.id === item.agencyId);
     const baseScore = quality === 'A' ? 10 : quality === 'B' ? 4 : 0;
-    const penaltyLate = daysLate * 5;
+    const penaltyLate = (daysLate || 0) * 5;
     const penaltyConstraint = constraintBroken ? 10 : 0;
     const rawDelta = baseScore - penaltyLate - penaltyConstraint;
 
-    const handleValidate = () => {
+    const handleValidate = async () => {
         if(!agency) return;
+        setIsSaving(true);
 
-        // PERFORMANCE MULTIPLIER APPLICATION
-        // Only apply if the delta is positive (gains). Penalties remain fixed.
-        const multiplier = getAgencyPerformanceMultiplier(agency);
-        const finalDelta = rawDelta > 0 ? Math.round(rawDelta * multiplier) : rawDelta;
-        const perfPercent = Math.round(multiplier * 100);
+        try {
+            // PERFORMANCE MULTIPLIER APPLICATION
+            const multiplier = getAgencyPerformanceMultiplier(agency);
+            const finalDelta = rawDelta > 0 ? Math.round(rawDelta * multiplier) : rawDelta;
+            const perfPercent = Math.round(multiplier * 100);
 
-        const currentWeek = agency.progress[item.weekId];
-        const isRejected = quality === 'C';
-        const finalStatus: 'validated' | 'rejected' = isRejected ? 'rejected' : 'validated';
-        
-        const updatedDeliverables = currentWeek.deliverables.map(d => 
-            d.id === item.deliverable.id 
-            ? { 
-                ...d, 
-                status: finalStatus,
-                feedback: feedback,
-                score: 100,
-                grading: {
-                    quality,
-                    daysLate,
-                    constraintBroken,
-                    finalDelta: finalDelta,
-                    mvpId: mvpId || undefined
+            const currentWeek = agency.progress[item.weekId];
+            const isRejected = quality === 'C';
+            const finalStatus: 'validated' | 'rejected' = isRejected ? 'rejected' : 'validated';
+            
+            const updatedDeliverables = currentWeek.deliverables.map(d => 
+                d.id === item.deliverable.id 
+                ? { 
+                    ...d, 
+                    status: finalStatus,
+                    feedback: feedback,
+                    score: 100,
+                    grading: {
+                        quality,
+                        daysLate: daysLate || 0, // Sécurité NaN
+                        constraintBroken,
+                        finalDelta: finalDelta || 0, // Sécurité NaN
+                        mvpId: mvpId || null // Sécurité Firebase (null au lieu de undefined/empty)
+                    }
                 }
-              }
-            : d
-        );
-
-        let updatedProjectDef = agency.projectDef;
-        if (item.deliverable.id === 'd_charter' && isRejected) {
-             updatedProjectDef = { ...agency.projectDef, isLocked: false };
-        }
-
-        // Apply MVP Bonus if Grade is A and MVP selected
-        let updatedMembers = agency.members;
-        if (quality === 'A' && mvpId) {
-            updatedMembers = agency.members.map(m => 
-                m.id === mvpId ? { ...m, individualScore: Math.min(100, m.individualScore + 5) } : m
+                : d
             );
-        }
 
-        const newEvent: GameEvent = {
-            id: `evt-${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            type: 'VE_DELTA',
-            label: isRejected ? `Rejet: ${item.deliverable.name}` : `Correction: ${item.deliverable.name}`,
-            deltaVE: finalDelta,
-            description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate}) | Perf. ${perfPercent}%${mvpId ? ' | MVP Bonus' : ''}`
-        };
-
-        const updatedAgency = {
-            ...agency,
-            ve_current: Math.max(0, Math.min(100, agency.ve_current + finalDelta)),
-            projectDef: updatedProjectDef,
-            eventLog: [...agency.eventLog, newEvent],
-            members: updatedMembers,
-            progress: {
-                ...agency.progress,
-                [item.weekId]: {
-                    ...currentWeek,
-                    deliverables: updatedDeliverables
-                }
+            let updatedProjectDef = agency.projectDef;
+            if (item.deliverable.id === 'd_charter' && isRejected) {
+                updatedProjectDef = { ...agency.projectDef, isLocked: false };
             }
-        };
 
-        onUpdateAgency(updatedAgency);
-        toast(finalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${finalDelta} VE) - Perf ${perfPercent}%`);
-        onClose();
+            // Apply MVP Bonus if Grade is A and MVP selected
+            let updatedMembers = agency.members;
+            if (quality === 'A' && mvpId) {
+                updatedMembers = agency.members.map(m => 
+                    m.id === mvpId ? { ...m, individualScore: Math.min(100, m.individualScore + 5) } : m
+                );
+            }
+
+            const newEvent: GameEvent = {
+                id: `evt-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'VE_DELTA',
+                label: isRejected ? `Rejet: ${item.deliverable.name}` : `Correction: ${item.deliverable.name}`,
+                deltaVE: finalDelta,
+                description: `Qualité ${quality} (${baseScore}pts) | Retard: ${daysLate}j (-${penaltyLate}) | Perf. ${perfPercent}%${mvpId ? ' | MVP Bonus' : ''}`
+            };
+
+            const updatedAgency = {
+                ...agency,
+                ve_current: Math.max(0, Math.min(100, agency.ve_current + finalDelta)),
+                projectDef: updatedProjectDef,
+                eventLog: [...agency.eventLog, newEvent],
+                members: updatedMembers,
+                progress: {
+                    ...agency.progress,
+                    [item.weekId]: {
+                        ...currentWeek,
+                        deliverables: updatedDeliverables
+                    }
+                }
+            };
+
+            // ATTENTE DE LA SAUVEGARDE DB
+            await onUpdateAgency(updatedAgency);
+            
+            toast(finalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${finalDelta} VE) - Perf ${perfPercent}%`);
+            onClose();
+        } catch (error) {
+            console.error("Erreur validation:", error);
+            toast('error', "Échec de l'enregistrement en base de données.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -198,7 +208,6 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                         </div>
                     </div>
                     
-                    {/* MVP SELECTION */}
                     {quality === 'A' && agency && (
                         <div className="animate-in fade-in slide-in-from-top-2">
                             <label className="block text-sm font-bold text-emerald-700 mb-2 flex items-center gap-2">
@@ -220,7 +229,13 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                              <label className="block text-sm font-bold text-slate-700 mb-2">Jours de Retard</label>
-                             <input type="number" min="0" value={daysLate} onChange={e => setDaysLate(parseInt(e.target.value))} className="w-full p-3 border border-slate-200 rounded-xl"/>
+                             <input 
+                                type="number" 
+                                min="0" 
+                                value={daysLate} 
+                                onChange={e => setDaysLate(e.target.value ? parseInt(e.target.value) : 0)} 
+                                className="w-full p-3 border border-slate-200 rounded-xl"
+                             />
                         </div>
                         <div className="flex items-end">
                              <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl w-full hover:bg-slate-50">
@@ -244,7 +259,13 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                             </span>
                         )}
                     </div>
-                    <button onClick={handleValidate} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">Valider</button>
+                    <button 
+                        onClick={handleValidate} 
+                        disabled={isSaving}
+                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors disabled:opacity-50"
+                    >
+                        {isSaving ? 'Sauvegarde...' : 'Valider'}
+                    </button>
                  </div>
             </div>
         </Modal>
@@ -262,7 +283,6 @@ interface AuditRHModalProps {
 export const AuditRHModal: React.FC<AuditRHModalProps> = ({agency, onClose, onUpdateAgency, readOnly}) => {
     const { toast, confirm } = useUI();
 
-    // Helper logic duplicated from widgets for display
     const detectAnomalies = (agency: Agency): string[] => {
         const anomalies: string[] = [];
         if (agency.peerReviews.length > 2) {

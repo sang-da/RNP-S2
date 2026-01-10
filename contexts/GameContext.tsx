@@ -21,7 +21,7 @@ interface GameContextType {
   toggleAutoMode: () => void;
   updateAgency: (agency: Agency) => void;
   updateAgenciesList: (agencies: Agency[]) => void;
-  deleteAgency: (agencyId: string) => Promise<void>; // NEW
+  deleteAgency: (agencyId: string) => Promise<void>;
   updateWeek: (weekId: string, week: WeekModule) => void;
   
   // Wiki Actions
@@ -142,13 +142,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return () => clearInterval(interval);
   }, [isAutoMode, weeks]);
 
-  // HELPER: Get Current Week
   const getCurrentGameWeek = () => {
       const unlockedWeeks = (Object.values(weeks) as WeekModule[]).filter(w => !w.locked).map(w => parseInt(w.id));
       return unlockedWeeks.length > 0 ? Math.max(...unlockedWeeks) : 1;
   };
 
-  // SEED FUNCTION
   const seedDatabase = async () => {
     const batch = writeBatch(db);
     MOCK_AGENCIES.forEach(agency => {
@@ -195,7 +193,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           const batch = writeBatch(db);
 
-          // 1. Move existing members to 'unassigned' if any
           if (agencyToDelete.members.length > 0) {
               const unassignedRef = doc(db, "agencies", "unassigned");
               const unassignedAgency = agencies.find(a => a.id === 'unassigned');
@@ -205,7 +202,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               }
           }
 
-          // 2. Delete the agency document
           const agencyRef = doc(db, "agencies", agencyId);
           batch.delete(agencyRef);
 
@@ -269,7 +265,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             let logEvents: GameEvent[] = [];
             let agencyMembers = [...agency.members];
 
-            // 1. REVENUES (Income first)
+            // 1. REVENUES
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
             const bonuses = agency.weeklyRevenueModifier || 0;
             const totalRevenue = revenueVE + bonuses + GAME_RULES.REVENUE_BASE;
@@ -292,16 +288,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 logEvents.push({ id: `fin-rent-${Date.now()}-${agency.id}`, date: today, type: 'CRISIS', label: 'Loyer Agence', deltaBudgetReal: -rent, description: `Prélèvement automatique.` });
             } else {
                 // Scenario B: Default -> Solidarity Clause
-                // Agency pays what it can (goes to 0), rest is split among members
-                const paidByAgency = Math.max(0, currentBudget); // If budget was already negative, it pays 0
+                // Agency pays what it can (goes lower in debt if already negative)
+                const paidByAgency = Math.max(0, currentBudget); // If budget was already negative, it pays 0 from balance
                 const deficit = rent - paidByAgency;
+                
+                // IMPORTANT FIX: Ne pas reset le budget à 0 si on était en dette
+                currentBudget -= paidByAgency; 
+                
                 const membersCount = Math.max(1, agencyMembers.length);
                 const sharePerStudent = Math.ceil(deficit / membersCount);
 
-                currentBudget = 0; // Budget reset to 0 (or stays negative if it was debt, but logic implies we drain existing funds first)
-                
-                // If it was already in debt, the debt remains. Here simplified: existing cash is used for rent.
-                
                 logEvents.push({ 
                     id: `fin-rent-solidarity-${Date.now()}-${agency.id}`, 
                     date: today, 
@@ -335,13 +331,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Pas de salaire.` });
             }
 
-            // 4. COST OF LIVING & PRECARITY (The "Burn Rate")
+            // 4. COST OF LIVING & PRECARITY
             agencyMembers = agencyMembers.map(member => {
-                // Deduct Cost of Living
                 let newWallet = (member.wallet || 0) - GAME_RULES.COST_OF_LIVING;
                 let newScore = member.individualScore;
                 
-                // Check Poverty
                 if (newWallet < 0) {
                     newScore = Math.max(0, newScore - GAME_RULES.POVERTY_SCORE_PENALTY);
                 }
@@ -403,7 +397,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             const veCap = calculateVECap(agency);
-            
             const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
 
             const ref = doc(db, "agencies", agency.id);
@@ -424,10 +417,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => { 
-      // Logic placeholder for student-to-student transfer
       const sourceAgency = agencies.find(a => a.members.some(m => m.id === sourceId));
       if (!sourceAgency) return;
-      // ... implementation ...
+      // ... implementation to be completed if needed, currently placeholder
   };
   
   const tradeScoreForCash = async (studentId: string, scoreAmount: number) => { /* Impl */ };
@@ -441,12 +433,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
       
-      // Calculate tax
       const tax = Math.floor(amount * GAME_RULES.INJECTION_TAX);
       const netInjection = amount - tax;
 
       const batch = writeBatch(db);
-      
       const updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - amount } : m);
       
       const today = new Date().toISOString().split('T')[0];
@@ -500,11 +490,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newVotes = { ...request.votes, [voterId]: vote };
       const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
       let totalVoters = agency.members.length;
-      let threshold = GAME_RULES.VOTE_THRESHOLD_HIRE; // Default 0.66
+      let threshold = GAME_RULES.VOTE_THRESHOLD_HIRE; 
       
       if (request.type === 'FIRE' && request.requesterId !== request.studentId) { 
           totalVoters = Math.max(1, agency.members.length - 1); 
-          threshold = GAME_RULES.VOTE_THRESHOLD_FIRE; // Default 0.75
+          threshold = GAME_RULES.VOTE_THRESHOLD_FIRE;
       }
 
       const batch = writeBatch(db);
@@ -527,7 +517,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', "Vote enregistré");
   };
 
-  // --- BLACK OPS LOGIC ---
   const triggerBlackOp = async (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => {
       const week = getCurrentGameWeek();
       if (week < GAME_RULES.UNLOCK_WEEK_BLACK_OPS) {
@@ -585,7 +574,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await batch.commit();
   };
 
-  // --- MERGERS LOGIC ---
   const proposeMerger = async (sourceAgencyId: string, targetAgencyId: string) => {
       const week = getCurrentGameWeek();
       if (week < GAME_RULES.UNLOCK_WEEK_MERGERS) {
@@ -664,7 +652,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', "Fusion confirmée. Agence absorbée.");
   };
 
-  // --- CHALLENGE / AI GENERATED MISSION LOGIC ---
   const sendChallenge = async (targetAgencyId: string, title: string, description: string) => {
       const agency = agencies.find(a => a.id === targetAgencyId);
       if (!agency) return;
@@ -696,20 +683,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
       const totalVoters = agency.members.length;
       
-      // Check if voting is complete (majority won) or everyone voted
-      // USE CONSTANT FROM RULES
       const isAccepted = (approvals / totalVoters) > GAME_RULES.VOTE_THRESHOLD_CHALLENGE;
       
       const batch = writeBatch(db);
       const agencyRef = doc(db, "agencies", agency.id);
 
       if (isAccepted) {
-          // 1. Mark Challenge Accepted
           const updatedChallenges = agency.challenges?.map(c => 
               c.id === challengeId ? { ...c, status: 'ACCEPTED', votes: newVotes } : c
           );
           
-          // 2. Create Special Deliverable in Current Week
           const currentWeekId = getCurrentGameWeek().toString();
           const weekData = agency.progress[currentWeekId];
           if (weekData) {
@@ -737,7 +720,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               toast('success', "Challenge accepté ! Mission créée.");
           }
       } else {
-          // Just update votes
           const updatedChallenges = agency.challenges?.map(c => 
               c.id === challengeId ? { ...c, votes: newVotes } : c
           );
