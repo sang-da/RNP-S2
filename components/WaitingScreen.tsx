@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, TrendingUp, Wallet, Users, AlertTriangle, Fingerprint, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
-import { signOut, auth, db, doc, onSnapshot, updateDoc } from '../services/firebase';
+import { signOut, auth, db, doc, onSnapshot, updateDoc, writeBatch, collection, getDocs } from '../services/firebase';
 import { MASCOTS } from '../constants';
 import { useUI } from '../contexts/UIContext';
 
@@ -31,8 +31,8 @@ const ONBOARDING_SLIDES = [
 ];
 
 export const WaitingScreen: React.FC = () => {
-    const { userData } = useAuth();
-    const { agencies } = useGame(); // Accès aux données de jeu pour vérifier si l'étudiant est déjà dedans
+    const { userData, refreshProfile } = useAuth();
+    const { agencies } = useGame();
     const { toast } = useUI();
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isChecking, setIsChecking] = useState(false);
@@ -43,6 +43,7 @@ export const WaitingScreen: React.FC = () => {
         try {
             const unsub = onSnapshot(doc(db, "users", userData.uid), (doc) => {
                 if (doc.exists() && doc.data().role !== 'pending') {
+                    // Force refresh context and reload
                     window.location.reload(); 
                 }
             });
@@ -58,46 +59,87 @@ export const WaitingScreen: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // --- SELF REPAIR FUNCTION ---
+    // --- SELF REPAIR FUNCTION (Updated to be more robust) ---
     const handleSelfFix = async () => {
-        if (!userData?.uid) return;
+        if (!userData?.uid || !userData.displayName) return;
         setIsChecking(true);
 
         try {
-            // 1. Chercher si l'UID est présent dans une agence
-            let foundAgency = null;
-            let foundMember = null;
+            // Force refresh from AuthContext logic which now has powerful Auto-Heal
+            await refreshProfile();
+            
+            // Re-check locally if it worked
+            const userDoc = await onSnapshot(doc(db, "users", userData.uid), (snap) => {
+                 if (snap.exists() && snap.data().role === 'student') {
+                     toast('success', "Compte réparé ! Redirection...");
+                     setTimeout(() => window.location.reload(), 1000);
+                 } else {
+                     // Fallback: Manual deep scan if Context scan failed (Redundancy)
+                     manualDeepScan();
+                 }
+            });
 
-            for (const agency of agencies) {
-                const member = agency.members.find(m => m.id === userData.uid);
+        } catch (error) {
+            console.error(error);
+            toast('error', "Erreur lors de la vérification.");
+            setIsChecking(false);
+        }
+    };
+
+    const manualDeepScan = async () => {
+        if (!userData?.uid) return;
+        
+        try {
+            const agenciesSnap = await getDocs(collection(db, 'agencies'));
+            const googleNameNorm = userData.displayName?.toLowerCase().trim() || "";
+            
+            let found = false;
+
+            for (const d of agenciesSnap.docs) {
+                const agency = d.data();
+                if (agency.id === 'unassigned') continue;
+
+                // Match Name Fuzzy
+                const member = agency.members.find((m: any) => {
+                    const mName = m.name.toLowerCase().trim();
+                    return googleNameNorm.includes(mName) || mName.includes(googleNameNorm);
+                });
+
                 if (member) {
-                    foundAgency = agency;
-                    foundMember = member;
+                    found = true;
+                    // FORCE FIX
+                    const batch = writeBatch(db);
+                    
+                    // Update User
+                    batch.update(doc(db, "users", userData.uid), {
+                        role: 'student',
+                        agencyId: agency.id,
+                        studentProfileName: member.name,
+                        linkedStudentId: member.id,
+                        fixedBy: 'manual_button'
+                    });
+
+                    // Update Agency (Swap ID)
+                    if (member.id !== userData.uid) {
+                        const newMembers = agency.members.map((m: any) => 
+                            m.id === member.id ? { ...m, id: userData.uid, avatarUrl: userData.photoURL } : m
+                        );
+                        batch.update(doc(db, "agencies", agency.id), { members: newMembers });
+                    }
+
+                    await batch.commit();
+                    toast('success', `Profil "${member.name}" retrouvé dans ${agency.name}. Connexion...`);
+                    setTimeout(() => window.location.reload(), 1500);
                     break;
                 }
             }
 
-            if (foundAgency && foundMember) {
-                // 2. Si trouvé, forcer la mise à jour du profil utilisateur
-                await updateDoc(doc(db, "users", userData.uid), {
-                    role: 'student',
-                    agencyId: foundAgency.id,
-                    studentProfileName: foundMember.name,
-                    linkedStudentId: userData.uid // Confirmer le lien
-                });
-                
-                toast('success', `Compte retrouvé ! Vous êtes dans "${foundAgency.name}". Redirection...`);
-                
-                // Petit délai pour l'UX avant reload
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                toast('info', "Votre dossier n'est pas encore validé par l'enseignant. Veuillez patienter.");
+            if (!found) {
+                toast('warning', "Aucun profil trouvé à votre nom dans les agences. Contactez l'enseignant.");
             }
-        } catch (error) {
-            console.error(error);
-            toast('error', "Erreur lors de la vérification.");
+
+        } catch (e) {
+            console.error(e);
         } finally {
             setIsChecking(false);
         }
@@ -121,19 +163,26 @@ export const WaitingScreen: React.FC = () => {
                 Bienvenue, {userData?.displayName?.split(' ')[0]}
             </h1>
             <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                Votre compte est connecté, mais il n'est pas encore relié à votre profil dans le jeu.
-                <br/><br/>
-                <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">Demandez à votre enseignant de valider la liaison.</span>
+                Nous vérifions votre affectation...
+                <br/>
+                <span className="text-xs text-slate-400">ID: {userData?.uid.slice(0, 8)}...</span>
             </p>
 
             {/* BOUTON DE DÉPANNAGE (SELF FIX) */}
             <button 
                 onClick={handleSelfFix}
                 disabled={isChecking}
-                className="mb-8 px-6 py-3 bg-white border border-indigo-200 text-indigo-700 font-bold rounded-xl shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2 text-sm"
+                className={`mb-8 px-6 py-4 border-2 rounded-2xl font-bold shadow-sm flex items-center gap-3 text-sm transition-all ${
+                    isChecking 
+                    ? 'bg-slate-100 border-slate-200 text-slate-400' 
+                    : 'bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-md'
+                }`}
             >
-                {isChecking ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>}
-                Je devrais avoir accès (Vérifier mon statut)
+                {isChecking ? <Loader2 size={20} className="animate-spin"/> : <RefreshCw size={20}/>}
+                <div>
+                    <span className="block text-left">Je suis déjà dans une agence</span>
+                    <span className="block text-left text-[10px] opacity-70 font-normal">Forcer la détection par Nom & Prénom</span>
+                </div>
             </button>
 
             {/* Carousel Card */}
@@ -164,16 +213,11 @@ export const WaitingScreen: React.FC = () => {
             </div>
 
             <div className="mt-8 flex flex-col gap-4 items-center">
-                {/* DEBUG UID */}
-                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono bg-slate-100 px-3 py-1.5 rounded-full select-all cursor-text">
-                    <Fingerprint size={12}/> ID: {userData?.uid}
-                </div>
-
                 <button 
                     onClick={() => signOut(auth)}
                     className="text-slate-400 hover:text-red-500 font-bold text-sm transition-colors mt-2"
                 >
-                    Annuler et se déconnecter
+                    Me déconnecter et réessayer
                 </button>
             </div>
         </div>
