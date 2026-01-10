@@ -48,6 +48,7 @@ export const collection = (firestoreOrDoc: any, path: string, ...segments: strin
 };
 
 export const getDoc = (ref: any) => ref.get();
+export const getDocs = (ref: any) => ref.get();
 export const setDoc = (ref: any, data: any, options?: any) => ref.set(data, options);
 export const updateDoc = (ref: any, data: any) => ref.update(data);
 export const deleteDoc = (ref: any) => ref.delete();

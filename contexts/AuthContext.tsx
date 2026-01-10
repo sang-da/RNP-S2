@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, onAuthStateChanged, User, doc, getDoc, setDoc, updateDoc, serverTimestamp } from '../services/firebase';
+import { auth, db, onAuthStateChanged, User, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, getDocs } from '../services/firebase';
 
 interface UserData {
   uid: string;
@@ -40,21 +40,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
         const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
+        let currentRole: 'admin' | 'student' | 'pending' | 'supervisor' = isRoot ? 'admin' : 'pending';
+        let currentAgencyId: string | null = null;
+        let exists = userSnap.exists();
+
+        if (exists) {
             const data = userSnap.data();
-            
-            if (isRoot && data.role !== 'admin') {
+            currentRole = isRoot ? 'admin' : data.role;
+            currentAgencyId = data.agencyId || null;
+        }
+
+        // --- AUTO-HEALING / RÉPARATION AUTOMATIQUE ---
+        // Si l'utilisateur est 'pending' (bloqué), on vérifie s'il est déjà dans une agence
+        // Cela corrige le bug où les étudiants sont bloqués en salle d'attente alors qu'ils sont assignés.
+        if (currentRole === 'pending') {
+            try {
+                // On scanne toutes les agences pour trouver l'ID de l'utilisateur
+                const agenciesSnap = await getDocs(collection(db, 'agencies'));
+                let foundAgencyId: string | null = null;
+                let foundMemberName: string | null = null;
+
+                agenciesSnap.forEach((doc) => {
+                    const agencyData = doc.data();
+                    const member = agencyData.members?.find((m: any) => m.id === user.uid);
+                    if (member) {
+                        foundAgencyId = agencyData.id;
+                        foundMemberName = member.name;
+                    }
+                });
+
+                if (foundAgencyId) {
+                    console.log(`[AUTH FIX] Utilisateur ${user.uid} retrouvé dans l'agence ${foundAgencyId}. Réparation du profil...`);
+                    currentRole = 'student';
+                    currentAgencyId = foundAgencyId;
+                    
+                    // On force la mise à jour immédiate dans Firestore
+                    await setDoc(userRef, {
+                        role: 'student',
+                        agencyId: foundAgencyId,
+                        studentProfileName: foundMemberName,
+                        lastLogin: serverTimestamp(),
+                        fixedBySystem: true // Flag de debug
+                    }, { merge: true });
+                    exists = true; // On considère maintenant que le profil est valide
+                }
+            } catch (scanError) {
+                console.error("[AUTH FIX ERROR] Impossible de scanner les agences:", scanError);
+            }
+        }
+
+        if (exists) {
+            // Mise à jour si c'est le root admin pour être sûr
+            if (isRoot && currentRole !== 'admin') {
                 await updateDoc(userRef, { role: 'admin' });
             }
 
             setUserData({
                 uid: user.uid,
                 email: user.email,
-                displayName: data.displayName || user.displayName,
-                photoURL: data.photoURL || user.photoURL,
-                role: isRoot ? 'admin' : data.role, 
-                agencyId: data.agencyId || null
+                displayName: user.displayName, // On garde le nom Google actuel
+                photoURL: user.photoURL,
+                role: currentRole, 
+                agencyId: currentAgencyId
             });
         } else {
             console.log("Création de profil Firestore...");
@@ -78,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     } catch (err) {
         console.error("Erreur AuthContext:", err);
+        // Fallback en cas d'erreur critique pour ne pas crasher l'app
         setUserData({
             uid: user.uid,
             email: user.email,

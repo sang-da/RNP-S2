@@ -113,28 +113,24 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             d.id === targetDeliverableId ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback } : d
         );
 
-        // --- PERFORMANCE MULTIPLIER LOGIC ---
-        const baseGain = 5;
-        const multiplier = getAgencyPerformanceMultiplier(agency);
-        const finalGain = Math.round(baseGain * multiplier);
-        const perfPercent = Math.round(multiplier * 100);
-
+        // --- UPDATE: NO AUTO POINTS ON UPLOAD ---
+        // Les points sont attribués uniquement lors de la validation Admin
         const newEvent: GameEvent = {
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
-            type: 'VE_DELTA',
-            label: `Rendu ${updatedWeek.deliverables.find(d => d.id === targetDeliverableId)?.name}`,
-            deltaVE: finalGain,
-            description: `Fichier uploadé. Gain VE ajusté à la performance d'équipe (${perfPercent}%).`
+            type: 'INFO', // Changed from VE_DELTA to INFO
+            label: `Dépôt ${updatedWeek.deliverables.find(d => d.id === targetDeliverableId)?.name}`,
+            deltaVE: 0, // No points awarded yet
+            description: `Fichier transmis. En attente de correction.`
         };
 
         onUpdateAgency({
             ...agency,
-            ve_current: Math.min(100, agency.ve_current + finalGain),
+            ve_current: agency.ve_current, // No change to VE
             eventLog: [...agency.eventLog, newEvent],
             progress: { ...agency.progress, [activeWeek]: updatedWeek }
         });
-        toast('success', `Fichier transmis ! Gain : +${finalGain} VE (Perf. ${perfPercent}%)`);
+        toast('success', `Fichier transmis ! En attente de validation.`);
 
     } catch (error) {
         toast('error', "Erreur lors de l'envoi du fichier.");
@@ -156,25 +152,26 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
           d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée. En attente validation." } : d
       );
 
+      // --- UPDATE: NO AUTO POINTS ON CHARTER SUBMISSION ---
       const newEvent: GameEvent = {
             id: `evt-charter-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
-            type: 'VE_DELTA',
-            label: "Charte Projet",
-            deltaVE: 10,
-            description: "Définition complète du projet soumise."
+            type: 'INFO', // Changed from VE_DELTA to INFO
+            label: "Charte Projet Soumise",
+            deltaVE: 0, // No points yet
+            description: "Définition du projet en attente de validation."
       };
 
       onUpdateAgency({
           ...agency,
-          ve_current: Math.min(100, agency.ve_current + 10),
+          ve_current: agency.ve_current, // No change to VE
           eventLog: [...agency.eventLog, newEvent],
           projectDef: { ...agency.projectDef, ...charterForm },
           progress: { ...agency.progress, [activeWeek]: updatedWeek }
       });
 
       setIsCharterModalOpen(false);
-      toast('success', "Charte enregistrée et soumise ! (+10 VE)");
+      toast('success', "Charte enregistrée ! En attente de validation.");
   };
 
   return (
@@ -277,7 +274,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                                     </button>
                                 ) : (
                                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">
-                                        {deliverable.status === 'submitted' ? 'En attente...' : 'Validé'}
+                                        {deliverable.status === 'submitted' ? 'En attente de validation...' : 'Validé'}
                                     </span>
                                 )}
                             </div>
