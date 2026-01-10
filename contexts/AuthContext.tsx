@@ -47,7 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userSnap = await getDoc(userRef);
         
         // --- CRÉATION PROFIL SI INEXISTANT ---
-        if (!userSnap.exists()) {
+        // FIX: userSnap.exists est une propriété en SDK Compat, pas une fonction
+        if (!userSnap.exists) {
             console.log("Nouvel utilisateur détecté. Création profil initial...");
             
             const newUserData: UserData = {
@@ -165,7 +166,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // CRITIQUE : Écoute temps réel du profil pour réaction immédiate aux changements de rôle (Admin/Pending -> Student)
           unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), async (docSnap) => {
-              if (docSnap.exists()) {
+              // FIX: docSnap.exists est une propriété en SDK Compat
+              if (docSnap.exists) {
                   const data = docSnap.data();
                   const isRoot = user.email?.toLowerCase() === ROOT_ADMIN_EMAIL;
                   
