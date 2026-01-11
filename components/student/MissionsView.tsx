@@ -1,11 +1,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
-import { CheckCircle2, Upload, MessageSquare, Loader2, FileText, Send, XCircle, ArrowRight, CheckSquare, Crown, Compass, Mic, Eye, Save } from 'lucide-react';
-import { Modal } from '../Modal';
+import { Crown, Compass, Mic, Eye } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL, storage } from '../../services/firebase';
-import { CYCLE_AWARDS, getAgencyPerformanceMultiplier } from '../../constants';
+import { CYCLE_AWARDS } from '../../constants';
+
+// SUB-COMPONENTS
+import { MissionCard } from './missions/MissionCard';
+import { UploadModal } from './missions/UploadModal';
+import { CharterModal, NamingModal } from './missions/SpecialForms';
 
 interface MissionsViewProps {
   agency: Agency;
@@ -19,21 +23,22 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const [activeWeek, setActiveWeek] = useState<string>("1"); 
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
+  
+  // MODAL STATES
   const [isCharterModalOpen, setIsCharterModalOpen] = useState(false);
+  const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   
-  // Charter Form State
+  // FORMS
   const [charterForm, setCharterForm] = useState({
-      problem: "",
-      target: "",
-      location: "",
-      gesture: "",
-      context: "",
-      theme: "",
-      direction: ""
+      problem: "", target: "", location: "", gesture: "", context: "", theme: "", direction: ""
   });
+  const [namingForm, setNamingForm] = useState({ name: "", tagline: "" });
+  
+  // CHECKLIST
+  const [checks, setChecks] = useState({ naming: false, format: false, resolution: false, audio: false });
 
-  // Pre-fill charter form if data exists
+  // Pre-fill
   useEffect(() => {
       if (agency.projectDef) {
           setCharterForm({
@@ -46,27 +51,18 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
               direction: agency.projectDef.direction || ""
           });
       }
-  }, [agency.projectDef]);
-  
-  // Checklist State
-  const [checks, setChecks] = useState({
-      naming: false,
-      format: false,
-      resolution: false,
-      audio: false
-  });
+      setNamingForm({ name: agency.name || "", tagline: agency.tagline || "" });
+  }, [agency]);
 
+  // --- HELPERS ---
   const CYCLE_MAPPING: Record<CycleType, string[]> = {
       [CycleType.MARQUE_BRIEF]: ['1', '2', '3'],
       [CycleType.NARRATION_IA]: ['4', '5', '6'],
       [CycleType.LOOKDEV]: ['7', '8', '9'],
       [CycleType.PACKAGING]: ['10', '11', '12']
   };
-
   const visibleWeeks = Object.values(agency.progress).filter((w: WeekModule) => (CYCLE_MAPPING[agency.currentCycle] || []).includes(w.id));
   const currentWeekData = agency.progress[activeWeek] || visibleWeeks[0];
-
-  // FIND CURRENT AWARD
   const currentAward = CYCLE_AWARDS.find(a => a.cycleId === agency.currentCycle);
   const hasWonAward = agency.eventLog.some(e => e.label.includes(currentAward?.title || 'Grand Prix'));
 
@@ -79,12 +75,12 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       }
   };
 
+  // --- ACTIONS ---
   const handleFileClick = (deliverableId: string) => {
-    if (deliverableId === 'd_charter') {
-        setIsCharterModalOpen(true);
-        return;
-    }
-    // RESET CHECKLIST AND OPEN MODAL
+    if (deliverableId === 'd_charter') { setIsCharterModalOpen(true); return; }
+    if (deliverableId === 'd_branding') { setIsNamingModalOpen(true); return; }
+
+    // STANDARD UPLOAD
     setChecks({ naming: false, format: false, resolution: false, audio: false });
     setTargetDeliverableId(deliverableId);
     setIsChecklistOpen(true);
@@ -92,99 +88,140 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   const handleChecklistSuccess = () => {
       setIsChecklistOpen(false);
-      fileInputRef.current?.click();
+      // IMPORTANT FIX: Reset value before click to allow re-uploading same file if needed
+      if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+          fileInputRef.current.click();
+      }
   };
 
   const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !targetDeliverableId) return;
+    
+    // SAFETY CHECK
+    if (!file || !targetDeliverableId) {
+        if (!file) console.warn("Upload annulé : Aucun fichier sélectionné");
+        if (!targetDeliverableId) console.error("Erreur critique : ID du livrable perdu");
+        // Reset au cas où
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
 
     setIsUploading(targetDeliverableId);
+    toast('info', 'Envoi en cours vers le serveur... Ne fermez pas.');
     
     try {
+        // 1. UPLOAD FIREBASE
         const storageRef = ref(storage, `submissions/${agency.id}/${activeWeek}/${targetDeliverableId}_${file.name}`);
         await uploadBytes(storageRef, file);
         const downloadUrl = await getDownloadURL(storageRef);
 
         const feedback = "Fichier reçu. En attente de validation.";
-        const updatedWeek = { ...currentWeekData };
         
-        updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-            d.id === targetDeliverableId ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback } : d
+        // 2. DATA PREPARATION (Deep Copy pour éviter les bugs de référence)
+        const updatedDeliverables = currentWeekData.deliverables.map(d => 
+            d.id === targetDeliverableId 
+            ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback, submissionDate: new Date().toISOString() } 
+            : d
         );
 
-        // --- UPDATE: NO AUTO POINTS ON UPLOAD ---
-        // Les points sont attribués uniquement lors de la validation Admin
+        const updatedWeek = {
+            ...currentWeekData,
+            deliverables: updatedDeliverables
+        };
+
+        const deliverableName = updatedDeliverables.find(d => d.id === targetDeliverableId)?.name || 'Inconnu';
+
         const newEvent: GameEvent = {
             id: `evt-${Date.now()}`,
             date: new Date().toISOString().split('T')[0],
-            type: 'INFO', // Changed from VE_DELTA to INFO
-            label: `Dépôt ${updatedWeek.deliverables.find(d => d.id === targetDeliverableId)?.name}`,
-            deltaVE: 0, // No points awarded yet
-            description: `Fichier transmis. En attente de correction.`
+            type: 'INFO',
+            label: `Dépôt: ${deliverableName}`,
+            deltaVE: 0,
+            description: `Fichier transmis avec succès.`
         };
 
-        onUpdateAgency({
+        const updatedAgency = {
             ...agency,
-            ve_current: agency.ve_current, // No change to VE
             eventLog: [...agency.eventLog, newEvent],
-            progress: { ...agency.progress, [activeWeek]: updatedWeek }
-        });
-        toast('success', `Fichier transmis ! En attente de validation.`);
+            progress: {
+                ...agency.progress,
+                [activeWeek]: updatedWeek
+            }
+        };
 
-    } catch (error) {
-        toast('error', "Erreur lors de l'envoi du fichier.");
+        // 3. FIRESTORE PERSISTENCE
+        onUpdateAgency(updatedAgency);
+        toast('success', `Fichier "${file.name}" enregistré !`);
+
+    } catch (error: any) {
+        console.error("Upload Error:", error);
+        toast('error', `Erreur lors de l'envoi : ${error.message || 'Problème réseau'}`);
     } finally {
         setIsUploading(null);
         setTargetDeliverableId(null);
+        // Important: Reset input value to allow re-selection of the same file
         if (fileInputRef.current) fileInputRef.current.value = ''; 
     }
   };
 
   const handleSubmitCharter = () => { 
       if (!charterForm.problem || !charterForm.target || !charterForm.location || !charterForm.theme) {
-          toast('error', "Veuillez remplir les champs essentiels (Thème, Problème, Cible, Lieu).");
+          toast('error', "Veuillez remplir les champs essentiels.");
           return;
       }
-
       const updatedWeek = { ...currentWeekData };
       updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée. En attente validation." } : d
+          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée." } : d
       );
-
-      // --- UPDATE: NO AUTO POINTS ON CHARTER SUBMISSION ---
       const newEvent: GameEvent = {
-            id: `evt-charter-${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            type: 'INFO', // Changed from VE_DELTA to INFO
-            label: "Charte Projet Soumise",
-            deltaVE: 0, // No points yet
-            description: "Définition du projet en attente de validation."
+            id: `evt-charter-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
+            label: "Charte Projet Soumise", deltaVE: 0, description: "Définition du projet en attente de validation."
       };
-
       onUpdateAgency({
           ...agency,
-          ve_current: agency.ve_current, // No change to VE
           eventLog: [...agency.eventLog, newEvent],
           projectDef: { ...agency.projectDef, ...charterForm },
           progress: { ...agency.progress, [activeWeek]: updatedWeek }
       });
-
       setIsCharterModalOpen(false);
-      toast('success', "Charte enregistrée ! En attente de validation.");
+      toast('success', "Charte enregistrée !");
+  };
+
+  const handleSubmitNaming = () => {
+      if (!namingForm.name || namingForm.name.length < 3) {
+          toast('error', "Le nom doit faire au moins 3 caractères.");
+          return;
+      }
+      const updatedWeek = { ...currentWeekData };
+      updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
+          d.id === 'd_branding' ? { ...d, status: 'submitted' as const, feedback: "Identité enregistrée." } : d
+      );
+      const newEvent: GameEvent = {
+            id: `evt-branding-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
+            label: "Identité Studio Définie", deltaVE: 0, description: `Studio renommé en : ${namingForm.name}`
+      };
+      onUpdateAgency({
+          ...agency,
+          name: namingForm.name,
+          tagline: namingForm.tagline,
+          eventLog: [...agency.eventLog, newEvent],
+          progress: { ...agency.progress, [activeWeek]: updatedWeek }
+      });
+      setIsNamingModalOpen(false);
+      toast('success', "Studio renommé avec succès !");
   };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
         <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelected} />
         
-        {/* CYCLE BANNER & AWARD TARGET */}
+        {/* CYCLE BANNER */}
         <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="relative z-10 text-center md:text-left">
                 <span className="text-indigo-400 text-xs font-bold uppercase tracking-widest">Cycle Actuel</span>
                 <h3 className="font-display font-bold text-2xl">{agency.currentCycle}</h3>
             </div>
-
             {currentAward && (
                 <div className={`relative z-10 p-4 rounded-xl border flex items-center gap-4 max-w-sm w-full ${hasWonAward ? 'bg-yellow-400 text-yellow-900 border-yellow-300' : 'bg-white/10 border-white/20'}`}>
                     <div className={`p-3 rounded-full ${hasWonAward ? 'bg-white/30' : 'bg-yellow-400 text-yellow-900 shadow-[0_0_15px_rgba(250,204,21,0.5)]'}`}>
@@ -202,7 +239,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             )}
         </div>
 
-        {/* Week Slider */}
+        {/* WEEK SLIDER */}
         <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar snap-x">
              {visibleWeeks.map((week: WeekModule) => (
                 <button
@@ -219,67 +256,18 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             ))}
         </div>
 
+        {/* CURRENT WEEK DELIVERABLES */}
         {currentWeekData ? (
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm">
             <h3 className="text-2xl font-display font-bold text-slate-900 mb-6">{currentWeekData.title}</h3>
-
             <div className="space-y-6">
                 {currentWeekData.deliverables.map((deliverable) => (
-                    <div key={deliverable.id} className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
-                        <div className="flex flex-col gap-3">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h4 className="font-bold text-lg text-slate-900">{deliverable.name}</h4>
-                                    <p className="text-sm text-slate-500">{deliverable.description}</p>
-                                </div>
-                                <div className={`p-2 rounded-xl ${
-                                    deliverable.status === 'validated' ? 'bg-emerald-100 text-emerald-600' :
-                                    deliverable.status === 'submitted' ? 'bg-indigo-100 text-indigo-600' :
-                                    'bg-white text-slate-400 border'
-                                }`}>
-                                    {deliverable.status === 'validated' ? <CheckCircle2 size={20}/> : 
-                                     deliverable.status === 'submitted' ? <Loader2 size={20} className="animate-spin"/> : 
-                                     <Upload size={20}/>}
-                                </div>
-                            </div>
-
-                            {/* ACTIONS FOOTER */}
-                            <div className="flex items-center justify-end gap-4 mt-2 pt-3 border-t border-slate-200/50">
-                                
-                                {/* Secondary Action: Link (Text Only) */}
-                                {deliverable.fileUrl && deliverable.fileUrl !== '#' && (
-                                    <a 
-                                        href={deliverable.fileUrl} 
-                                        target="_blank" 
-                                        rel="noreferrer" 
-                                        className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1 mr-auto"
-                                    >
-                                        <FileText size={14} /> Voir le fichier
-                                    </a>
-                                )}
-
-                                {/* Primary Action: Button */}
-                                {(deliverable.status === 'pending' || deliverable.status === 'rejected') ? (
-                                    <button 
-                                        onClick={() => !isUploading && handleFileClick(deliverable.id)}
-                                        disabled={!!isUploading}
-                                        className={`px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 transition-transform active:scale-95 ${
-                                            deliverable.id === 'd_charter' 
-                                            ? 'bg-slate-900 text-white' 
-                                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                        }`}
-                                    >
-                                        {isUploading === deliverable.id ? <Loader2 className="animate-spin" size={16}/> : deliverable.id === 'd_charter' ? <FileText size={16}/> : <Upload size={16}/>}
-                                        {deliverable.id === 'd_charter' ? 'Remplir le Formulaire' : 'Déposer'}
-                                    </button>
-                                ) : (
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">
-                                        {deliverable.status === 'submitted' ? 'En attente de validation...' : 'Validé'}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <MissionCard 
+                        key={deliverable.id} 
+                        deliverable={deliverable} 
+                        isUploading={isUploading === deliverable.id}
+                        onAction={handleFileClick}
+                    />
                 ))}
             </div>
         </div>
@@ -287,174 +275,30 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             <div className="p-8 text-center text-slate-400">Sélectionnez une semaine.</div>
         )}
 
-        {/* MODAL: Charter Form */}
-        <Modal isOpen={isCharterModalOpen} onClose={() => setIsCharterModalOpen(false)} title="Charte de Projet">
-             <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
-                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
-                     Définissez l'identité de votre projet. Ces informations seront visibles par l'administration et sur votre tableau de bord.
-                 </div>
+        {/* MODALS */}
+        <CharterModal 
+            isOpen={isCharterModalOpen} 
+            onClose={() => setIsCharterModalOpen(false)} 
+            onSubmit={handleSubmitCharter} 
+            form={charterForm} 
+            setForm={setCharterForm} 
+        />
+        
+        <NamingModal 
+            isOpen={isNamingModalOpen} 
+            onClose={() => setIsNamingModalOpen(false)} 
+            onSubmit={handleSubmitNaming} 
+            form={namingForm} 
+            setForm={setNamingForm} 
+        />
 
-                 {/* SECTION 1: IDENTITÉ */}
-                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">1. Identité</h4>
-                     <div>
-                         <label className="text-xs font-bold text-slate-700 mb-1 block">Thème Principal</label>
-                         <input 
-                            type="text"
-                            value={charterForm.theme}
-                            onChange={e => setCharterForm({...charterForm, theme: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
-                            placeholder="Ex: Écologie Urbaine / Cyber-Surveillance..."
-                         />
-                     </div>
-                     <div>
-                         <label className="text-xs font-bold text-slate-700 mb-1 block">Direction Artistique (Intention)</label>
-                         <textarea 
-                            value={charterForm.direction}
-                            onChange={e => setCharterForm({...charterForm, direction: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
-                            placeholder="Ex: Minimaliste, néon, textures brutes..."
-                         />
-                     </div>
-                 </div>
-
-                 {/* SECTION 2: PROBLÉMATIQUE */}
-                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">2. Problématique</h4>
-                     <div>
-                         <label className="text-xs font-bold text-slate-700 mb-1 block">Contexte (Sociétal/Urbain)</label>
-                         <textarea 
-                            value={charterForm.context}
-                            onChange={e => setCharterForm({...charterForm, context: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
-                            placeholder="Ex: Dans une ville saturée par la publicité..."
-                         />
-                     </div>
-                     <div>
-                         <label className="text-xs font-bold text-slate-700 mb-1 block">Problème Identifié</label>
-                         <textarea 
-                            value={charterForm.problem}
-                            onChange={e => setCharterForm({...charterForm, problem: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm h-20"
-                            placeholder="Quel problème local essayez-vous de résoudre ?"
-                         />
-                     </div>
-                 </div>
-
-                 {/* SECTION 3: CIBLE & LIEU */}
-                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                     <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-2">3. Ancrage</h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                             <label className="text-xs font-bold text-slate-700 mb-1 block">Cible (Persona)</label>
-                             <input 
-                                type="text"
-                                value={charterForm.target}
-                                onChange={e => setCharterForm({...charterForm, target: e.target.value})}
-                                className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
-                                placeholder="Qui est votre utilisateur ?"
-                             />
-                         </div>
-                         <div>
-                             <label className="text-xs font-bold text-slate-700 mb-1 block">Lieu</label>
-                             <input 
-                                type="text"
-                                value={charterForm.location}
-                                onChange={e => setCharterForm({...charterForm, location: e.target.value})}
-                                className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
-                                placeholder="Adresse ou Quartier"
-                             />
-                         </div>
-                     </div>
-                     <div>
-                         <label className="text-xs font-bold text-slate-700 mb-1 block">Geste Architectural</label>
-                         <input 
-                            type="text"
-                            value={charterForm.gesture}
-                            onChange={e => setCharterForm({...charterForm, gesture: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
-                            placeholder="Ex: Kiosque, Passerelle..."
-                         />
-                     </div>
-                 </div>
-
-                 <div className="pt-2 sticky bottom-0 bg-white pb-2">
-                     <button 
-                        onClick={handleSubmitCharter}
-                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2 shadow-lg"
-                     >
-                         <Save size={18} /> Enregistrer & Soumettre
-                     </button>
-                 </div>
-             </div>
-        </Modal>
-
-        {/* MODAL: Checklist Pré-Rendu */}
-        <Modal isOpen={isChecklistOpen} onClose={() => setIsChecklistOpen(false)} title="Contrôle Qualité">
-            <div className="space-y-6">
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-sm text-amber-800">
-                    Avant de déposer, certifiez la conformité de votre fichier. Un mauvais format entraînera un rejet immédiat.
-                </div>
-
-                <div className="space-y-3">
-                    <CheckItem 
-                        label="Nommage Correct" 
-                        sub="GRPXX_SEMXX_NomLivrable_vXX.ext"
-                        checked={checks.naming} 
-                        onChange={() => setChecks({...checks, naming: !checks.naming})}
-                    />
-                    <CheckItem 
-                        label="Format de Fichier" 
-                        sub="MP4 (H.264) ou PDF ou PNG"
-                        checked={checks.format} 
-                        onChange={() => setChecks({...checks, format: !checks.format})}
-                    />
-                    <CheckItem 
-                        label="Spécifications Techniques" 
-                        sub="1080p / < 50Mo"
-                        checked={checks.resolution} 
-                        onChange={() => setChecks({...checks, resolution: !checks.resolution})}
-                    />
-                    <CheckItem 
-                        label="Conformité Audio" 
-                        sub="Pas de saturation / LUFS OK"
-                        checked={checks.audio} 
-                        onChange={() => setChecks({...checks, audio: !checks.audio})}
-                    />
-                </div>
-
-                <button 
-                    onClick={handleChecklistSuccess}
-                    disabled={!Object.values(checks).every(Boolean)}
-                    className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                        Object.values(checks).every(Boolean) 
-                        ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg' 
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                >
-                    {Object.values(checks).every(Boolean) ? <><Upload size={18}/> Confirmer le Dépôt</> : 'Validez la checklist'}
-                </button>
-            </div>
-        </Modal>
+        <UploadModal 
+            isOpen={isChecklistOpen} 
+            onClose={() => setIsChecklistOpen(false)} 
+            onConfirm={handleChecklistSuccess}
+            checks={checks}
+            setChecks={setChecks}
+        />
     </div>
   );
 };
-
-const CheckItem: React.FC<{label: string, sub: string, checked: boolean, onChange: () => void}> = ({label, sub, checked, onChange}) => (
-    <div 
-        onClick={onChange}
-        className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-            checked ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
-        }`}
-    >
-        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
-            checked ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'
-        }`}>
-            {checked && <CheckSquare size={14} className="text-white"/>}
-        </div>
-        <div>
-            <p className={`font-bold text-sm ${checked ? 'text-emerald-900' : 'text-slate-700'}`}>{label}</p>
-            <p className="text-xs text-slate-500">{sub}</p>
-        </div>
-    </div>
-);
