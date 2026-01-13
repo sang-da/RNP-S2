@@ -19,16 +19,14 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
           agenciesData.push(doc.data() as Agency);
         });
         if (agenciesData.length === 0) {
-          // Si la base est vide (rare), on conserve les MOCK ou on laisse vide.
-          // On désactive le seeding automatique ici pour éviter que des visiteurs publics n'écrivent en base.
-          // seedDatabase().catch(console.error); 
+          seedDatabase().catch(console.error);
         } else {
           setAgencies(agenciesData);
         }
       },
       (error) => {
         console.error("Firestore Read Error (Agencies):", error);
-        // Toast supprimé pour éviter le message "Mode Hors Ligne" sur la Landing Page
+        // Landing page handles offline/mock via agencies.length check, so no toast needed here to avoid spam
       }
     );
     return () => unsubscribe();
@@ -44,7 +42,10 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
         });
         if (Object.keys(weeksData).length > 0) setWeeks(weeksData);
       },
-      (error) => console.error("Firestore Read Error (Weeks):", error)
+      (error) => {
+         // Silent fail for unauth users (Landing Page doesn't need weeks)
+         console.warn("Weeks sync skipped (Unauth)");
+      }
     );
     return () => unsubscribe();
   }, []);
@@ -59,7 +60,10 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
         });
         setResources(resData);
       },
-      (error) => console.error("Firestore Read Error (Resources):", error)
+      (error) => {
+         // Silent fail for unauth users
+         console.warn("Resources sync skipped (Unauth)");
+      }
     );
     return () => unsubscribe();
   }, []);
