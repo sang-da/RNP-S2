@@ -28,42 +28,50 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   const canAccessBlackOps = currentWeek >= GAME_RULES.UNLOCK_WEEK_BLACK_OPS;
 
   // --- DATA PREPARATION FOR GRAPH ---
+  const validAgencies = useMemo(() => allAgencies.filter(a => a.id !== 'unassigned'), [allAgencies]);
+
   const comparisonData = useMemo(() => {
+    // 1. Collect all unique dates from all valid agencies
     const allDates = Array.from(new Set(
-        allAgencies.flatMap(a => a.eventLog.map(e => e.date))
-    )).sort();
+        validAgencies.flatMap(a => a.eventLog.map(e => e.date))
+    )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     const STARTING_VE = 0;
 
-    const initialPoint = {
-        name: 'Départ',
-        date: '2024-01-01',
-        [agency.name]: STARTING_VE, 
-        ...allAgencies.reduce((acc, a) => ({ ...acc, [a.name]: STARTING_VE }), {})
-    };
-
-    const historyPoints = allDates.map((date: unknown) => {
-        const dateStr = date as string;
+    // 2. Create the timeline
+    const historyPoints = allDates.map((dateStr: string) => {
         const point: any = { 
-            name: new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-            date: dateStr
+            name: new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+            date: dateStr // Keep ISO for potential sorting if needed
         };
 
-        allAgencies.forEach(a => {
+        // Calculate cumulative VE for each agency at this specific date
+        validAgencies.forEach(a => {
             const veAtDate = a.eventLog
                 .filter(e => e.date <= dateStr)
                 .reduce((sum, e) => sum + (e.deltaVE || 0), STARTING_VE); 
+            
             point[a.name] = Math.max(0, veAtDate);
         });
 
         return point;
     });
 
-    if (historyPoints.length === 0) return [initialPoint];
-    return [initialPoint, ...historyPoints];
-  }, [allAgencies, agency.name]);
+    // Add an initial "Start" point if empty or just to look better
+    if (historyPoints.length === 0) {
+        const initialPoint: any = { name: 'Départ' };
+        validAgencies.forEach(a => initialPoint[a.name] = STARTING_VE);
+        return [initialPoint];
+    }
 
-  const leaderboard = [...allAgencies].filter(a => a.id !== 'unassigned').sort((a, b) => b.ve_current - a.ve_current);
+    // Optional: Add a "Start" point at index 0 if the first event isn't day 0
+    const initialPoint: any = { name: 'S1', date: '2024-01-01' };
+    validAgencies.forEach(a => initialPoint[a.name] = STARTING_VE);
+
+    return [initialPoint, ...historyPoints];
+  }, [validAgencies]);
+
+  const leaderboard = [...validAgencies].sort((a, b) => b.ve_current - a.ve_current);
 
   const getMascot = () => {
       if (agency.ve_current >= 60) return MASCOTS.MARKET_RICH;
@@ -89,24 +97,26 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 rounded-2xl shadow-2xl border border-slate-200">
-          <p className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">{label}</p>
-          <div className="space-y-2">
+        <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 text-xs">
+          <p className="font-black text-slate-400 mb-2 uppercase tracking-widest">{label}</p>
+          <div className="space-y-1">
             {payload.map((p: any) => {
-              const targetAgency = allAgencies.find(a => a.name === p.name);
+              const targetAgency = validAgencies.find(a => a.name === p.name);
+              // Only show the current agency and maybe top 1 to reduce noise in tooltip
+              // Or sort by value desc
               return (
-                <div key={p.name} className="flex items-center justify-between gap-6">
+                <div key={p.name} className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-100">
+                    <div className="w-4 h-4 rounded bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-100">
                         {targetAgency?.logoUrl ? (
                             <img src={targetAgency.logoUrl} className="w-full h-full object-contain" />
                         ) : (
-                            <Landmark size={12} className="text-slate-300"/>
+                            <Landmark size={10} className="text-slate-300"/>
                         )}
                     </div>
-                    <span className="text-xs font-bold text-slate-700">{p.name}</span>
+                    <span className={`font-bold ${p.name === agency.name ? 'text-slate-900' : 'text-slate-500'}`}>{p.name}</span>
                   </div>
-                  <span className="text-sm font-black" style={{ color: p.stroke }}>{p.value} VE</span>
+                  <span className="font-mono font-black" style={{ color: p.stroke }}>{p.value}</span>
                 </div>
               );
             })}
@@ -119,14 +129,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
 
   // --- SUB-COMPONENTS FOR CLEAN LAYOUT ---
   const GraphComponent = () => (
-      <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-8 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col h-full min-h-[400px]">
-            <div className="absolute -right-4 -bottom-6 md:-right-6 md:-bottom-8 w-32 md:w-48 z-10 pointer-events-none opacity-90 transition-all duration-500">
+      <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-6 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col h-full min-h-[300px] md:min-h-[400px]">
+            <div className="absolute -right-4 -bottom-6 md:-right-6 md:-bottom-8 w-24 md:w-48 z-10 pointer-events-none opacity-90 transition-all duration-500">
                 <img src={getMascot()} alt="Mascot" className="drop-shadow-2xl"/>
             </div>
 
-            <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0 z-20">
+            <div className="flex justify-between items-center mb-4 shrink-0 z-20">
                 <h3 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <TrendingUp className="text-yellow-500" size={20} /> Tableau de Bord
+                    <TrendingUp className="text-yellow-500" size={20} /> Marché (VE)
                 </h3>
                 
                 <div className="flex gap-2">
@@ -138,7 +148,8 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                             <Eye size={14}/> Intel
                         </button>
                     )}
-                    <div className="hidden md:flex gap-2">
+                    {/* Mini Leaderboard on Desktop */}
+                    <div className="hidden xl:flex gap-2">
                         {leaderboard.slice(0, 3).map((a, i) => (
                             <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${a.id === agency.id ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-100'}`}>
                                 <div className="w-4 h-4 rounded-full bg-white overflow-hidden flex items-center justify-center border border-slate-200">
@@ -151,22 +162,22 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                 </div>
             </div>
             
-            <div className="flex-1 w-full shrink-0 z-20">
+            <div className="flex-1 w-full shrink-0 z-20 pr-2">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <LineChart data={comparisonData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} dy={10} />
                         <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 'auto']} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '10px' }} />
-                        {allAgencies.map((a, index) => (
+                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />
+                        {validAgencies.map((a, index) => (
                             <Line 
                                 key={a.id}
                                 type="monotone" 
                                 dataKey={a.name} 
                                 stroke={a.id === agency.id ? '#facc15' : index % 2 === 0 ? '#6366f1' : '#10b981'} 
-                                strokeWidth={a.id === agency.id ? 3 : 1.5}
-                                strokeOpacity={a.id === agency.id ? 1 : 0.2}
+                                strokeWidth={a.id === agency.id ? 4 : 2}
+                                strokeOpacity={a.id === agency.id ? 1 : 0.15} // More transparency for others
                                 dot={a.id === agency.id ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
                                 activeDot={{ r: 6 }}
                                 isAnimationActive={false} 
@@ -194,7 +205,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
             </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             
             {/* LEFT COLUMN (2/3) : GRAPH + WALLET */}
             <div className={`lg:col-span-2 space-y-6 ${activeTab === 'HISTORY' ? 'hidden lg:block' : ''}`}>
@@ -221,10 +232,11 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
             </div>
 
             {/* RIGHT COLUMN (1/3) : HISTORY */}
+            {/* FIX: Sizing constraints applied here */}
             <div className={`lg:col-span-1 ${activeTab !== 'HISTORY' && 'hidden lg:block'}`}>
-                <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm h-full max-h-[800px] overflow-y-auto custom-scrollbar sticky top-4">
-                    <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-6">
-                        <History size={20} className="text-slate-400"/> Journal des Opérations
+                <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm h-auto max-h-[500px] lg:max-h-[calc(100vh-12rem)] overflow-y-auto custom-scrollbar sticky top-4">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4 text-sm uppercase tracking-wide sticky top-0 bg-white z-10 py-2 border-b border-slate-50">
+                        <History size={18} className="text-slate-400"/> Journal des Opérations
                     </h3>
                     <HistoryView agency={agency} />
                 </div>
