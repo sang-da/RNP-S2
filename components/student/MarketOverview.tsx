@@ -1,13 +1,13 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, Student } from '../../types';
-import { TrendingUp, Skull, Zap, Eye, Landmark, Wallet, History, BarChart2 } from 'lucide-react';
+import { TrendingUp, Skull, Zap, Eye, Landmark, Wallet, History, BarChart2, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS, GAME_RULES } from '../../constants';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
 import { Modal } from '../Modal';
-import { WalletView } from './WalletView'; // Extracted Component
+import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
 
 interface MarketOverviewProps {
@@ -28,24 +28,34 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   const canAccessBlackOps = currentWeek >= GAME_RULES.UNLOCK_WEEK_BLACK_OPS;
 
   // --- DATA PREPARATION FOR GRAPH ---
-  const validAgencies = useMemo(() => allAgencies.filter(a => a.id !== 'unassigned'), [allAgencies]);
+  const validAgencies = useMemo(() => {
+      if (!allAgencies || !Array.isArray(allAgencies)) return [];
+      return allAgencies.filter(a => a.id !== 'unassigned');
+  }, [allAgencies]);
 
   const comparisonData = useMemo(() => {
-    // 1. Collect all unique dates from all valid agencies
-    const allDates = Array.from(new Set(
+    if (validAgencies.length === 0) return [];
+
+    // 1. Récupération de toutes les dates uniques présentes dans les logs
+    let allDates = Array.from(new Set(
         validAgencies.flatMap(a => a.eventLog.map(e => e.date))
     )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
+    // Sécurité : Si aucune date (début de semestre), on met la date du jour
+    if (allDates.length === 0) {
+        allDates = [new Date().toISOString().split('T')[0]];
+    }
+
     const STARTING_VE = 0;
 
-    // 2. Create the timeline
-    const historyPoints = allDates.map((dateStr: string) => {
+    // 2. Construction des points temporels
+    const points = allDates.map((dateStr: string) => {
         const point: any = { 
             name: new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-            date: dateStr // Keep ISO for potential sorting if needed
+            date: dateStr
         };
 
-        // Calculate cumulative VE for each agency at this specific date
+        // Pour chaque agence, on calcule sa VE cumulée à cette date
         validAgencies.forEach(a => {
             const veAtDate = a.eventLog
                 .filter(e => e.date <= dateStr)
@@ -57,18 +67,11 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
         return point;
     });
 
-    // Add an initial "Start" point if empty or just to look better
-    if (historyPoints.length === 0) {
-        const initialPoint: any = { name: 'Départ' };
-        validAgencies.forEach(a => initialPoint[a.name] = STARTING_VE);
-        return [initialPoint];
-    }
+    // 3. Ajout d'un point de départ (J-1 ou S0) pour avoir une ligne qui part de 0
+    const startPoint: any = { name: 'Départ' };
+    validAgencies.forEach(a => startPoint[a.name] = STARTING_VE);
 
-    // Optional: Add a "Start" point at index 0 if the first event isn't day 0
-    const initialPoint: any = { name: 'S1', date: '2024-01-01' };
-    validAgencies.forEach(a => initialPoint[a.name] = STARTING_VE);
-
-    return [initialPoint, ...historyPoints];
+    return [startPoint, ...points];
   }, [validAgencies]);
 
   const leaderboard = [...validAgencies].sort((a, b) => b.ve_current - a.ve_current);
@@ -97,23 +100,15 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 text-xs">
+        <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 text-xs z-50">
           <p className="font-black text-slate-400 mb-2 uppercase tracking-widest">{label}</p>
           <div className="space-y-1">
             {payload.map((p: any) => {
               const targetAgency = validAgencies.find(a => a.name === p.name);
-              // Only show the current agency and maybe top 1 to reduce noise in tooltip
-              // Or sort by value desc
               return (
                 <div key={p.name} className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-100">
-                        {targetAgency?.logoUrl ? (
-                            <img src={targetAgency.logoUrl} className="w-full h-full object-contain" />
-                        ) : (
-                            <Landmark size={10} className="text-slate-300"/>
-                        )}
-                    </div>
+                    <div className="w-2 h-2 rounded-full" style={{backgroundColor: p.stroke}}></div>
                     <span className={`font-bold ${p.name === agency.name ? 'text-slate-900' : 'text-slate-500'}`}>{p.name}</span>
                   </div>
                   <span className="font-mono font-black" style={{ color: p.stroke }}>{p.value}</span>
@@ -127,13 +122,16 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     return null;
   };
 
-  // --- SUB-COMPONENTS FOR CLEAN LAYOUT ---
+  // --- SUB-COMPONENT: CHART ---
   const GraphComponent = () => (
-      <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-6 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col h-full min-h-[300px] md:min-h-[400px]">
+      <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-6 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col h-full">
+            
+            {/* Mascot Decoration */}
             <div className="absolute -right-4 -bottom-6 md:-right-6 md:-bottom-8 w-24 md:w-48 z-10 pointer-events-none opacity-90 transition-all duration-500">
                 <img src={getMascot()} alt="Mascot" className="drop-shadow-2xl"/>
             </div>
 
+            {/* Header */}
             <div className="flex justify-between items-center mb-4 shrink-0 z-20">
                 <h3 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
                     <TrendingUp className="text-yellow-500" size={20} /> Marché (VE)
@@ -148,43 +146,40 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                             <Eye size={14}/> Intel
                         </button>
                     )}
-                    {/* Mini Leaderboard on Desktop */}
-                    <div className="hidden xl:flex gap-2">
-                        {leaderboard.slice(0, 3).map((a, i) => (
-                            <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${a.id === agency.id ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-100'}`}>
-                                <div className="w-4 h-4 rounded-full bg-white overflow-hidden flex items-center justify-center border border-slate-200">
-                                    {a.logoUrl ? <img src={a.logoUrl} className="w-full h-full object-contain" /> : <span className="text-[6px] font-bold text-slate-400">#</span>}
-                                </div>
-                                <span className={`font-bold ${a.id === agency.id ? 'text-yellow-600' : 'text-slate-700'}`}>{a.name}</span>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
             
-            <div className="flex-1 w-full shrink-0 z-20 pr-2">
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={comparisonData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 'auto']} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />
-                        {validAgencies.map((a, index) => (
-                            <Line 
-                                key={a.id}
-                                type="monotone" 
-                                dataKey={a.name} 
-                                stroke={a.id === agency.id ? '#facc15' : index % 2 === 0 ? '#6366f1' : '#10b981'} 
-                                strokeWidth={a.id === agency.id ? 4 : 2}
-                                strokeOpacity={a.id === agency.id ? 1 : 0.15} // More transparency for others
-                                dot={a.id === agency.id ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
-                                activeDot={{ r: 6 }}
-                                isAnimationActive={false} 
-                            />
-                        ))}
-                    </LineChart>
-                </ResponsiveContainer>
+            {/* Chart Container - FIX: FIXED HEIGHT to prevent collapse */}
+            <div className="w-full z-20 pr-2 h-[350px]">
+                {validAgencies.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                            <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} dy={10} />
+                            <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 'auto']} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />
+                            {validAgencies.map((a, index) => (
+                                <Line 
+                                    key={a.id}
+                                    type="monotone" 
+                                    dataKey={a.name} 
+                                    stroke={a.id === agency.id ? '#facc15' : index % 2 === 0 ? '#6366f1' : '#10b981'} 
+                                    strokeWidth={a.id === agency.id ? 4 : 2}
+                                    strokeOpacity={a.id === agency.id ? 1 : 0.2} 
+                                    dot={a.id === agency.id ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
+                                    activeDot={{ r: 6 }}
+                                    isAnimationActive={true} 
+                                />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                        <AlertCircle size={32} className="mb-2 opacity-50"/>
+                        <p className="text-sm font-bold">Données de marché indisponibles</p>
+                    </div>
+                )}
             </div>
       </div>
   );
@@ -232,9 +227,9 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
             </div>
 
             {/* RIGHT COLUMN (1/3) : HISTORY */}
-            {/* FIX: Sizing constraints applied here */}
+            {/* FIX: Reduced max-height for better layout balance */}
             <div className={`lg:col-span-1 ${activeTab !== 'HISTORY' && 'hidden lg:block'}`}>
-                <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm h-auto max-h-[500px] lg:max-h-[calc(100vh-12rem)] overflow-y-auto custom-scrollbar sticky top-4">
+                <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm h-auto max-h-[400px] lg:max-h-[calc(100vh-14rem)] overflow-y-auto custom-scrollbar sticky top-4">
                     <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4 text-sm uppercase tracking-wide sticky top-0 bg-white z-10 py-2 border-b border-slate-50">
                         <History size={18} className="text-slate-400"/> Journal des Opérations
                     </h3>
