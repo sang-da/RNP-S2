@@ -75,20 +75,43 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       }
   };
 
+  // --- DEADLINE CALCULATION ---
+  // Règle : 10 minutes avant le début de la session.
+  // MATIN = 09h00 -> Deadline 08h50
+  // APRÈS-MIDI = 13h30 -> Deadline 13h20
+  const getDynamicDeadline = (week: WeekModule, classId: string): string | undefined => {
+      const schedule = classId === 'A' ? week.schedule.classA : week.schedule.classB;
+      if (!schedule || !schedule.date) return undefined;
+
+      const sessionDate = new Date(schedule.date);
+      // Set time based on slot
+      if (schedule.slot === 'MATIN') {
+          sessionDate.setHours(9, 0, 0, 0); 
+      } else {
+          sessionDate.setHours(13, 30, 0, 0);
+      }
+
+      // Subtract 10 minutes
+      const deadline = new Date(sessionDate.getTime() - 10 * 60000);
+      return deadline.toISOString();
+  };
+
   // --- ACTIONS ---
   const handleFileClick = (deliverableId: string) => {
     if (deliverableId === 'd_charter') { setIsCharterModalOpen(true); return; }
     if (deliverableId === 'd_branding') { setIsNamingModalOpen(true); return; }
 
-    // STANDARD UPLOAD
+    // STANDARD UPLOAD (Including Logo)
     setChecks({ naming: false, format: false, resolution: false, audio: false });
     setTargetDeliverableId(deliverableId);
+    
+    // Si c'est le logo, on peut bypass la checklist stricte ou adapter, 
+    // mais pour l'instant on garde la checklist pour la forme.
     setIsChecklistOpen(true);
   };
 
   const handleChecklistSuccess = () => {
       setIsChecklistOpen(false);
-      // IMPORTANT FIX: Reset value before click to allow re-uploading same file if needed
       if (fileInputRef.current) {
           fileInputRef.current.value = '';
           fileInputRef.current.click();
@@ -98,38 +121,36 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
-    // SAFETY CHECK
     if (!file || !targetDeliverableId) {
-        if (!file) console.warn("Upload annulé : Aucun fichier sélectionné");
-        if (!targetDeliverableId) console.error("Erreur critique : ID du livrable perdu");
-        // Reset au cas où
+        if (!file) console.warn("Upload annulé");
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
     }
 
     setIsUploading(targetDeliverableId);
-    toast('info', 'Envoi en cours vers le serveur... Ne fermez pas.');
+    toast('info', 'Envoi en cours...');
     
     try {
-        // 1. UPLOAD FIREBASE
-        const storageRef = ref(storage, `submissions/${agency.id}/${activeWeek}/${targetDeliverableId}_${file.name}`);
+        let storagePath = `submissions/${agency.id}/${activeWeek}/${targetDeliverableId}_${file.name}`;
+        
+        // Spécial : Upload Logo
+        if (targetDeliverableId === 'd_logo') {
+            storagePath = `logos/${agency.id}_${Date.now()}`;
+        }
+
+        const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, file);
         const downloadUrl = await getDownloadURL(storageRef);
 
         const feedback = "Fichier reçu. En attente de validation.";
         
-        // 2. DATA PREPARATION (Deep Copy pour éviter les bugs de référence)
         const updatedDeliverables = currentWeekData.deliverables.map(d => 
             d.id === targetDeliverableId 
             ? { ...d, status: 'submitted' as const, fileUrl: downloadUrl, feedback: feedback, submissionDate: new Date().toISOString() } 
             : d
         );
 
-        const updatedWeek = {
-            ...currentWeekData,
-            deliverables: updatedDeliverables
-        };
-
+        const updatedWeek = { ...currentWeekData, deliverables: updatedDeliverables };
         const deliverableName = updatedDeliverables.find(d => d.id === targetDeliverableId)?.name || 'Inconnu';
 
         const newEvent: GameEvent = {
@@ -144,23 +165,23 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         const updatedAgency = {
             ...agency,
             eventLog: [...agency.eventLog, newEvent],
-            progress: {
-                ...agency.progress,
-                [activeWeek]: updatedWeek
-            }
+            progress: { ...agency.progress, [activeWeek]: updatedWeek }
         };
 
-        // 3. FIRESTORE PERSISTENCE
+        // Si c'était le logo, on met à jour le champ logoUrl de l'agence aussi
+        if (targetDeliverableId === 'd_logo') {
+            updatedAgency.logoUrl = downloadUrl;
+        }
+
         onUpdateAgency(updatedAgency);
         toast('success', `Fichier "${file.name}" enregistré !`);
 
     } catch (error: any) {
         console.error("Upload Error:", error);
-        toast('error', `Erreur lors de l'envoi : ${error.message || 'Problème réseau'}`);
+        toast('error', `Erreur lors de l'envoi : ${error.message}`);
     } finally {
         setIsUploading(null);
         setTargetDeliverableId(null);
-        // Important: Reset input value to allow re-selection of the same file
         if (fileInputRef.current) fileInputRef.current.value = ''; 
     }
   };
@@ -261,14 +282,20 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm">
             <h3 className="text-2xl font-display font-bold text-slate-900 mb-6">{currentWeekData.title}</h3>
             <div className="space-y-6">
-                {currentWeekData.deliverables.map((deliverable) => (
-                    <MissionCard 
-                        key={deliverable.id} 
-                        deliverable={deliverable} 
-                        isUploading={isUploading === deliverable.id}
-                        onAction={handleFileClick}
-                    />
-                ))}
+                {currentWeekData.deliverables.map((deliverable) => {
+                    // Inject calculated deadline if not manually overridden
+                    const dynDeadline = getDynamicDeadline(currentWeekData, agency.classId as string);
+                    const finalDeliverable = { ...deliverable, deadline: deliverable.deadline || dynDeadline };
+
+                    return (
+                        <MissionCard 
+                            key={deliverable.id} 
+                            deliverable={finalDeliverable} 
+                            isUploading={isUploading === deliverable.id}
+                            onAction={handleFileClick}
+                        />
+                    );
+                })}
             </div>
         </div>
         ) : (

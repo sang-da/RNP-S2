@@ -30,6 +30,7 @@ export interface Deliverable {
   score?: number; // 0-100
   feedback?: string;
   fileUrl?: string;
+  deadline?: string; // NOUVEAU: Date limite de rendu
   // Grading Details
   submissionDate?: string;
   grading?: {
@@ -82,6 +83,7 @@ export interface Badge {
 export interface Student {
   id: string;
   name: string;
+  email?: string; // AJOUT : Email pour les notifications
   role: string; // Standardisé (ex: "Associé")
   avatarUrl: string;
   individualScore: number; // 0-100

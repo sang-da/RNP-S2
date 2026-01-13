@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGame } from '../../contexts/GameContext'; // Import du GameContext
 
 interface TeamViewProps {
   agency: Agency;
@@ -17,9 +18,11 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   const [showSalaryInfo, setShowSalaryInfo] = useState(false);
 
   const { currentUser: firebaseUser } = useAuth();
+  const { getCurrentGameWeek } = useGame(); // Récupération de la semaine actuelle
   
   // Correction Identity: Find the member that corresponds to the logged-in user
   const currentUser = agency.members.find(m => m.id === firebaseUser?.uid);
+  const currentWeek = getCurrentGameWeek();
 
   const handlePeerReview = (review: PeerReview) => {
     onUpdateAgency({
@@ -29,12 +32,24 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
     setReviewMode(null);
   };
 
+  const hasReviewedMemberThisWeek = (targetId: string) => {
+      if (!currentUser) return false;
+      return agency.peerReviews.some(r => 
+          r.reviewerId === currentUser.id && 
+          r.targetId === targetId && 
+          r.weekId === currentWeek.toString()
+      );
+  };
+
   return (
     <div className="animate-in slide-in-from-right-4 duration-500 pb-20">
         
         {/* Header Action */}
         <div className="flex justify-between items-center mb-6">
-             <h3 className="text-xl font-bold text-slate-900">Membres du Studio</h3>
+             <div>
+                <h3 className="text-xl font-bold text-slate-900">Membres du Studio</h3>
+                <p className="text-xs text-slate-500">Semaine {currentWeek} en cours</p>
+             </div>
              <div className="flex gap-2">
                 <span className="text-xs text-slate-400 self-center hidden md:block">Connecté en tant que <strong>{currentUser?.name || 'Visiteur'}</strong></span>
              </div>
@@ -43,6 +58,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {agency.members.map(member => {
                 const salary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                const isMe = member.id === currentUser?.id;
+                const alreadyReviewed = hasReviewedMemberThisWeek(member.id);
                 
                 return (
                     <div 
@@ -94,13 +111,22 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
                             >
                                 Voir Bulletin
                             </button>
-                            {member.id !== currentUser?.id && currentUser && (
-                                <button 
-                                    onClick={() => setReviewMode(member)}
-                                    className="flex-1 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <MessageCircle size={14}/> Évaluer
-                                </button>
+                            {!isMe && currentUser && (
+                                alreadyReviewed ? (
+                                    <button 
+                                        disabled
+                                        className="flex-1 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        <CheckCircle2 size={14}/> Évalué
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => setReviewMode(member)}
+                                        className="flex-1 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <MessageCircle size={14}/> Évaluer
+                                    </button>
+                                )
                             )}
                         </div>
                     </div>
@@ -228,6 +254,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
             <PeerReviewForm 
                 reviewer={currentUser}
                 target={reviewMode}
+                weekId={currentWeek.toString()}
                 onClose={() => setReviewMode(null)}
                 onSubmit={handlePeerReview}
             />
@@ -242,11 +269,12 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
 interface PeerReviewFormProps {
     reviewer: Student;
     target: Student;
+    weekId: string;
     onClose: () => void;
     onSubmit: (review: PeerReview) => void;
 }
 
-const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClose, onSubmit }) => {
+const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekId, onClose, onSubmit }) => {
     const [attendance, setAttendance] = useState(3);
     const [quality, setQuality] = useState(3);
     const [involvement, setInvolvement] = useState(3);
@@ -255,7 +283,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClo
     const handleSubmit = () => {
         const review: PeerReview = {
             id: `rev-${Date.now()}`,
-            weekId: "1", // Hardcoded for demo, normally from context or active week
+            weekId: weekId, 
             date: new Date().toISOString().split('T')[0],
             reviewerId: reviewer.id,
             reviewerName: reviewer.name,
@@ -268,11 +296,11 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClo
     };
 
     return (
-        <Modal isOpen={true} onClose={onClose} title={`Évaluation Hebdo: ${target.name}`}>
+        <Modal isOpen={true} onClose={onClose} title={`Évaluation Hebdo (Sem ${weekId}): ${target.name}`}>
             <div className="space-y-6">
                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
                     Soyez honnête et constructif. Ces notes impactent le score individuel de votre collègue.
-                    <br/><strong>Attention :</strong> Les abus ou notes de complaisance seront sanctionnés par l'administration.
+                    <br/><strong>Attention :</strong> Vous ne pouvez évaluer qu'une seule fois par semaine.
                 </div>
 
                 <div className="space-y-4">
@@ -301,7 +329,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, onClo
                     className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2"
                 >
                     <Send size={18} />
-                    Envoyer l'évaluation
+                    Envoyer l'évaluation (Définitif)
                 </button>
             </div>
         </Modal>

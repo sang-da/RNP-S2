@@ -5,7 +5,7 @@ import { Modal } from '../../Modal';
 import { useUI } from '../../../contexts/UIContext';
 import { useGame } from '../../../contexts/GameContext';
 import { getAgencyPerformanceMultiplier } from '../../../constants';
-import { UserCog, Flame, Star, Wallet, Zap } from 'lucide-react';
+import { UserCog, Flame, Star, Wallet, Zap, Mail } from 'lucide-react';
 
 // --- CONTROL PANEL ---
 interface ControlPanelModalProps {
@@ -179,7 +179,14 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
             // ATTENTE DE LA SAUVEGARDE DB
             await onUpdateAgency(updatedAgency);
             
-            toast(finalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${finalDelta} VE) - Perf ${perfPercent}%`);
+            // --- MAILTO TRIGGER ---
+            const mailSubject = encodeURIComponent(`Correction RNP : ${item.deliverable.name} (${agency.name})`);
+            const mailBody = encodeURIComponent(`Bonjour,\n\nVoici le retour officiel pour le livrable "${item.deliverable.name}".\n\n- Qualité : ${quality}\n- Retard : ${daysLate} jour(s)\n- Impact VE : ${finalDelta >= 0 ? '+' : ''}${finalDelta}\n\nCommentaire :\n"${feedback}"\n\nBon courage pour la suite.\nL'équipe RNP.`);
+            
+            // On essaie d'ouvrir le client mail
+            window.location.href = `mailto:?subject=${mailSubject}&body=${mailBody}`;
+
+            toast(finalDelta >= 0 ? 'success' : 'warning', `Correction enregistrée (${finalDelta} VE) - Email ouvert`);
             onClose();
         } catch (error) {
             console.error("Erreur validation:", error);
@@ -262,9 +269,9 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                     <button 
                         onClick={handleValidate} 
                         disabled={isSaving}
-                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors disabled:opacity-50"
+                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
-                        {isSaving ? 'Sauvegarde...' : 'Valider'}
+                        {isSaving ? 'Sauvegarde...' : <><Mail size={16}/> Valider & Notifier</>}
                     </button>
                  </div>
             </div>

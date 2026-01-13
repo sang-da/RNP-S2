@@ -10,7 +10,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     deliverables: [
       { id: "d_report_1", name: "Compte Rendu Hebdo", description: "Résumé des activités, décisions et roadmap.", status: 'pending' },
       { id: "d_charter", name: "Charte de Projet", description: "Formulaire de définition du projet (Contexte, Problème, Cible, Lieu, Thème)", status: 'pending' },
-      { id: "d_branding", name: "Identité & Branding Agence", description: "Logo, Couleurs, Nom final et Tagline.", status: 'pending' },
+      { id: "d_branding", name: "Nom du Studio", description: "Définition du nom officiel et de la tagline.", status: 'pending' },
+      { id: "d_logo", name: "Logo du Studio", description: "Image carrée (PNG/JPG). Sera utilisée comme avatar de l'agence.", status: 'pending' },
       { id: "d2", name: "Feuille de route S1", description: "Planning prévisionnel des 4 prochaines semaines", status: 'pending' }
     ],
     locked: false,

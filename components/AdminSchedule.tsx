@@ -1,7 +1,14 @@
 
 import React, { useState } from 'react';
-import { WeekModule, ClassSession } from '../types';
+import { WeekModule, Deliverable } from '../types';
 import { Calendar, CheckSquare, GraduationCap, Target, Clock, Edit2, Save, X } from 'lucide-react';
+import { useGame } from '../contexts/GameContext';
+import { useUI } from '../contexts/UIContext';
+import { doc, writeBatch, db } from '../services/firebase';
+
+// Sub-components
+import { PlanningForm } from './admin/schedule/PlanningForm';
+import { ContentForm } from './admin/schedule/ContentForm';
 
 interface AdminScheduleProps {
     weeksData: { [key: string]: WeekModule };
@@ -10,17 +17,20 @@ interface AdminScheduleProps {
 }
 
 export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdateWeek, readOnly }) => {
+  const { agencies } = useGame();
+  const { confirm, toast } = useUI();
   const weeks: WeekModule[] = Object.values(weeksData);
-  const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   
-  // Local state for editing form
+  const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<'PLANNING' | 'CONTENT'>('PLANNING');
+  
+  // Forms State
   const [scheduleForm, setScheduleForm] = useState<{
       classA: { date: string, slot: string },
       classB: { date: string, slot: string }
-  }>({
-      classA: { date: '', slot: 'MATIN' },
-      classB: { date: '', slot: 'APRÈS-MIDI' }
-  });
+  }>({ classA: { date: '', slot: 'MATIN' }, classB: { date: '', slot: 'APRÈS-MIDI' } });
+
+  const [contentForm, setContentForm] = useState<WeekModule | null>(null);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -32,24 +42,23 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
     }
   };
 
-  const startEditing = (week: WeekModule) => {
+  const startEditing = (week: WeekModule, mode: 'PLANNING' | 'CONTENT') => {
       setEditingWeekId(week.id);
-      setScheduleForm({
-          classA: { 
-              date: week.schedule.classA?.date || '', 
-              slot: week.schedule.classA?.slot || 'MATIN' 
-          },
-          classB: { 
-              date: week.schedule.classB?.date || '', 
-              slot: week.schedule.classB?.slot || 'APRÈS-MIDI' 
-          }
-      });
+      setEditMode(mode);
+      
+      if (mode === 'PLANNING') {
+          setScheduleForm({
+              classA: { date: week.schedule.classA?.date || '', slot: week.schedule.classA?.slot || 'MATIN' },
+              classB: { date: week.schedule.classB?.date || '', slot: week.schedule.classB?.slot || 'APRÈS-MIDI' }
+          });
+      } else {
+          setContentForm(JSON.parse(JSON.stringify(week))); // Deep copy
+      }
   };
 
   const saveSchedule = (weekId: string) => {
       const currentWeek = weeksData[weekId];
       if(!currentWeek) return;
-
       const updatedWeek: WeekModule = {
           ...currentWeek,
           schedule: {
@@ -57,9 +66,79 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
               classB: scheduleForm.classB.date ? { date: scheduleForm.classB.date, slot: scheduleForm.classB.slot as any } : null
           }
       };
-
       onUpdateWeek(weekId, updatedWeek);
       setEditingWeekId(null);
+  };
+
+  // --- MISSION BUILDER LOGIC HELPERS ---
+  const addDeliverable = () => {
+      if (!contentForm) return;
+      const newDel: Deliverable = {
+          id: `d_custom_${Date.now()}`,
+          name: "Nouvelle Mission",
+          description: "Description de la tâche...",
+          status: 'pending'
+      };
+      setContentForm({ ...contentForm, deliverables: [...contentForm.deliverables, newDel] });
+  };
+
+  const removeDeliverable = (index: number) => {
+      if (!contentForm) return;
+      const newDeliverables = contentForm.deliverables.filter((_, i) => i !== index);
+      setContentForm({ ...contentForm, deliverables: newDeliverables });
+  };
+
+  const saveContentAndSync = async () => {
+      if (!contentForm) return;
+      
+      const confirmed = await confirm({
+          title: "Standardiser & Synchroniser ?",
+          message: "ATTENTION : Vous allez écraser la définition de cette semaine pour TOUTES les agences.\n\nCela mettra à jour les titres et descriptions des missions, mais conservera (normalement) les fichiers déjà rendus si les IDs correspondent.",
+          confirmText: "Synchroniser Tout le Monde",
+          isDangerous: true
+      });
+
+      if (!confirmed) return;
+
+      // 1. Update Template
+      onUpdateWeek(contentForm.id, contentForm);
+
+      // 2. Batch Update Agencies
+      try {
+          const batch = writeBatch(db);
+          agencies.forEach(agency => {
+              if (agency.id === 'unassigned') return;
+              
+              const existingWeek = agency.progress[contentForm.id];
+              const mergedDeliverables = contentForm.deliverables.map(tplDel => {
+                  const existingDel = existingWeek?.deliverables.find(d => d.id === tplDel.id);
+                  if (existingDel) {
+                      return { ...existingDel, name: tplDel.name, description: tplDel.description };
+                  }
+                  return tplDel;
+              });
+
+              const updatedWeek = {
+                  ...existingWeek,
+                  title: contentForm.title,
+                  objectives: contentForm.objectives,
+                  type: contentForm.type,
+                  deliverables: mergedDeliverables
+              };
+
+              const ref = doc(db, "agencies", agency.id);
+              batch.update(ref, { [`progress.${contentForm.id}`]: updatedWeek });
+          });
+
+          await batch.commit();
+          toast('success', "Semaine synchronisée avec succès sur toutes les agences.");
+          setEditingWeekId(null);
+          setContentForm(null);
+
+      } catch (error) {
+          console.error(error);
+          toast('error', "Erreur lors de la synchronisation de masse.");
+      }
   };
 
   return (
@@ -67,9 +146,9 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
         <div className="mb-8">
             <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><Calendar size={32}/></div>
-                Planning & Cours
+                Mission Builder & Planning
             </h2>
-            <p className="text-slate-500 text-sm mt-1">Définissez les créneaux de cours pour chaque classe (A & B).</p>
+            <p className="text-slate-500 text-sm mt-1">Gérez le calendrier et le contenu pédagogique des semaines.</p>
         </div>
 
         <div className="relative border-l-4 border-slate-200 ml-4 md:ml-8 space-y-12 py-4">
@@ -98,113 +177,48 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                              
                              {editingWeekId !== week.id ? (
                                  !readOnly && (
-                                 <button 
-                                    onClick={() => startEditing(week)}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors self-start md:self-auto"
-                                 >
-                                     <Edit2 size={16}/> Gérer Planning
-                                 </button>
+                                 <div className="flex gap-2">
+                                     <button onClick={() => startEditing(week, 'PLANNING')} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors">
+                                         <Clock size={14}/> Planning
+                                     </button>
+                                     <button onClick={() => startEditing(week, 'CONTENT')} className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors">
+                                         <Edit2 size={14}/> Éditer Contenu
+                                     </button>
+                                 </div>
                                  )
                              ) : (
                                 <div className="flex gap-2 self-start md:self-auto">
-                                    <button onClick={() => setEditingWeekId(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={20}/></button>
-                                    <button onClick={() => saveSchedule(week.id)} className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20"><Save size={18}/> Sauvegarder</button>
+                                    <button onClick={() => { setEditingWeekId(null); setContentForm(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={20}/></button>
+                                    <button 
+                                        onClick={() => editMode === 'PLANNING' ? saveSchedule(week.id) : saveContentAndSync()} 
+                                        className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                                    >
+                                        <Save size={18}/> {editMode === 'PLANNING' ? 'Sauvegarder' : 'Publier & Sync'}
+                                    </button>
                                 </div>
                              )}
                          </div>
 
-                         {/* PLANNING EDITOR / DISPLAY */}
-                         <div className="mb-8 bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                             <h4 className="font-bold text-slate-500 text-xs uppercase mb-3 flex items-center gap-2">
-                                 <Clock size={14}/> Horaires de Cours
-                             </h4>
-                             
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 {/* CLASS A */}
-                                 <div className={`p-4 rounded-xl border-l-4 border-blue-500 bg-white shadow-sm`}>
-                                     <div className="flex justify-between items-center mb-2">
-                                         <span className="font-bold text-blue-600 text-sm">CLASSE A</span>
-                                     </div>
-                                     {editingWeekId === week.id ? (
-                                         <div className="space-y-2">
-                                             <input 
-                                                type="date" 
-                                                value={scheduleForm.classA.date}
-                                                onChange={e => setScheduleForm({...scheduleForm, classA: {...scheduleForm.classA, date: e.target.value}})}
-                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-900"
-                                             />
-                                             <select 
-                                                value={scheduleForm.classA.slot}
-                                                onChange={e => setScheduleForm({...scheduleForm, classA: {...scheduleForm.classA, slot: e.target.value}})}
-                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 bg-white"
-                                             >
-                                                 <option value="MATIN">Matin (09h-12h)</option>
-                                                 <option value="APRÈS-MIDI">Après-Midi (13h-17h)</option>
-                                                 <option value="JOURNÉE">Journée Complète</option>
-                                             </select>
-                                         </div>
-                                     ) : (
-                                         <div>
-                                             {week.schedule.classA ? (
-                                                 <>
-                                                    <div className="text-lg font-bold text-slate-900">
-                                                        {new Date(week.schedule.classA.date).toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'short'})}
-                                                    </div>
-                                                    <div className="text-xs font-bold uppercase text-slate-400 bg-slate-100 inline-block px-2 py-1 rounded mt-1">
-                                                        {week.schedule.classA.slot}
-                                                    </div>
-                                                 </>
-                                             ) : (
-                                                 <span className="text-xs italic text-slate-400">Non programmé</span>
-                                             )}
-                                         </div>
-                                     )}
-                                 </div>
+                         {/* EDIT MODE: CONTENT (MISSION BUILDER) */}
+                         {editingWeekId === week.id && editMode === 'CONTENT' && contentForm && (
+                             <ContentForm 
+                                contentForm={contentForm}
+                                setContentForm={setContentForm}
+                                addDeliverable={addDeliverable}
+                                removeDeliverable={removeDeliverable}
+                             />
+                         )}
 
-                                 {/* CLASS B */}
-                                 <div className={`p-4 rounded-xl border-l-4 border-purple-500 bg-white shadow-sm`}>
-                                     <div className="flex justify-between items-center mb-2">
-                                         <span className="font-bold text-purple-600 text-sm">CLASSE B</span>
-                                     </div>
-                                     {editingWeekId === week.id ? (
-                                         <div className="space-y-2">
-                                             <input 
-                                                type="date" 
-                                                value={scheduleForm.classB.date}
-                                                onChange={e => setScheduleForm({...scheduleForm, classB: {...scheduleForm.classB, date: e.target.value}})}
-                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-900"
-                                             />
-                                             <select 
-                                                value={scheduleForm.classB.slot}
-                                                onChange={e => setScheduleForm({...scheduleForm, classB: {...scheduleForm.classB, slot: e.target.value}})}
-                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 bg-white"
-                                             >
-                                                 <option value="MATIN">Matin (09h-12h)</option>
-                                                 <option value="APRÈS-MIDI">Après-Midi (13h-17h)</option>
-                                                 <option value="JOURNÉE">Journée Complète</option>
-                                             </select>
-                                         </div>
-                                     ) : (
-                                         <div>
-                                             {week.schedule.classB ? (
-                                                 <>
-                                                    <div className="text-lg font-bold text-slate-900">
-                                                        {new Date(week.schedule.classB.date).toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'short'})}
-                                                    </div>
-                                                    <div className="text-xs font-bold uppercase text-slate-400 bg-slate-100 inline-block px-2 py-1 rounded mt-1">
-                                                        {week.schedule.classB.slot}
-                                                    </div>
-                                                 </>
-                                             ) : (
-                                                 <span className="text-xs italic text-slate-400">Non programmé</span>
-                                             )}
-                                         </div>
-                                     )}
-                                 </div>
-                             </div>
-                         </div>
+                         {/* EDIT MODE: PLANNING */}
+                         {editingWeekId === week.id && editMode === 'PLANNING' && (
+                             <PlanningForm 
+                                scheduleForm={scheduleForm}
+                                setScheduleForm={setScheduleForm}
+                             />
+                         )}
 
-                         {/* Content Grid (Objectives & Deliverables) */}
+                         {/* Content Grid (Display Only when not editing content) */}
+                         {(!editingWeekId || editMode !== 'CONTENT') && (
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                              <div>
                                  <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
@@ -222,7 +236,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
 
                              <div>
                                  <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                                     <CheckSquare size={18} className="text-emerald-500"/> Livrables Attendus
+                                     <CheckSquare size={18} className="text-emerald-500"/> Missions ({week.deliverables.length})
                                  </h4>
                                  <div className="space-y-3">
                                      {week.deliverables.map((del) => (
@@ -239,6 +253,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                                  </div>
                              </div>
                          </div>
+                         )}
                     </div>
                 </div>
             ))}
