@@ -1,11 +1,23 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- MODE DÉVELOPPEMENT ---
-    // Règle unique et universelle :
-    // Si l'utilisateur est connecté (auth != null), il peut lire et écrire PARTOUT.
+    // --- ACCÈS PUBLIC (DASHBOARD LIVE) ---
+    // Lecture autorisée pour tout le monde (même non connecté)
+    // Écriture réservée aux utilisateurs connectés (Admin/Student)
     
+    match /agencies/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /weeks/{document=**} {
+        allow read: if true;
+        allow write: if request.auth != null;
+    }
+
+    // --- ACCÈS RESTREINT (DEFAULT) ---
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

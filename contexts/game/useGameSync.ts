@@ -19,14 +19,16 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
           agenciesData.push(doc.data() as Agency);
         });
         if (agenciesData.length === 0) {
-          seedDatabase().catch(console.error);
+          // Si la base est vide (rare), on conserve les MOCK ou on laisse vide.
+          // On désactive le seeding automatique ici pour éviter que des visiteurs publics n'écrivent en base.
+          // seedDatabase().catch(console.error); 
         } else {
           setAgencies(agenciesData);
         }
       },
       (error) => {
         console.error("Firestore Read Error (Agencies):", error);
-        toast('info', 'Mode Hors Ligne');
+        // Toast supprimé pour éviter le message "Mode Hors Ligne" sur la Landing Page
       }
     );
     return () => unsubscribe();
@@ -41,7 +43,8 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
           weeksData[doc.id] = doc.data() as WeekModule;
         });
         if (Object.keys(weeksData).length > 0) setWeeks(weeksData);
-      }
+      },
+      (error) => console.error("Firestore Read Error (Weeks):", error)
     );
     return () => unsubscribe();
   }, []);
@@ -55,7 +58,8 @@ export const useGameSync = (toast: (type: string, msg: string) => void) => {
           resData.push(doc.data() as WikiResource);
         });
         setResources(resData);
-      }
+      },
+      (error) => console.error("Firestore Read Error (Resources):", error)
     );
     return () => unsubscribe();
   }, []);
