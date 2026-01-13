@@ -2,13 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // PUBLIC READ : Agences (Pour le graphe Landing Page & Admin Market View)
+    // PUBLIC READ : Agences (Collection & Documents)
+    // Permet à la Landing Page d'accéder aux données 'agencies' sans être connecté.
     match /agencies/{agencyId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // AUTH REQUIRED : Le reste
+    // AUTH REQUIRED : Le reste (Utilisateurs, Semaines, Ressources)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

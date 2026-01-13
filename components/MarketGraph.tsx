@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Agency } from '../types';
-import { TrendingUp, Eye, AlertCircle } from 'lucide-react';
+import { TrendingUp, Eye, AlertCircle, MessageCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS } from '../constants';
 
@@ -23,6 +23,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     height = "350px",
     isLanding = false
 }) => {
+    const [isMascotHovered, setIsMascotHovered] = useState(false);
     
     // --- DATA PREPARATION ---
     const validAgencies = useMemo(() => {
@@ -83,6 +84,10 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
         return MASCOTS.MARKET_STABLE;
     };
 
+    const mascotMessage = isLanding 
+        ? "Regardez-les grimper ! Qui dominera le S2 ?" 
+        : highlightAgencyId ? "Votre performance influence ma richesse..." : "Le marché est volatile !";
+
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
           return (
@@ -116,9 +121,23 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     return (
         <div className={`bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-visible flex flex-col h-full animate-in fade-in zoom-in duration-500 ${isLanding ? 'p-6 md:p-10' : 'p-4 md:p-6'}`}>
             
-            {/* Mascot Decoration - Positioned absolutely outside/overlapping the container */}
-            <div className={`absolute z-30 pointer-events-none transition-all duration-500 ${isLanding ? '-right-8 -bottom-10 w-40 md:w-52 md:-right-12 md:-bottom-12' : '-right-4 -bottom-6 w-24 md:w-32 opacity-90'}`}>
-                <img src={getMascot()} alt="Mascot" className="drop-shadow-2xl"/>
+            {/* Mascot Decoration - Interactive */}
+            <div 
+                className={`absolute z-30 transition-all duration-500 cursor-pointer group ${isLanding ? '-right-8 -bottom-10 w-40 md:w-52 md:-right-12 md:-bottom-12' : '-right-4 -bottom-6 w-24 md:w-32 opacity-90'}`}
+                onMouseEnter={() => setIsMascotHovered(true)}
+                onMouseLeave={() => setIsMascotHovered(false)}
+            >
+                {/* Speech Bubble */}
+                <div className={`absolute bottom-full right-0 mb-2 bg-slate-900 text-white text-xs font-bold p-3 rounded-t-xl rounded-bl-xl shadow-lg w-40 transform transition-all duration-300 origin-bottom-right ${isMascotHovered ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
+                    <MessageCircle size={12} className="inline mr-1 text-yellow-400"/>
+                    {mascotMessage}
+                </div>
+                
+                <img 
+                    src={getMascot()} 
+                    alt="Mascot" 
+                    className={`drop-shadow-2xl transition-transform duration-300 ${isMascotHovered ? 'scale-110 rotate-3' : 'scale-100'}`}
+                />
             </div>
 
             {/* Header */}
