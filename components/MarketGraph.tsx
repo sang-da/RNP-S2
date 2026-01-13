@@ -11,6 +11,7 @@ interface MarketGraphProps {
     showBlackOpsButton?: boolean;
     title?: string;
     height?: string;
+    isLanding?: boolean;
 }
 
 export const MarketGraph: React.FC<MarketGraphProps> = ({ 
@@ -19,7 +20,8 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     onToggleBlackOps, 
     showBlackOpsButton = false, 
     title = "Marché (VE)",
-    height = "350px"
+    height = "350px",
+    isLanding = false
 }) => {
     
     // --- DATA PREPARATION ---
@@ -70,6 +72,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     }, [validAgencies]);
 
     const getMascot = () => {
+        if (isLanding) return MASCOTS.MARKET_RICH; // Mascotte riche/caméra pour la landing
         if (highlightAgencyId) {
             const agency = validAgencies.find(a => a.id === highlightAgencyId);
             if (agency) {
@@ -77,7 +80,6 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                 if (agency.ve_current <= 30) return MASCOTS.MARKET_POOR;
             }
         }
-        // Generic mascot if no highlight or neutral
         return MASCOTS.MARKET_STABLE;
     };
 
@@ -106,18 +108,23 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
         return null;
     };
 
+    const getColor = (index: number) => {
+        const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+        return colors[index % colors.length];
+    };
+
     return (
-        <div className="bg-white rounded-[24px] md:rounded-[32px] p-4 md:p-6 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col h-full animate-in fade-in zoom-in duration-500">
+        <div className={`bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-visible flex flex-col h-full animate-in fade-in zoom-in duration-500 ${isLanding ? 'p-6 md:p-10' : 'p-4 md:p-6'}`}>
             
-            {/* Mascot Decoration */}
-            <div className="absolute -right-4 -bottom-6 md:-right-6 md:-bottom-8 w-24 md:w-48 z-10 pointer-events-none opacity-90 transition-all duration-500">
+            {/* Mascot Decoration - Positioned absolutely outside/overlapping the container */}
+            <div className={`absolute z-30 pointer-events-none transition-all duration-500 ${isLanding ? '-right-8 -bottom-10 w-40 md:w-52 md:-right-12 md:-bottom-12' : '-right-4 -bottom-6 w-24 md:w-32 opacity-90'}`}>
                 <img src={getMascot()} alt="Mascot" className="drop-shadow-2xl"/>
             </div>
 
             {/* Header */}
-            <div className="flex justify-between items-center mb-4 shrink-0 z-20">
-                <h3 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <TrendingUp className="text-yellow-500" size={20} /> {title}
+            <div className="flex justify-between items-center mb-6 shrink-0 z-20">
+                <h3 className={`font-bold text-slate-900 flex items-center gap-2 ${isLanding ? 'text-2xl font-display' : 'text-base md:text-lg'}`}>
+                    <TrendingUp className="text-yellow-500" size={isLanding ? 28 : 20} /> {title}
                 </h3>
                 
                 <div className="flex gap-2">
@@ -138,10 +145,26 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                            <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} dy={10} />
-                            <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 'auto']} />
+                            <XAxis 
+                                dataKey="name" 
+                                stroke="#94a3b8" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                dy={10} 
+                            />
+                            <YAxis 
+                                stroke="#94a3b8" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                domain={[0, 'auto']} 
+                            />
                             <Tooltip content={<CustomTooltip />} />
-                            <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />
+                            <Legend 
+                                iconType="circle" 
+                                wrapperStyle={{ paddingTop: '20px', fontSize: '10px', paddingLeft: '10px' }} 
+                            />
                             {validAgencies.map((a, index) => {
                                 const isMe = a.id === highlightAgencyId;
                                 return (
@@ -149,10 +172,10 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                                         key={a.id}
                                         type="monotone" 
                                         dataKey={a.name} 
-                                        stroke={isMe ? '#facc15' : index % 2 === 0 ? '#6366f1' : '#10b981'} 
-                                        strokeWidth={isMe ? 4 : 2}
-                                        strokeOpacity={isMe ? 1 : highlightAgencyId ? 0.2 : 0.8} 
-                                        dot={isMe ? {r: 4, fill: '#facc15', strokeWidth: 2, stroke: '#fff'} : false}
+                                        stroke={isMe ? '#facc15' : getColor(index)} 
+                                        strokeWidth={isMe ? 4 : isLanding ? 3 : 2}
+                                        strokeOpacity={isMe ? 1 : highlightAgencyId ? 0.2 : 0.6} 
+                                        dot={false}
                                         activeDot={{ r: 6 }}
                                         isAnimationActive={true} 
                                     />

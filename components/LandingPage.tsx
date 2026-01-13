@@ -3,24 +3,17 @@ import React, { useState } from 'react';
 import { MarketGraph } from './MarketGraph';
 import { useGame } from '../contexts/GameContext';
 import { LoginPage } from './LoginPage';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { Modal } from './Modal';
-import { MOCK_AGENCIES, MASCOTS } from '../constants';
+import { MOCK_AGENCIES } from '../constants';
 
 export const LandingPage: React.FC = () => {
     const { agencies } = useGame();
     const [isLoginOpen, setIsLoginOpen] = useState(false);
 
-    // FIX CLOUDFLARE / LOADING :
-    // Si Firebase est vide ou inaccessible au démarrage, on charge immédiatement 
-    // les données fictives (MOCK) pour que la page s'affiche instantanément.
+    // FIX : On utilise les vraies données si disponibles, sinon le MOCK pour l'effet visuel immédiat.
+    // IMPORTANT : On ne filtre pas les propriétés, on passe l'objet Agency complet pour que le graphe ait l'historique.
     const displayAgencies = agencies.length > 0 ? agencies : MOCK_AGENCIES;
-
-    // Simulation visuelle "Semaine 0" pour le graphique d'accueil
-    const startAgencies = displayAgencies.map(a => ({
-        ...a,
-        ve_current: a.ve_current 
-    }));
 
     return (
         <div className="h-[100dvh] w-full bg-slate-50 flex flex-col overflow-hidden font-sans relative">
@@ -40,28 +33,29 @@ export const LandingPage: React.FC = () => {
             </header>
 
             {/* 2. MAIN VISUAL (CHART) */}
-            <div className="flex-1 w-full relative flex flex-col justify-center items-center min-h-0 overflow-y-auto p-4">
+            <div className="flex-1 w-full relative flex flex-col justify-center items-center min-h-0 overflow-y-auto p-4 bg-slate-50">
                  
-                 {/* GRAPH CARD */}
-                 <div className="w-full max-w-3xl opacity-90 pointer-events-none relative z-10 scale-90 md:scale-100 transition-transform">
+                 {/* GRAPH CARD - Centered and constrained */}
+                 <div className="w-full max-w-4xl relative z-10 animate-in fade-in zoom-in duration-700">
                     <MarketGraph 
-                        agencies={startAgencies} 
+                        agencies={displayAgencies} 
                         title="Tendance du Marché (S2)" 
-                        height="320px"
+                        height="400px"
+                        isLanding={true} // Special styling for landing
                     />
                  </div>
             </div>
 
             {/* 3. FOOTER ACTION */}
-            <div className="p-4 bg-white border-t border-slate-200 shrink-0 z-20 shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.05)] safe-area-bottom">
+            <div className="p-6 bg-white border-t border-slate-200 shrink-0 z-20 shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.05)] safe-area-bottom flex flex-col items-center">
                 <button 
                     onClick={() => setIsLoginOpen(true)}
-                    className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl text-lg hover:bg-indigo-600 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-900/20"
+                    className="w-full max-w-md py-4 bg-slate-900 text-white font-bold rounded-2xl text-lg hover:bg-indigo-600 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl shadow-slate-900/20"
                 >
                     <LogIn size={20} />
                     Se connecter
                 </button>
-                <p className="text-center text-[10px] text-slate-400 mt-3 font-medium">
+                <p className="text-center text-[10px] text-slate-400 mt-4 font-medium">
                     Accès réservé aux étudiants et enseignants RNP.
                 </p>
             </div>
