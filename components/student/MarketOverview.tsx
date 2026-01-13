@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, Student } from '../../types';
-import { TrendingUp, Skull, Zap, Eye, Landmark, Wallet, History, BarChart2, AlertCircle } from 'lucide-react';
+import { TrendingUp, Skull, Zap, Eye, Landmark, Wallet, History, BarChart2, AlertCircle, Trophy, Crown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS, GAME_RULES } from '../../constants';
 import { useGame } from '../../contexts/GameContext';
@@ -138,7 +138,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                 </h3>
                 
                 <div className="flex gap-2">
-                    {canAccessBlackOps && (
+                    {canAccessBlackOps && currentUser && (
                         <button 
                             onClick={() => setShowBlackOps(true)}
                             className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-900/20"
@@ -184,10 +184,58 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
       </div>
   );
 
+  // --- SUB-COMPONENT: PUBLIC LEADERBOARD (FOR GUESTS) ---
+  const PublicLeaderboard = () => (
+      <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-yellow-100 text-yellow-700 rounded-xl">
+                  <Trophy size={24} />
+              </div>
+              <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-none">Top Performers</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Classement en temps réel</p>
+              </div>
+          </div>
+
+          <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1">
+              {leaderboard.slice(0, 5).map((a, idx) => (
+                  <div key={a.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm ${
+                              idx === 0 ? 'bg-yellow-400 text-white' : 
+                              idx === 1 ? 'bg-slate-300 text-white' : 
+                              idx === 2 ? 'bg-amber-600 text-white' : 'bg-white text-slate-400 border'
+                          }`}>
+                              {idx + 1}
+                          </div>
+                          <div>
+                              <p className="font-bold text-slate-900 text-sm">{a.name}</p>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${a.classId === 'A' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                  Classe {a.classId}
+                              </span>
+                          </div>
+                      </div>
+                      <div className="text-right">
+                          <span className="block font-black text-lg text-slate-900">{a.ve_current}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase">VE</span>
+                      </div>
+                  </div>
+              ))}
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+              <p className="text-xs text-slate-400 italic">
+                  Connectez-vous pour voir vos finances et gérer votre agence.
+              </p>
+          </div>
+      </div>
+  );
+
   return (
     <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
         
-        {/* MOBILE TABS (SUB-SLIDER) */}
+        {/* MOBILE TABS (SUB-SLIDER) - Only show if Logged In */}
+        {currentUser && (
         <div className="md:hidden flex gap-2 bg-slate-200 p-1 rounded-xl mb-4 overflow-x-auto no-scrollbar">
             <button onClick={() => setActiveTab('GRAPH')} className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex items-center justify-center gap-2 ${activeTab === 'GRAPH' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
                 <BarChart2 size={16}/> Marché
@@ -199,10 +247,11 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                 <History size={16}/> Journal
             </button>
         </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             
-            {/* LEFT COLUMN (2/3) : GRAPH + WALLET */}
+            {/* LEFT COLUMN (2/3) : GRAPH + WALLET/LEADERBOARD */}
             <div className={`lg:col-span-2 space-y-6 ${activeTab === 'HISTORY' ? 'hidden lg:block' : ''}`}>
                 <div className={`${activeTab !== 'GRAPH' && 'hidden lg:block'}`}>
                     <GraphComponent />
@@ -219,19 +268,16 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                             onRequestScore={requestScorePurchase}
                         />
                     ) : (
-                        <div className="p-8 text-center text-slate-400 bg-white rounded-3xl border border-slate-200">
-                            Connectez-vous pour voir votre portefeuille.
-                        </div>
+                        <PublicLeaderboard />
                     )}
                 </div>
             </div>
 
             {/* RIGHT COLUMN (1/3) : HISTORY */}
-            {/* FIX: Reduced max-height for better layout balance */}
             <div className={`lg:col-span-1 ${activeTab !== 'HISTORY' && 'hidden lg:block'}`}>
                 <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm h-auto max-h-[400px] lg:max-h-[calc(100vh-14rem)] overflow-y-auto custom-scrollbar sticky top-4">
                     <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4 text-sm uppercase tracking-wide sticky top-0 bg-white z-10 py-2 border-b border-slate-50">
-                        <History size={18} className="text-slate-400"/> Journal des Opérations
+                        <History size={18} className="text-slate-400"/> {currentUser ? 'Journal des Opérations' : `Historique : ${agency.name}`}
                     </h3>
                     <HistoryView agency={agency} />
                 </div>
