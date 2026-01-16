@@ -22,6 +22,9 @@ interface MercatoViewProps {
   onUpdateAgencies: (agencies: Agency[]) => void;
 }
 
+// Limite CV : 5 Mo
+const MAX_CV_SIZE = 5 * 1024 * 1024;
+
 export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies }) => {
   const { toast } = useUI();
   const { submitMercatoVote, getCurrentGameWeek, proposeMerger, finalizeMerger } = useGame();
@@ -168,6 +171,12 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
 
   const handleUploadCV = async () => {
     if(!currentUser || !cvFile) return;
+
+    if (cvFile.size > MAX_CV_SIZE) {
+        toast('error', `Fichier trop lourd (${(cvFile.size / 1024 / 1024).toFixed(1)} Mo). Max 5 Mo.`);
+        return;
+    }
+
     setIsUploadingCV(true);
     try {
         const storageRef = ref(storage, `resumes/${currentUser.id}_${cvFile.name}`);

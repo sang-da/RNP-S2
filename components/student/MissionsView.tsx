@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Agency, WeekModule, GameEvent, CycleType } from '../../types';
+import { Agency, WeekModule, GameEvent, CycleType, Deliverable } from '../../types';
 import { Crown, Compass, Mic, Eye } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { ref, uploadBytes, getDownloadURL, storage } from '../../services/firebase';
@@ -15,6 +15,9 @@ interface MissionsViewProps {
   agency: Agency;
   onUpdateAgency: (agency: Agency) => void;
 }
+
+// LIMITE DE SÉCURITÉ : 50 Mo pour éviter de dépasser le quota gratuit Firebase
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; 
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
@@ -98,15 +101,19 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   // --- ACTIONS ---
   const handleFileClick = (deliverableId: string) => {
-    if (deliverableId === 'd_charter') { setIsCharterModalOpen(true); return; }
-    if (deliverableId === 'd_branding') { setIsNamingModalOpen(true); return; }
+    // 1. Trouver le livrable cible pour vérifier son TYPE
+    const deliverable = currentWeekData.deliverables.find(d => d.id === deliverableId);
+    if (!deliverable) return;
 
-    // STANDARD UPLOAD (Including Logo)
+    const type = deliverable.type || 'FILE';
+
+    // 2. Ouvrir la modale appropriée selon le type
+    if (type === 'FORM_CHARTER') { setIsCharterModalOpen(true); return; }
+    if (type === 'FORM_NAMING') { setIsNamingModalOpen(true); return; }
+
+    // 3. Pour les fichiers (Standard, Logo, Bannière), ouvrir l'upload standard
     setChecks({ naming: false, format: false, resolution: false, audio: false });
     setTargetDeliverableId(deliverableId);
-    
-    // Si c'est le logo, on peut bypass la checklist stricte ou adapter, 
-    // mais pour l'instant on garde la checklist pour la forme.
     setIsChecklistOpen(true);
   };
 
@@ -127,15 +134,29 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         return;
     }
 
+    // Récupérer le type du livrable en cours
+    const targetDeliverable = currentWeekData.deliverables.find(d => d.id === targetDeliverableId);
+    const type = targetDeliverable?.type || 'FILE';
+
+    // SÉCURITÉ : VÉRIFICATION DE LA TAILLE
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast('error', `Fichier trop lourd (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
     setIsUploading(targetDeliverableId);
     toast('info', 'Envoi en cours...');
     
     try {
         let storagePath = `submissions/${agency.id}/${activeWeek}/${targetDeliverableId}_${file.name}`;
         
-        // Spécial : Upload Logo
-        if (targetDeliverableId === 'd_logo') {
+        // Spécial : Upload Logo ou Bannière
+        // Le nom du fichier est standardisé pour éviter les doublons/conflits d'URL
+        if (type === 'SPECIAL_LOGO') {
             storagePath = `logos/${agency.id}_${Date.now()}`;
+        } else if (type === 'SPECIAL_BANNER') {
+            storagePath = `banners/${agency.id}_${Date.now()}`;
         }
 
         const storageRef = ref(storage, storagePath);
@@ -162,19 +183,24 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             description: `Fichier transmis avec succès.`
         };
 
-        const updatedAgency = {
+        let updatedAgency = {
             ...agency,
             eventLog: [...agency.eventLog, newEvent],
             progress: { ...agency.progress, [activeWeek]: updatedWeek }
         };
 
-        // Si c'était le logo, on met à jour le champ logoUrl de l'agence aussi
-        if (targetDeliverableId === 'd_logo') {
+        // --- SIDE EFFECTS (Logo/Bannière) ---
+        if (type === 'SPECIAL_LOGO') {
             updatedAgency.logoUrl = downloadUrl;
+            toast('success', "Nouveau logo appliqué !");
+        } else if (type === 'SPECIAL_BANNER') {
+            updatedAgency.branding = { ...updatedAgency.branding, bannerUrl: downloadUrl };
+            toast('success', "Nouvelle bannière appliquée !");
+        } else {
+            toast('success', `Fichier "${file.name}" enregistré !`);
         }
 
         onUpdateAgency(updatedAgency);
-        toast('success', `Fichier "${file.name}" enregistré !`);
 
     } catch (error: any) {
         console.error("Upload Error:", error);
@@ -191,9 +217,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
           toast('error', "Veuillez remplir les champs essentiels.");
           return;
       }
+      
+      // Trouver le livrable de type FORM_CHARTER
+      const charterDeliverable = currentWeekData.deliverables.find(d => d.type === 'FORM_CHARTER' || d.id === 'd_charter');
+      if (!charterDeliverable) { toast('error', "Mission introuvable."); return; }
+
       const updatedWeek = { ...currentWeekData };
       updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-          d.id === 'd_charter' ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée." } : d
+          d.id === charterDeliverable.id ? { ...d, status: 'submitted' as const, feedback: "Charte enregistrée." } : d
       );
       const newEvent: GameEvent = {
             id: `evt-charter-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
@@ -214,9 +245,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
           toast('error', "Le nom doit faire au moins 3 caractères.");
           return;
       }
+
+      // Trouver le livrable de type FORM_NAMING
+      const namingDeliverable = currentWeekData.deliverables.find(d => d.type === 'FORM_NAMING' || d.id === 'd_branding');
+      if (!namingDeliverable) { toast('error', "Mission introuvable."); return; }
+
       const updatedWeek = { ...currentWeekData };
       updatedWeek.deliverables = updatedWeek.deliverables.map(d => 
-          d.id === 'd_branding' ? { ...d, status: 'submitted' as const, feedback: "Identité enregistrée." } : d
+          d.id === namingDeliverable.id ? { ...d, status: 'submitted' as const, feedback: "Identité enregistrée." } : d
       );
       const newEvent: GameEvent = {
             id: `evt-branding-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',

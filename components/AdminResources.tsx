@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Agency, Deliverable, WeekModule } from '../types';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
-import { GradingModal } from './admin/dashboard/DashboardModals';
+import { GradingModal } from './admin/dashboard/modals/GradingModal'; // Fix Import Path
 
 // Sub-components
 import { ResourceToolbar } from './admin/resources/ResourceToolbar';

@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { WeekModule, Deliverable } from '../../../types';
-import { CheckSquare, Plus, Trash2, Globe } from 'lucide-react';
+import { WeekModule, Deliverable, DeliverableType } from '../../../types';
+import { CheckSquare, Plus, Trash2, Globe, Settings2 } from 'lucide-react';
 
 interface ContentFormProps {
     contentForm: WeekModule;
@@ -9,6 +9,16 @@ interface ContentFormProps {
     addDeliverable: () => void;
     removeDeliverable: (index: number) => void;
 }
+
+// MAPPING POUR L'INTERFACE UTILISATEUR
+const DELIVERABLE_TYPES: { value: DeliverableType, label: string }[] = [
+    { value: 'FILE', label: '📄 Fichier Standard (PDF, Vidéo, IMG)' },
+    { value: 'LINK', label: '🔗 Lien Externe (Web, Figma)' },
+    { value: 'SPECIAL_LOGO', label: '🎨 Spécial : Upload Logo Agence' },
+    { value: 'SPECIAL_BANNER', label: '🖼️ Spécial : Upload Bannière Agence' },
+    { value: 'FORM_CHARTER', label: '📝 Formulaire : Charte Projet' },
+    { value: 'FORM_NAMING', label: '🏷️ Formulaire : Nom du Studio' },
+];
 
 export const ContentForm: React.FC<ContentFormProps> = ({ contentForm, setContentForm, addDeliverable, removeDeliverable }) => {
     
@@ -46,18 +56,33 @@ export const ContentForm: React.FC<ContentFormProps> = ({ contentForm, setConten
                     {contentForm.deliverables.map((del, idx) => (
                         <div key={idx} className="flex gap-3 items-start bg-white p-3 rounded-xl border border-slate-200">
                             <div className="flex-1 space-y-2">
-                                <input 
-                                type="text" 
-                                value={del.name} 
-                                onChange={(e) => handleDeliverableChange(idx, 'name', e.target.value)}
-                                className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold placeholder-slate-300"
-                                placeholder="Nom de la mission"
-                                />
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={del.name} 
+                                        onChange={(e) => handleDeliverableChange(idx, 'name', e.target.value)}
+                                        className="flex-1 p-2 border border-slate-200 rounded-lg text-sm font-bold placeholder-slate-300"
+                                        placeholder="Nom de la mission"
+                                    />
+                                    {/* SELECTEUR DE TYPE */}
+                                    <div className="relative w-1/3 min-w-[200px]">
+                                        <Settings2 size={14} className="absolute left-2 top-3 text-slate-400 pointer-events-none"/>
+                                        <select 
+                                            value={del.type || 'FILE'} 
+                                            onChange={(e) => handleDeliverableChange(idx, 'type', e.target.value)}
+                                            className="w-full pl-7 p-2 border border-slate-200 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                        >
+                                            {DELIVERABLE_TYPES.map(t => (
+                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                                 <textarea 
-                                value={del.description} 
-                                onChange={(e) => handleDeliverableChange(idx, 'description', e.target.value)}
-                                className="w-full p-2 border border-slate-200 rounded-lg text-xs min-h-[40px] placeholder-slate-300"
-                                placeholder="Description..."
+                                    value={del.description} 
+                                    onChange={(e) => handleDeliverableChange(idx, 'description', e.target.value)}
+                                    className="w-full p-2 border border-slate-200 rounded-lg text-xs min-h-[40px] placeholder-slate-300"
+                                    placeholder="Description..."
                                 />
                                 <div className="flex gap-2">
                                     <span className="text-[10px] bg-slate-100 text-slate-400 px-2 py-1 rounded font-mono">ID: {del.id}</span>

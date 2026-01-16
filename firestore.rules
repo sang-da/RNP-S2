@@ -2,16 +2,79 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // PUBLIC READ : Agences (Collection & Documents)
-    // Permet à la Landing Page d'accéder aux données 'agencies' sans être connecté.
-    match /agencies/{agencyId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // --- HELPER FUNCTIONS ---
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // AUTH REQUIRED : Le reste (Utilisateurs, Semaines, Ressources)
+    // "God Mode" Hardcodé : Cet email a TOUS les droits.
+    function isSuperAdmin() {
+       return request.auth.token.email == 'ahme.sang@gmail.com';
+    }
+
+    // Admin déclaré dans la DB (Attention, peut échouer si user n'existe pas)
+    // On utilise un try/catch implicite via la vérification d'existence
+    function isDBAdmin() {
+       return isAuthenticated() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || isDBAdmin();
+    }
+
+    // --- RÈGLES PAR COLLECTION ---
+
+    // USERS : Protection des données personnelles
+    match /users/{userId} {
+      // Lecture : Seulement si connecté (pour voir les profils dans le mercato, etc.)
+      allow read: if isAuthenticated();
+      
+      // Création : Autoriser EXPLICITEMENT la création si c'est mon propre ID.
+      // C'est vital pour la première connexion (authLogic.ts).
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Mise à jour : Soi-même ou un Admin
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      
+      // Suppression : Admin seulement
+      allow delete: if isAdmin();
+    }
+
+    // AGENCIES : Cœur du jeu
+    match /agencies/{agencyId} {
+       // MODIFICATION CRITIQUE ICI :
+       // On autorise la lecture publique (if true) pour que le graphique 
+       // de la Landing Page fonctionne sans être connecté.
+       allow read: if true;
+       
+       // Création/Suppression : Réservé aux admins (pour éviter le spam d'agences)
+       allow create, delete: if isAdmin();
+       
+       // Mise à jour : Tout étudiant connecté peut participer (Upload, Join, Votes)
+       // Idéalement, on pourrait affiner pour vérifier si l'user est membre, 
+       // mais pour la fluidité du jeu, isAuthenticated() suffit.
+       allow update: if isAuthenticated();
+    }
+
+    // WEEKS : Calendrier Pédagogique
+    match /weeks/{weekId} {
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
+    }
+
+    // RESOURCES : Wiki
+    match /resources/{resourceId} {
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
+    }
+
+    // FALLBACK : Sécurité par défaut
+    // Tout ce qui n'est pas explicitement autorisé ci-dessus est bloqué, sauf pour les Admins.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
   }
 }

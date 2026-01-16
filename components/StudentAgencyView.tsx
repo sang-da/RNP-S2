@@ -33,6 +33,9 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
     slate: { bg: 'bg-slate-600', text: 'text-slate-600' },
 };
 
+// LIMITE IMAGES : 2 Mo
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
   const { currentUser } = useAuth();
@@ -97,9 +100,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          if (file.size > MAX_IMAGE_SIZE) {
+              toast('error', `Image trop lourde (${(file.size/1024/1024).toFixed(1)} Mo). Max 2 Mo.`);
+              return;
+          }
           try {
               const storageRef = ref(storage, `banners/${agency.id}_${Date.now()}`);
-              await uploadBytes(storageRef, e.target.files[0]);
+              await uploadBytes(storageRef, file);
               const url = await getDownloadURL(storageRef);
               onUpdateAgency({ ...agency, branding: { ...agency.branding, bannerUrl: url } });
               toast('success', 'Bannière mise à jour');
@@ -109,9 +117,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        if (file.size > MAX_IMAGE_SIZE) {
+            toast('error', `Image trop lourde (${(file.size/1024/1024).toFixed(1)} Mo). Max 2 Mo.`);
+            return;
+        }
         try {
             const storageRef = ref(storage, `logos/${agency.id}_${Date.now()}`);
-            await uploadBytes(storageRef, e.target.files[0]);
+            await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
             onUpdateAgency({ ...agency, logoUrl: url });
             toast('success', 'Logo mis à jour');

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Deliverable } from '../../../types';
-import { CheckCircle2, Loader2, FileText, Upload, PenTool, Clock, MessageSquare, AlertOctagon } from 'lucide-react';
+import { CheckCircle2, Loader2, FileText, Upload, PenTool, Clock, MessageSquare, AlertOctagon, Link, Image } from 'lucide-react';
 
 interface MissionCardProps {
     deliverable: Deliverable;
@@ -11,13 +11,23 @@ interface MissionCardProps {
 
 export const MissionCard: React.FC<MissionCardProps> = ({ deliverable, isUploading, onAction }) => {
     
+    // Détection du type (Fallback sur FILE si undefined)
+    const type = deliverable.type || 'FILE';
+
     const getIcon = () => {
         if (deliverable.status === 'validated') return <CheckCircle2 size={20}/>;
         if (deliverable.status === 'rejected') return <AlertOctagon size={20}/>;
         if (deliverable.status === 'submitted') return <Loader2 size={20} className="animate-spin"/>;
-        if (deliverable.id === 'd_charter') return <FileText size={20}/>;
-        if (deliverable.id === 'd_branding') return <PenTool size={20}/>;
-        return <Upload size={20}/>;
+        
+        // Icônes contextuelles selon le TYPE
+        switch(type) {
+            case 'FORM_CHARTER': return <FileText size={20}/>;
+            case 'FORM_NAMING': return <PenTool size={20}/>;
+            case 'SPECIAL_LOGO':
+            case 'SPECIAL_BANNER': return <Image size={20}/>;
+            case 'LINK': return <Link size={20}/>;
+            default: return <Upload size={20}/>;
+        }
     };
 
     const getStatusColor = () => {
@@ -28,9 +38,14 @@ export const MissionCard: React.FC<MissionCardProps> = ({ deliverable, isUploadi
     };
 
     const getButtonLabel = () => {
-        if (deliverable.id === 'd_charter') return 'Remplir la Charte';
-        if (deliverable.id === 'd_branding') return 'Définir l\'Identité';
-        return 'Déposer le fichier';
+        switch(type) {
+            case 'FORM_CHARTER': return 'Remplir la Charte';
+            case 'FORM_NAMING': return 'Définir l\'Identité';
+            case 'SPECIAL_LOGO': return 'Uploader le Logo';
+            case 'SPECIAL_BANNER': return 'Uploader la Bannière';
+            case 'LINK': return 'Soumettre le Lien';
+            default: return 'Déposer le fichier';
+        }
     };
 
     const getDeadlineInfo = () => {
@@ -75,7 +90,7 @@ export const MissionCard: React.FC<MissionCardProps> = ({ deliverable, isUploadi
                              </div>
                         )}
 
-                        {/* FEEDBACK DISPLAY (REQUESTED FEATURE) */}
+                        {/* FEEDBACK DISPLAY */}
                         {deliverable.feedback && (deliverable.status === 'validated' || deliverable.status === 'rejected') && (
                             <div className={`mt-3 p-3 rounded-xl text-sm italic flex gap-3 border ${
                                 deliverable.status === 'validated' ? 'bg-emerald-100/50 text-emerald-800 border-emerald-200' : 'bg-red-100/50 text-red-800 border-red-200'
@@ -115,16 +130,12 @@ export const MissionCard: React.FC<MissionCardProps> = ({ deliverable, isUploadi
                             onClick={() => !isUploading && onAction(deliverable.id)}
                             disabled={isUploading}
                             className={`px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 transition-all active:scale-95 ${
-                                ['d_charter', 'd_branding'].includes(deliverable.id) 
+                                ['FORM_CHARTER', 'FORM_NAMING', 'SPECIAL_LOGO', 'SPECIAL_BANNER'].includes(type) 
                                 ? 'bg-slate-900 text-white hover:bg-slate-800' 
                                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
                             } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            {isUploading ? <Loader2 className="animate-spin" size={16}/> : 
-                             deliverable.id === 'd_charter' ? <FileText size={16}/> : 
-                             deliverable.id === 'd_branding' ? <PenTool size={16}/> :
-                             <Upload size={16}/>}
-                            
+                            {isUploading ? <Loader2 className="animate-spin" size={16}/> : getIcon()}
                             {getButtonLabel()}
                         </button>
                     ) : (

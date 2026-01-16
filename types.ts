@@ -22,10 +22,14 @@ export interface PeerReview {
   comment: string;
 }
 
+// NOUVEAU : Types de livrables pour le Mission Builder
+export type DeliverableType = 'FILE' | 'LINK' | 'FORM_CHARTER' | 'FORM_NAMING' | 'SPECIAL_LOGO' | 'SPECIAL_BANNER';
+
 export interface Deliverable {
   id: string;
   name: string;
   description: string;
+  type?: DeliverableType; // NOUVEAU CHAMP (Optionnel pour rétrocompatibilité, défaut = FILE)
   status: 'pending' | 'submitted' | 'validated' | 'rejected';
   score?: number; // 0-100
   feedback?: string;

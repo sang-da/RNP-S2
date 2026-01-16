@@ -1,17 +1,20 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, WeekModule, TransactionRequest, AIInsight } from '../types';
-import { collection, query, where, onSnapshot } from '../services/firebase';
-import { db } from '../services/firebase';
-import { useUI } from '../contexts/UIContext'; // Added useUI
+import { collection, query, where, onSnapshot, db } from '../services/firebase';
+import { useUI } from '../contexts/UIContext';
 
 // IMPORTS SUB-COMPONENTS
 import { ActionToolbar } from './admin/dashboard/ActionToolbar';
 import { DashboardWidgets } from './admin/dashboard/DashboardWidgets';
 import { AgencyLeaderboard } from './admin/dashboard/AgencyLeaderboard';
 import { ActivityFeed } from './admin/dashboard/ActivityFeed';
-import { GradingModal, AuditRHModal, ControlPanelModal } from './admin/dashboard/DashboardModals';
-import { AIBriefing } from './admin/dashboard/AIBriefing'; // IMPORT AI BRIEFING
+import { AIBriefing } from './admin/dashboard/AIBriefing';
+
+// IMPORTS MODALS (Refactored)
+import { GradingModal } from './admin/dashboard/modals/GradingModal';
+import { AuditRHModal } from './admin/dashboard/modals/AuditRHModal';
+import { ControlPanelModal } from './admin/dashboard/modals/ControlPanelModal';
 
 interface AdminDashboardProps {
   agencies: Agency[];
@@ -24,7 +27,7 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onNavigate, readOnly }) => {
-  const { toast } = useUI(); // Added hook
+  const { toast } = useUI();
   
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
@@ -100,9 +103,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
       const targetAgency = agencies.find(a => a.id === insight.targetAgencyId);
       if(!targetAgency) return;
 
-      // Ici, on pourrait implémenter une logique automatique complexe.
-      // Pour l'instant, on ouvre les modales correspondantes ou on applique un effet simple.
-      
       if (insight.suggestedAction.actionType === 'AUDIT') {
           setAuditAgency(targetAgency);
           toast('info', `Ouverture Audit RH pour ${targetAgency.name}`);

@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Règle globale : Un utilisateur doit être connecté pour lire ou écrire des fichiers.
+    // Cela débloque l'upload des rendus (PDF, Excel), des logos, et des CVs.
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+  }
+}
