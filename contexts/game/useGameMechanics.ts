@@ -1,7 +1,7 @@
 
 import { writeBatch, doc, updateDoc } from '../../services/firebase';
 import { db } from '../../services/firebase';
-import { Agency, GameEvent, MergerRequest, ChallengeRequest, Deliverable } from '../../types';
+import { Agency, GameEvent, MergerRequest, ChallengeRequest, Deliverable, Student, Bet, MercatoRequest } from '../../types';
 import { calculateVECap, GAME_RULES, CONSTRAINTS_POOL } from '../../constants';
 
 export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
@@ -84,7 +84,157 @@ export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: 
     toast('info', 'Contraintes régénérées');
   };
 
+  const performBlackOp = async (
+      studentId: string, 
+      agencyId: string, 
+      opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE', 
+      payload: any
+  ) => {
+      const studentAgency = agencies.find(a => a.id === agencyId);
+      if (!studentAgency) return;
+      const student = studentAgency.members.find(m => m.id === studentId);
+      if (!student) return;
+
+      const batch = writeBatch(db);
+      const agencyRef = doc(db, "agencies", agencyId);
+      const today = new Date().toISOString().split('T')[0];
+
+      // COÛTS & KARMA
+      let costPixi = 0;
+      let costKarma = 0;
+
+      switch(opType) {
+          case 'SHORT_SELL': costPixi = 500; costKarma = 5; break;
+          case 'DOXXING': costPixi = 600; costKarma = 10; break;
+          case 'FAKE_CERT': costPixi = 500; costKarma = 20; break; // Risqué
+          case 'BUY_VOTE': costPixi = 200; costKarma = 15; break;
+          case 'AUDIT_HOSTILE': costPixi = 500; costKarma = 10; break;
+      }
+
+      if ((student.wallet || 0) < costPixi) {
+          toast('error', "Fonds insuffisants.");
+          return;
+      }
+
+      // 1. DEDUCT COST FROM STUDENT
+      const updatedMembers = studentAgency.members.map(m => 
+          m.id === studentId ? { ...m, wallet: (m.wallet || 0) - costPixi, karma: (m.karma || 50) - costKarma } : m
+      );
+      
+      // LOGIC PER OP TYPE
+      if (opType === 'SHORT_SELL') {
+          // Add Bet to Student
+          const targetAgency = agencies.find(a => a.id === payload.targetId);
+          if (!targetAgency) return;
+          
+          const newBet: Bet = {
+              id: `bet-${Date.now()}`,
+              targetAgencyId: payload.targetId,
+              targetAgencyName: targetAgency.name,
+              amountWagered: 500,
+              weekId: getCurrentGameWeek().toString(),
+              status: 'ACTIVE',
+              date: today
+          };
+
+          const memberIndex = updatedMembers.findIndex(m => m.id === studentId);
+          if (memberIndex > -1) {
+              updatedMembers[memberIndex].activeBets = [...(updatedMembers[memberIndex].activeBets || []), newBet];
+          }
+          
+          batch.update(agencyRef, { members: updatedMembers });
+          toast('success', "Ordre de Vente à Découvert placé.");
+
+      } else if (opType === 'DOXXING') {
+          // Just deduct money, UI handles the reveal
+          batch.update(agencyRef, { members: updatedMembers });
+          // No visual toast needed, the UI will show the data immediately
+      } else if (opType === 'FAKE_CERT') {
+          // Find week and deliverable
+          const weekId = payload.weekId;
+          const deliverableId = payload.deliverableId;
+          const week = studentAgency.progress[weekId];
+          
+          if (week) {
+              const updatedDeliverables = week.deliverables.map(d => {
+                  if (d.id === deliverableId && d.grading) {
+                      return { ...d, grading: { ...d.grading, daysLate: 0 } }; // ERASE DELAY
+                  }
+                  return d;
+              });
+              const updatedWeek = { ...week, deliverables: updatedDeliverables };
+              batch.update(agencyRef, { 
+                  members: updatedMembers, 
+                  [`progress.${weekId}`]: updatedWeek 
+              });
+              toast('success', "Certificat falsifié. Retard annulé.");
+          }
+
+      } else if (opType === 'BUY_VOTE') {
+          const reqId = payload.requestId;
+          const targetAgency = agencies.find(a => a.mercatoRequests.some(r => r.id === reqId));
+          if (targetAgency) {
+              const req = targetAgency.mercatoRequests.find(r => r.id === reqId);
+              if (req) {
+                  const ghostId = `ghost-${Date.now()}`;
+                  const newVotes = { ...req.votes, [ghostId]: 'APPROVE' as const };
+                  const updatedReqs = targetAgency.mercatoRequests.map(r => r.id === reqId ? { ...r, votes: newVotes } : r);
+                  
+                  batch.update(doc(db, "agencies", targetAgency.id), { mercatoRequests: updatedReqs });
+                  
+                  // If paying student is in same agency, update members there. If different, update source agency.
+                  if (targetAgency.id === agencyId) {
+                      batch.update(agencyRef, { members: updatedMembers, mercatoRequests: updatedReqs });
+                  } else {
+                      batch.update(agencyRef, { members: updatedMembers });
+                  }
+                  toast('success', "Vote fantôme injecté.");
+              }
+          }
+
+      } else if (opType === 'AUDIT_HOSTILE') {
+          await triggerBlackOp(agencyId, payload.targetId, 'AUDIT');
+          // Update wallet separately because triggerBlackOp usually uses Agency Budget, here we use Personal Wallet
+          // But wait, triggerBlackOp is agency vs agency. Here prompt says "Move it here".
+          // Let's assume student pays for it personally in the Backdoor version.
+          const targetAgency = agencies.find(a => a.id === payload.targetId);
+          if (targetAgency) {
+               const isVulnerable = targetAgency.budget_real < 0 || targetAgency.ve_current < 40;
+               if (isVulnerable) {
+                   batch.update(doc(db, "agencies", targetAgency.id), {
+                       ve_current: Math.max(0, targetAgency.ve_current - 10),
+                       eventLog: [...targetAgency.eventLog, {
+                           id: `op-hit-${Date.now()}`, date: today, type: 'CRISIS', label: "Audit Externe (Sanction)", deltaVE: -10, description: "Des irrégularités ont été exposées."
+                       }]
+                   });
+                   toast('success', "Cible touchée ! -10 VE.");
+               } else {
+                   // Risk: Admin sees suspicion. No automatic penalty here to keep "Trace" logic separate.
+                   toast('error', "Cible saine. L'audit n'a rien trouvé.");
+               }
+               batch.update(agencyRef, { members: updatedMembers });
+          }
+      }
+
+      // GLOBAL TRACE (For Admin)
+      // We add a 'BLACK_OP' event to the source agency to track activity, but without description to keep it vague for admin unless they dig
+      // Or we append to a global log. For now, let's append to agency log but marked as hidden/system or just "Activite Suspecte"
+      batch.update(agencyRef, {
+          eventLog: [...studentAgency.eventLog, {
+              id: `trace-${Date.now()}`,
+              date: today,
+              type: 'BLACK_OP',
+              label: 'Activité Suspecte',
+              deltaVE: 0,
+              description: "Une transaction non-signée a été détectée sur le réseau."
+          }]
+      });
+
+      await batch.commit();
+  };
+
   const triggerBlackOp = async (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => {
+      // LEGACY AGENCY-FUNDED BLACK OPS (KEPT FOR COMPATIBILITY OR IF CALLED FROM MARKET VIEW)
       const week = getCurrentGameWeek();
       if (week < GAME_RULES.UNLOCK_WEEK_BLACK_OPS) {
           toast('error', `Disponible en Semaine ${GAME_RULES.UNLOCK_WEEK_BLACK_OPS} uniquement.`);
@@ -332,5 +482,5 @@ export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: 
       await batch.commit();
   };
 
-  return { updateAgency, processPerformance, shuffleConstraints, triggerBlackOp, submitMercatoVote, proposeMerger, finalizeMerger, sendChallenge, submitChallengeVote };
+  return { updateAgency, processPerformance, shuffleConstraints, triggerBlackOp, performBlackOp, submitMercatoVote, proposeMerger, finalizeMerger, sendChallenge, submitChallengeVote };
 };

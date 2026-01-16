@@ -25,6 +25,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   const currentWeek = getCurrentGameWeek();
 
   const handlePeerReview = (review: PeerReview) => {
+    // 1. Ajouter la review (PAS DE BONUS KARMA)
     onUpdateAgency({
         ...agency,
         peerReviews: [...agency.peerReviews, review]

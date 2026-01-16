@@ -111,6 +111,7 @@ const generateMockAgencies = (): Agency[] => {
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name.replace(' ', '')}`,
         individualScore: calculatedScore,
         wallet: individualAward ? individualAward.amount : 0, // Cash prize S1 si applicable
+        karma: 50, // Karma initial NEUTRE (Base 50)
         classId: classId,
         connectionStatus: 'offline',
         badges: studentBadges, // Liste des badges calculée

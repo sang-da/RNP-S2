@@ -14,6 +14,7 @@ import { AdminSettings } from './components/AdminSettings';
 import { AdminViews } from './components/AdminViews';
 import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
+import { AdminAnalytics } from './components/AdminAnalytics'; // IMPORT
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
@@ -23,7 +24,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw } from 'lucide
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
-type AdminViewType = 'OVERVIEW' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -111,6 +112,7 @@ const GameContainer: React.FC = () => {
                 <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
                     <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"><Menu size={24} /></button>
                     {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
+                    {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
                     {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
                     {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}

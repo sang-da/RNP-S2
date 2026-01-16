@@ -119,8 +119,12 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
 
       const batch = writeBatch(db);
 
-      // Debit source
-      const updatedSourceMembers = sourceAgency.members.map(m => m.id === sourceId ? { ...m, wallet: (m.wallet || 0) - amount } : m);
+      // Debit source (PAS DE BONUS KARMA)
+      const updatedSourceMembers = sourceAgency.members.map(m => 
+          m.id === sourceId 
+          ? { ...m, wallet: (m.wallet || 0) - amount } 
+          : m
+      );
       batch.update(doc(db, "agencies", sourceAgency.id), { members: updatedSourceMembers });
 
       // Credit target
@@ -144,7 +148,12 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       const netInjection = amount - tax;
 
       const batch = writeBatch(db);
-      const updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - amount } : m);
+      // PAS DE BONUS KARMA
+      const updatedMembers = agency.members.map(m => 
+          m.id === studentId 
+          ? { ...m, wallet: (m.wallet || 0) - amount } 
+          : m
+      );
       
       const today = new Date().toISOString().split('T')[0];
       const newEvent: GameEvent = {

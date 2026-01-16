@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp, PieChart } from 'lucide-react';
 
 interface AdminSidebarProps {
   activeView: string;
@@ -13,7 +13,8 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNavigate, onLogout, isOpen, onClose }) => {
   const menuItems = [
     { id: 'OVERVIEW', label: 'Vue Globale', icon: <LayoutDashboard size={20} /> },
-    { id: 'MARKET', label: 'Marché Live', icon: <TrendingUp size={20} /> }, // NOUVEAU
+    { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} /> }, // NOUVEAU
+    { id: 'MARKET', label: 'Marché Live', icon: <TrendingUp size={20} /> },
     { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: <Bot size={20} /> },
     { id: 'ACCESS', label: 'Accès & Comptes', icon: <KeyRound size={20} /> },
     { id: 'SCHEDULE', label: 'Calendrier', icon: <CalendarRange size={20} /> },

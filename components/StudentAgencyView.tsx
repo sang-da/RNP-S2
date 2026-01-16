@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, Student, GameEvent, MercatoRequest, ChallengeRequest } from '../types';
-import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank, Check, X, Info, Rocket, Upload } from 'lucide-react';
+import { Target, Users, History, Wallet, TrendingUp, HelpCircle, Briefcase, Settings, Image as ImageIcon, Shield, Eye, Crown, BookOpen, Send, Repeat, ArrowUpRight, Building2, Zap, AlertTriangle, PartyPopper, Gavel, Landmark, Landmark as Bank, Check, X, Info, Rocket, Upload, Bug } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -9,6 +9,7 @@ import { TeamView } from './student/TeamView';
 import { MercatoView } from './student/MercatoView';
 import { WikiView } from './student/WikiView';
 import { FAQView } from './student/FAQView';
+import { TheBackdoor } from './student/TheBackdoor'; // IMPORT
 import { Modal } from './Modal';
 import { GAME_RULES, BADGE_DEFINITIONS } from '../constants';
 import { ref, uploadBytes, getDownloadURL, storage } from '../services/firebase';
@@ -48,6 +49,10 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const [unlockModal, setUnlockModal] = useState<{title: string, message: string, icon: any, confirmText: string} | null>(null);
   const [notificationEvent, setNotificationEvent] = useState<GameEvent | null>(null);
 
+  // BACKDOOR STATE
+  const [showBackdoor, setShowBackdoor] = useState(false);
+  const [isBackdoorAvailable, setIsBackdoorAvailable] = useState(false);
+
   const brandColor = agency.branding?.color || 'indigo';
   const theme = COLOR_THEMES[brandColor];
   const leaderboard = [...allAgencies].filter(a => a.id !== 'unassigned').sort((a, b) => b.ve_current - a.ve_current);
@@ -58,6 +63,19 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
   const netWeekly = weeklyRevenue - weeklyCharges;
   const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
+
+  // TIME CHECK FOR BACKDOOR
+  useEffect(() => {
+      const checkTime = () => {
+          const hour = new Date().getHours();
+          // Available between 22h and 04h
+          const isOpen = hour >= 22 || hour < 4;
+          setIsBackdoorAvailable(isOpen);
+      };
+      checkTime();
+      const timer = setInterval(checkTime, 60000); // Check every minute
+      return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
       const currentWeek = getCurrentGameWeek();
@@ -132,8 +150,24 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
     }
   };
 
+  if (showBackdoor && myMemberProfile) {
+      return <TheBackdoor agency={agency} allAgencies={allAgencies} currentUser={myMemberProfile} onClose={() => setShowBackdoor(false)} />;
+  }
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-6rem)] font-sans">
+    <div className="flex flex-col min-h-[calc(100vh-6rem)] font-sans relative">
+        
+        {/* BACKDOOR TRIGGER (INVISIBLE UNLESS TIME MATCHES) */}
+        {isBackdoorAvailable && (
+            <button 
+                onClick={() => setShowBackdoor(true)}
+                className="fixed bottom-4 right-4 z-[60] w-2 h-2 bg-transparent hover:bg-black/10 cursor-alias"
+                title="?"
+            >
+                <div className="w-full h-full animate-ping bg-green-500 opacity-20"></div>
+            </button>
+        )}
+
         {/* HEADER */}
         <div className="relative mb-8 rounded-b-3xl md:rounded-3xl overflow-hidden bg-slate-100 min-h-[200px] md:min-h-[240px] shadow-md group">
             {agency.branding?.bannerUrl ? (

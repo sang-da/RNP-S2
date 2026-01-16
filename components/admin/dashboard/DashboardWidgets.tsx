@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Agency, Deliverable, TransactionRequest } from '../../../types';
-import { UserPlus, Briefcase, UserMinus, Wallet, CheckCircle2, UserCog, ArrowRight, X, Check, Eye } from 'lucide-react';
+import { UserPlus, Briefcase, UserMinus, Wallet, CheckCircle2, UserCog, ArrowRight, X, Check, Eye, ShieldAlert } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 import { GAME_RULES } from '../../../constants';
 
@@ -40,9 +40,27 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
     
     const { handleTransactionRequest } = useGame();
 
+    // Count Suspicious Activity (BLACK_OP events in last 24h across all agencies)
+    const suspicionCount = activeAgencies.reduce((acc, agency) => {
+        return acc + agency.eventLog.filter(e => e.type === 'BLACK_OP').length;
+    }, 0);
+
     return (
         <div className="xl:col-span-1 space-y-4">
             
+            {/* WIDGET: SUSPICIOUS ACTIVITY (NEW) */}
+            {suspicionCount > 0 && (
+                <div className="p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all bg-red-900 border-red-700 text-white animate-pulse">
+                    <div className="flex items-center gap-3">
+                        <ShieldAlert size={20} className="text-red-300"/>
+                        <div>
+                            <p className="text-xs font-bold uppercase opacity-80 text-red-200">Activité Suspecte</p>
+                            <p className="font-bold text-lg leading-none">{suspicionCount} incidents détectés</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* WIDGET: PENDING USERS */}
             <div 
                 onClick={() => onNavigate('ACCESS')}

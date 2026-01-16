@@ -67,13 +67,24 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 updatedProjectDef = { ...agency.projectDef, isLocked: false };
             }
 
-            // Apply MVP Bonus if Grade is A and MVP selected
-            let updatedMembers = agency.members;
-            if (quality === 'A' && mvpId) {
-                updatedMembers = agency.members.map(m => 
-                    m.id === mvpId ? { ...m, individualScore: Math.min(100, m.individualScore + 5) } : m
-                );
-            }
+            // 2. LOGIQUE KARMA (IMPACT MEMBERS)
+            let updatedMembers = agency.members.map(m => {
+                let newKarma = m.karma || 0;
+                let newScore = m.individualScore;
+
+                // A. Bonus MVP (+15 Karma, +5 Score)
+                if (quality === 'A' && mvpId && m.id === mvpId) {
+                    newKarma += 15;
+                    newScore = Math.min(100, m.individualScore + 5);
+                }
+
+                // B. Malus Retard (-2 Karma par jour par personne)
+                if (daysLate > 0) {
+                    newKarma -= (daysLate * 2);
+                }
+
+                return { ...m, karma: newKarma, individualScore: newScore };
+            });
 
             const newEvent: GameEvent = {
                 id: `evt-${Date.now()}`,
@@ -99,12 +110,10 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 }
             };
 
-            // 2. SAUVEGARDE DB (AGENCY UPDATE)
+            // 3. SAUVEGARDE DB (AGENCY UPDATE)
             await onUpdateAgency(updatedAgency);
             
-            // 3. ENVOI EMAIL SEAMLESS (VIA FIRESTORE TRIGGER)
-            // Au lieu d'ouvrir mailto:, on écrit dans la collection 'mail'
-            // Cela nécessite l'extension "Trigger Email" dans Firebase Console.
+            // 4. ENVOI EMAIL SEAMLESS (VIA FIRESTORE TRIGGER)
             const recipients = agency.members
                 .map(m => m.email)
                 .filter(email => email && email.includes('@'));
@@ -127,13 +136,12 @@ Bon courage pour la suite.
 L'équipe RNP.
                 `;
 
-                // Écriture dans la collection 'mail' pour déclencher l'envoi serveur
                 await collection(db, 'mail').add({
                     to: recipients,
                     message: {
                         subject: mailSubject,
                         text: mailBody,
-                        html: mailBody.replace(/\n/g, '<br>') // Version HTML basique
+                        html: mailBody.replace(/\n/g, '<br>')
                     }
                 });
                 
@@ -173,7 +181,7 @@ L'équipe RNP.
                     {quality === 'A' && agency && (
                         <div className="animate-in fade-in slide-in-from-top-2">
                             <label className="block text-sm font-bold text-emerald-700 mb-2 flex items-center gap-2">
-                                <Star size={16} fill="currentColor"/> Lead / MVP du Rendu (+5 Score)
+                                <Star size={16} fill="currentColor"/> Lead / MVP du Rendu (+5 Score / +15 Karma)
                             </label>
                             <select 
                                 className="w-full p-2 border border-emerald-200 rounded-lg bg-emerald-50 text-emerald-900 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"

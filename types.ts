@@ -84,6 +84,17 @@ export interface Badge {
     unlockedAt?: string;
 }
 
+// --- NEW: BETTING SYSTEM (SHORT SELLING) ---
+export interface Bet {
+    id: string;
+    targetAgencyId: string;
+    targetAgencyName: string;
+    amountWagered: number; // Mise (ex: 500)
+    weekId: string; // Semaine du pari
+    status: 'ACTIVE' | 'WON' | 'LOST';
+    date: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -92,12 +103,14 @@ export interface Student {
   avatarUrl: string;
   individualScore: number; // 0-100
   wallet: number; // NEW: Personal Funds in PiXi
+  karma?: number; // NEW: Hidden score based on behavior (+ = Altruiste, - = Toxique)
   cvUrl?: string; // URL vers le PDF du CV
   classId: 'A' | 'B'; // Gestion des deux promotions
   connectionStatus?: 'online' | 'offline' | 'pending';
   history?: StudentHistoryEntry[]; // Parcours professionnel
   badges?: Badge[]; // NEW: Individual Badges
   streak?: number; // NEW: Streak for performance
+  activeBets?: Bet[]; // NEW: Paris en cours
 }
 
 export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE' | 'BLACK_OP' | 'MERGER';

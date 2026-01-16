@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable } from '../types';
 import { useUI } from './UIContext';
@@ -48,6 +47,7 @@ interface GameContextType {
 
   // Black Ops & Mergers & Challenges
   triggerBlackOp: (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => Promise<void>;
+  performBlackOp: (studentId: string, agencyId: string, opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE', payload: any) => Promise<void>;
   proposeMerger: (sourceAgencyId: string, targetAgencyId: string) => Promise<void>;
   finalizeMerger: (mergerId: string, targetAgencyId: string, approved: boolean) => Promise<void>;
   
@@ -194,7 +194,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       requestScorePurchase: finance.requestScorePurchase, 
       handleTransactionRequest: finance.handleTransactionRequest,
       submitMercatoVote: mechanics.submitMercatoVote, 
-      triggerBlackOp: mechanics.triggerBlackOp, 
+      triggerBlackOp: mechanics.triggerBlackOp,
+      performBlackOp: mechanics.performBlackOp, 
       proposeMerger: mechanics.proposeMerger, 
       finalizeMerger: mechanics.finalizeMerger, 
       getCurrentGameWeek,
