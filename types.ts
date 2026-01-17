@@ -36,6 +36,7 @@ export interface Deliverable {
   fileUrl?: string;
   deadline?: string; // NOUVEAU: Date limite de rendu
   selfAssessment?: 'A' | 'B' | 'C'; // NOUVEAU: Indice de Lucidité
+  nominatedMvpId?: string; // NOUVEAU: Lead suggéré par l'équipe
   // Grading Details
   submissionDate?: string;
   grading?: {
@@ -43,7 +44,7 @@ export interface Deliverable {
     daysLate: number;
     constraintBroken: boolean;
     finalDelta: number;
-    mvpId?: string; // NEW: The student who carried the task
+    mvpId?: string; // NEW: The student who carried the task (Validated by Admin)
   }
 }
 

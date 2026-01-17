@@ -4,7 +4,7 @@ import { Agency, Deliverable, GameEvent } from '../../../../types';
 import { Modal } from '../../../Modal';
 import { useUI } from '../../../../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../../../../constants';
-import { ExternalLink, AlertTriangle, Target, Calculator, Check } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Target, Calculator, Check, User, Crown } from 'lucide-react';
 
 interface GradingModalProps {
     isOpen: boolean;
@@ -22,21 +22,33 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const [daysLate, setDaysLate] = useState<number>(0);
     const [constraintBroken, setConstraintBroken] = useState<boolean>(false);
     const [feedback, setFeedback] = useState("");
+    const [selectedMvpId, setSelectedMvpId] = useState<string | "NONE">("NONE"); // Pour le MVP Final
     const [isSaving, setIsSaving] = useState(false);
 
     const agency = agencies.find(a => a.id === item.agencyId);
+    
+    // Récupérer le nom du MVP suggéré par l'équipe
+    const suggestedMvpMember = useMemo(() => {
+        if (!agency || !item.deliverable.nominatedMvpId) return null;
+        return agency.members.find(m => m.id === item.deliverable.nominatedMvpId);
+    }, [agency, item.deliverable.nominatedMvpId]);
 
-    // --- AUTO-FILL LOGIC (Retard) ---
+    // --- AUTO-FILL LOGIC ---
     useEffect(() => {
         if (item.deliverable) {
             setFeedback(item.deliverable.feedback || "Fichier reçu. En attente de validation.");
             
+            // Auto-select suggéré si présent
+            if (item.deliverable.nominatedMvpId && !item.deliverable.grading?.mvpId) {
+                setSelectedMvpId(item.deliverable.nominatedMvpId);
+            } else if (item.deliverable.grading?.mvpId) {
+                setSelectedMvpId(item.deliverable.grading.mvpId);
+            }
+
             // Calcul automatique du retard
             if (item.deliverable.submissionDate && item.deliverable.deadline) {
                 const submission = new Date(item.deliverable.submissionDate);
                 const deadline = new Date(item.deliverable.deadline);
-                
-                // On ajoute une marge de tolérance de 15 min
                 const tolerance = 15 * 60 * 1000; 
                 
                 if (submission.getTime() > (deadline.getTime() + tolerance)) {
@@ -59,16 +71,9 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         const penaltyConstraint = constraintBroken ? 10 : 0;
         
         const rawScore = baseScore - penaltyLate - penaltyConstraint;
-        
-        // Multiplicateur de performance d'agence
         const multiplier = getAgencyPerformanceMultiplier(agency);
-        
-        // Le multiplicateur ne s'applique que sur les gains positifs
         let finalDelta = rawScore > 0 ? Math.round(rawScore * multiplier) : rawScore;
 
-        // Bonus Lucidité (Calculé mais affiché séparément ou intégré au final ?)
-        // Pour rester fidèle à la "Note", on l'ajoute au score individuel des membres, pas forcément à la VE directement
-        // SAUF si on veut gamifier la VE. Ici on va calculer le bonus pour affichage.
         let lucidityBonus = 0;
         const selfEval = item.deliverable.selfAssessment;
         if (selfEval) {
@@ -94,32 +99,55 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
 
         try {
             const currentWeek = agency.progress[item.weekId];
+            if (!currentWeek) throw new Error("Semaine introuvable");
+
             const updatedDeliverables = currentWeek.deliverables.map((d): Deliverable => {
                 if (d.id === item.deliverable.id) {
+                    
+                    // CONSTRUCTION SÉCURISÉE DE L'OBJET GRADING
+                    // Firestore plante si on passe une valeur 'undefined'.
+                    const gradingPayload: any = { 
+                        quality, 
+                        daysLate: daysLate || 0, 
+                        constraintBroken, 
+                        finalDelta: calculation.finalVE,
+                    };
+
+                    if (selectedMvpId !== "NONE") {
+                        gradingPayload.mvpId = selectedMvpId;
+                    }
+
                     return { 
                         ...d, 
                         status: quality === 'C' ? 'rejected' : 'validated',
                         feedback: feedback,
-                        grading: { 
-                            quality, 
-                            daysLate: daysLate || 0, 
-                            constraintBroken, 
-                            finalDelta: calculation.finalVE,
-                            mvpId: undefined 
-                        }
+                        grading: gradingPayload
                     };
                 }
                 return d;
             });
 
-            // Impact sur les membres (Score individuel + Lucidité)
+            // Impact sur les membres 
+            let mvpName = "";
             let updatedMembers = agency.members.map(m => {
                 let newScore = m.individualScore;
+                
+                // 1. Bonus Lucidité (Pour tous)
                 if (calculation.lucidityBonus !== 0) {
                     newScore = Math.min(100, Math.max(0, newScore + calculation.lucidityBonus));
                 }
+
+                // 2. Bonus MVP (Seulement pour l'élu)
+                if (selectedMvpId !== "NONE" && m.id === selectedMvpId) {
+                    newScore = Math.min(100, newScore + 5); // +5 Score pour MVP
+                    mvpName = m.name;
+                }
+
                 return { ...m, individualScore: newScore };
             });
+
+            let desc = `Note ${quality} ${daysLate > 0 ? `(-${daysLate}j)` : ''} ${constraintBroken ? '(Contrainte)' : ''}. Lucidité: +${calculation.lucidityBonus} score.`;
+            if (mvpName) desc += ` MVP: ${mvpName} (+5).`;
 
             const newEvent: GameEvent = {
                 id: `evt-${Date.now()}`,
@@ -127,7 +155,7 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 type: 'VE_DELTA',
                 label: quality === 'C' ? `Rejet: ${item.deliverable.name}` : `Correction: ${item.deliverable.name}`,
                 deltaVE: calculation.finalVE,
-                description: `Note ${quality} ${daysLate > 0 ? `(-${daysLate}j)` : ''} ${constraintBroken ? '(Contrainte)' : ''}. Lucidité: +${calculation.lucidityBonus} score.`
+                description: desc
             };
 
             const updatedAgency = {
@@ -141,8 +169,9 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
             await onUpdateAgency(updatedAgency);
             toast('success', `Correction enregistrée (${calculation.finalVE > 0 ? '+' : ''}${calculation.finalVE} VE)`);
             onClose();
-        } catch (error) {
-            toast('error', "Erreur technique.");
+        } catch (error: any) {
+            console.error(error);
+            toast('error', `Erreur technique: ${error.message || 'Sauvegarde échouée'}`);
         } finally {
             setIsSaving(false);
         }
@@ -206,6 +235,33 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                         </button>
                     </div>
                 </div>
+
+                {/* SECTION MVP (Si agence > 1 membre) */}
+                {agency && agency.members.length > 1 && (
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <div className="flex justify-between items-start mb-2">
+                            <label className="text-xs font-bold text-amber-900 flex items-center gap-2">
+                                <Crown size={14}/> Validation MVP (Lead)
+                            </label>
+                            {suggestedMvpMember && (
+                                <span className="text-[10px] bg-white border border-amber-200 px-2 py-1 rounded-full text-amber-700 font-medium">
+                                    Suggéré : {suggestedMvpMember.name}
+                                </span>
+                            )}
+                        </div>
+                        <select 
+                            value={selectedMvpId} 
+                            onChange={(e) => setSelectedMvpId(e.target.value)}
+                            className="w-full p-2 rounded-lg border border-amber-200 bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                        >
+                            <option value="NONE">-- Aucun MVP (+0 pts) --</option>
+                            {agency.members.map(m => (
+                                <option key={m.id} value={m.id}>{m.name} (+5 pts)</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-amber-700 mt-2">Le MVP recevra un bonus de +5 points sur son score individuel.</p>
+                    </div>
+                )}
 
                 {/* PENALITÉS */}
                 <div className="grid grid-cols-2 gap-4">

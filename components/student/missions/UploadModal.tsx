@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { Modal } from '../../Modal';
-import { Upload, CheckSquare, Target } from 'lucide-react';
+import { Upload, CheckSquare, Target, User } from 'lucide-react';
+import { Student } from '../../../types';
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -11,15 +12,21 @@ interface UploadModalProps {
     setChecks: (checks: any) => void;
     selfAssessment: 'A' | 'B' | 'C';
     setSelfAssessment: (val: 'A' | 'B' | 'C') => void;
+    members?: Student[]; // Liste des membres pour le choix du MVP
+    nominatedMvp: string | null;
+    setNominatedMvp: (id: string | null) => void;
 }
 
-export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onConfirm, checks, setChecks, selfAssessment, setSelfAssessment }) => {
+export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onConfirm, checks, setChecks, selfAssessment, setSelfAssessment, members = [], nominatedMvp, setNominatedMvp }) => {
     
     const toggleCheck = (key: keyof typeof checks) => {
         setChecks({ ...checks, [key]: !checks[key] });
     };
 
     const allChecked = Object.values(checks).every(Boolean);
+    const isSolo = members.length <= 1;
+    // Si solo, pas besoin de MVP. Si équipe, MVP requis.
+    const isMvpReady = isSolo || nominatedMvp !== null;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Dépôt & Lucidité">
@@ -31,7 +38,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onCon
                         <Target size={16}/> Auto-Évaluation (Indice de Lucidité)
                     </h4>
                     <p className="text-xs text-indigo-700 mb-3">
-                        Quelle note méritez-vous ? Si votre estimation correspond à celle du prof, vous gagnez un <strong>Bonus Lucidité (+2 Score)</strong>. Attention, l'arrogance est sanctionnée.
+                        Quelle note méritez-vous ? Si votre estimation correspond à celle du prof, vous gagnez un <strong>Bonus Lucidité (+2 Score)</strong>.
                     </p>
                     <div className="flex gap-2">
                         <button onClick={() => setSelfAssessment('A')} className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${selfAssessment === 'A' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white border-indigo-200 text-slate-500'}`}>A (Excellent)</button>
@@ -40,7 +47,29 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onCon
                     </div>
                 </div>
 
-                {/* 2. CHECKLIST */}
+                {/* 2. LEAD MVP (Team Only) */}
+                {!isSolo && (
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <h4 className="font-bold text-amber-900 text-sm mb-2 flex items-center gap-2">
+                            <User size={16}/> Qui a leadé cette mission ? (MVP)
+                        </h4>
+                        <p className="text-xs text-amber-800 mb-3">
+                            Désignez le membre qui a le plus contribué. Si le rendu est excellent (A), le MVP peut gagner <strong>+5 Score</strong>.
+                        </p>
+                        <select 
+                            value={nominatedMvp || ''} 
+                            onChange={(e) => setNominatedMvp(e.target.value || null)}
+                            className="w-full p-2 rounded-lg border border-amber-200 bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                        >
+                            <option value="">-- Sélectionner un Lead --</option>
+                            {members.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* 3. CHECKLIST */}
                 <div className="space-y-3">
                     <CheckItem label="Nommage Correct" sub="GRPXX_SEMXX_NomLivrable_vXX.ext" checked={checks.naming} onChange={() => toggleCheck('naming')}/>
                     <CheckItem label="Format de Fichier" sub="MP4 (H.264), PDF ou JPG/PNG" checked={checks.format} onChange={() => toggleCheck('format')}/>
@@ -50,14 +79,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onCon
 
                 <button 
                     onClick={onConfirm}
-                    disabled={!allChecked}
+                    disabled={!allChecked || !isMvpReady}
                     className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                        allChecked 
+                        allChecked && isMvpReady
                         ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg' 
                         : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     }`}
                 >
-                    {allChecked ? <><Upload size={18}/> Confirmer le Dépôt</> : 'Validez la checklist'}
+                    {allChecked && isMvpReady ? <><Upload size={18}/> Confirmer le Dépôt</> : 'Validez la checklist et le Lead'}
                 </button>
             </div>
         </Modal>
