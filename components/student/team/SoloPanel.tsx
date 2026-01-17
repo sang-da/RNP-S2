@@ -103,7 +103,7 @@ export const SoloPanel: React.FC<SoloPanelProps> = ({ agency, student }) => {
                     <p>En solo, vous cumulez les points de ces 3 catégories chaque semaine :</p>
                     <ul className="list-disc pl-4 space-y-1">
                         <li><strong>Santé Agence (Max +2)</strong> : Basé sur la VE.</li>
-                        <li><strong>Survie (Max +2)</strong> : Basé sur le budget (>1500 PiXi).</li>
+                        <li><strong>Survie (Max +2)</strong> : Basé sur le budget (&gt;1500 PiXi).</li>
                         <li><strong>Early Bird (Max +3)</strong> : Par rendu effectué en avance.</li>
                     </ul>
                     <p className="mt-2 font-bold text-indigo-600">Bonus Lucidité : +2 si votre auto-évaluation correspond à la note de l'enseignant.</p>
