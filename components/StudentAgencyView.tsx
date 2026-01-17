@@ -39,7 +39,7 @@ const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { toast } = useUI();
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
   const { transferFunds, injectCapital, requestScorePurchase, getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote } = useGame();
   
   const [activeTab, setActiveTab] = useState<TabType>('MARKET');
@@ -68,14 +68,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   useEffect(() => {
       const checkTime = () => {
           const hour = new Date().getHours();
-          // Available between 22h and 04h
-          const isOpen = hour >= 22 || hour < 4;
+          // Available between 22h and 04h OR IF ADMIN (Simulation Mode)
+          const isOpen = hour >= 22 || hour < 4 || userData?.role === 'admin';
           setIsBackdoorAvailable(isOpen);
       };
       checkTime();
       const timer = setInterval(checkTime, 60000); // Check every minute
       return () => clearInterval(timer);
-  }, []);
+  }, [userData]);
 
   useEffect(() => {
       const currentWeek = getCurrentGameWeek();
