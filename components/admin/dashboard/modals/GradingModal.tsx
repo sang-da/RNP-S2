@@ -105,7 +105,6 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 if (d.id === item.deliverable.id) {
                     
                     // CONSTRUCTION SÉCURISÉE DE L'OBJET GRADING
-                    // Firestore plante si on passe une valeur 'undefined'.
                     const gradingPayload: any = { 
                         quality, 
                         daysLate: daysLate || 0, 
@@ -236,12 +235,12 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                     </div>
                 </div>
 
-                {/* SECTION MVP (Si agence > 1 membre) */}
-                {agency && agency.members.length > 1 && (
+                {/* SECTION MVP (TOUTES AGENCES, MÊME SOLO) */}
+                {agency && agency.members.length > 0 && (
                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
                         <div className="flex justify-between items-start mb-2">
                             <label className="text-xs font-bold text-amber-900 flex items-center gap-2">
-                                <Crown size={14}/> Validation MVP (Lead)
+                                <Crown size={14}/> Validation MVP (Bonus +5)
                             </label>
                             {suggestedMvpMember && (
                                 <span className="text-[10px] bg-white border border-amber-200 px-2 py-1 rounded-full text-amber-700 font-medium">
