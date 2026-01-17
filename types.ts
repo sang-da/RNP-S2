@@ -35,6 +35,7 @@ export interface Deliverable {
   feedback?: string;
   fileUrl?: string;
   deadline?: string; // NOUVEAU: Date limite de rendu
+  selfAssessment?: 'A' | 'B' | 'C'; // NOUVEAU: Indice de Lucidité
   // Grading Details
   submissionDate?: string;
   grading?: {
