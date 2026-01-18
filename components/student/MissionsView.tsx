@@ -117,6 +117,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         await uploadBytes(storageRef, file);
         const downloadUrl = await getDownloadURL(storageRef);
 
+        // --- MANUAL GRADING FOR LOGOS & BANNERS ---
+        // Contrairement au Nommage, les fichiers visuels sont notés par le prof.
+        // On ne valide PAS automatiquement ici.
+
         // --- EARLY BIRD CALCULATION ---
         let bonusScore = 0;
         const dynDeadline = getDynamicDeadline(currentWeekData, agency.classId as string);
@@ -127,25 +131,30 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             else if (diffHours > 12) bonusScore = 1;
         }
 
-        const updatedDeliverables = currentWeekData.deliverables.map(d => 
+        const updatedDeliverables = currentWeekData.deliverables.map((d): Deliverable => 
             d.id === targetDeliverableId 
             ? { 
                 ...d, 
-                status: 'submitted' as const, 
+                status: 'submitted', 
                 fileUrl: downloadUrl, 
-                feedback: bonusScore > 0 ? `Bonus Early Bird (+${bonusScore}) appliqué !` : "En attente.",
+                feedback: bonusScore > 0 ? `Bonus Early Bird (+${bonusScore}) appliqué ! En attente de note.` : "Fichier reçu. En attente de notation.",
                 submissionDate: new Date().toISOString(),
-                selfAssessment: selfAssessment, // Store the user's prediction
-                nominatedMvpId: nominatedMvp || undefined // Store the suggested MVP
+                selfAssessment: selfAssessment, 
+                nominatedMvpId: nominatedMvp || undefined,
+                grading: undefined // La note sera mise par l'admin via le Dashboard
               } 
             : d
         );
 
         const updatedWeek = { ...currentWeekData, deliverables: updatedDeliverables };
+        
+        // Création de l'événement de dépôt
         const newEvent: GameEvent = {
-            id: `evt-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
-            label: `Dépôt: ${targetDeliverable?.name}`, deltaVE: 0,
-            description: bonusScore > 0 ? `Rendu anticipé ! Bonus Early Bird (+${bonusScore} Score).` : `Fichier transmis.`
+            id: `evt-${Date.now()}`, date: new Date().toISOString().split('T')[0], 
+            type: 'INFO',
+            label: `Dépôt: ${targetDeliverable?.name}`, 
+            deltaVE: 0,
+            description: bonusScore > 0 ? `Rendu anticipé ! Bonus Early Bird (+${bonusScore} Score).` : `Fichier transmis pour évaluation.`
         };
 
         // Apply Bonus Score to ALL members (Solidarity)
@@ -160,6 +169,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             progress: { ...agency.progress, [activeWeek]: updatedWeek }
         };
 
+        // Mise à jour visuelle immédiate (Logo/Bannière) même si pas encore noté
         if (type === 'SPECIAL_LOGO') updatedAgency.logoUrl = downloadUrl;
         else if (type === 'SPECIAL_BANNER') updatedAgency.branding = { ...updatedAgency.branding, bannerUrl: downloadUrl };
 
@@ -178,13 +188,68 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   };
 
   const handleSubmitCharter = () => {
-        // Implementation of charter submission logic is assumed here but omitted for brevity in XML as requested.
-        // It should follow the same pattern: updating agency.projectDef and agency.progress with submission details.
-        // If the charter modal was separate, logic would be here.
-        // For simplicity, we just close the modal.
         setIsCharterModalOpen(false);
   };
-  const handleSubmitNaming = () => { setIsNamingModalOpen(false); };
+
+  const handleSubmitNaming = () => {
+      // 1. Trouver le livrable correspondant (FORM_NAMING)
+      const namingDeliverable = currentWeekData.deliverables.find(d => d.type === 'FORM_NAMING');
+      
+      // Si pas de livrable trouvé (cas rare), on ferme juste la modale
+      if (!namingDeliverable) {
+          setIsNamingModalOpen(false);
+          return;
+      }
+
+      // 2. Paramètres d'automatisation (Standard B = 4 VE)
+      // LE NOMMAGE RESTE AUTOMATIQUE (Demande Utilisateur)
+      const autoGrade: 'A' | 'B' | 'C' | 'REJECTED' = 'B';
+      const autoBonusVE = 4;
+
+      // 3. Mettre à jour le livrable (Validé automatiquement)
+      const updatedDeliverable: Deliverable = {
+          ...namingDeliverable,
+          status: 'validated',
+          feedback: "Validation Automatique : Nom d'agence enregistré (Standard B).",
+          submissionDate: new Date().toISOString(),
+          grading: {
+              quality: autoGrade,
+              daysLate: 0,
+              constraintBroken: false,
+              finalDelta: autoBonusVE
+          }
+      };
+
+      const updatedWeek = {
+          ...currentWeekData,
+          deliverables: currentWeekData.deliverables.map(d => d.id === namingDeliverable.id ? updatedDeliverable : d)
+      };
+
+      // 4. Créer l'événement de gain de VE
+      const newEvent: GameEvent = {
+          id: `evt-naming-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'VE_DELTA',
+          label: 'Baptême Studio',
+          deltaVE: autoBonusVE,
+          description: `Changement de nom officiel : ${namingForm.name}. (+${autoBonusVE} VE Auto)`
+      };
+
+      // 5. Mettre à jour l'agence (Nom, Tagline, VE, Logs)
+      const updatedAgency = {
+          ...agency,
+          name: namingForm.name, // Renommage effectif
+          tagline: namingForm.tagline,
+          ve_current: agency.ve_current + autoBonusVE, // Gain immédiat
+          eventLog: [...agency.eventLog, newEvent],
+          progress: { ...agency.progress, [activeWeek]: updatedWeek }
+      };
+
+      // 6. Sauvegarde
+      onUpdateAgency(updatedAgency);
+      setIsNamingModalOpen(false);
+      toast('success', `Agence renommée : ${namingForm.name} (+${autoBonusVE} VE)`);
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
