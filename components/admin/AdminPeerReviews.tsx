@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, PeerReview } from '../../types';
-import { HeartHandshake, Search, Calendar, Filter, AlertTriangle } from 'lucide-react';
+import { HeartHandshake } from 'lucide-react';
 
 // SUB-COMPONENTS
 import { ReviewFilters } from './peer-reviews/ReviewFilters';
@@ -17,12 +17,14 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     const [filterClass, setFilterClass] = useState<'ALL' | 'A' | 'B'>('ALL');
     const [filterWeek, setFilterWeek] = useState<string>('ALL');
 
-    // 1. APLATISSEMENT DES DONNÉES
+    // 1. APLATISSEMENT DES DONNÉES (Extraire les reviews nichées dans chaque agence)
     const allReviews = useMemo(() => {
         const reviews: (PeerReview & { agencyName: string, classId: string })[] = [];
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
-            (agency.peerReviews || []).forEach(review => {
+            // On s'assure de prendre les reviews existantes
+            const agencyReviews = agency.peerReviews || [];
+            agencyReviews.forEach(review => {
                 reviews.push({
                     ...review,
                     agencyName: agency.name,
@@ -30,17 +32,18 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                 });
             });
         });
-        // Trier par date décroissante
+        // Trier par date décroissante (les plus récentes en haut)
         return reviews.sort((a, b) => b.date.localeCompare(a.date));
     }, [agencies]);
 
     // 2. FILTRAGE
     const filteredReviews = useMemo(() => {
         return allReviews.filter(r => {
+            const searchLower = searchTerm.toLowerCase();
             const matchesSearch = 
-                r.reviewerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                r.targetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                r.agencyName.toLowerCase().includes(searchTerm.toLowerCase());
+                r.reviewerName.toLowerCase().includes(searchLower) ||
+                r.targetName.toLowerCase().includes(searchLower) ||
+                r.agencyName.toLowerCase().includes(searchLower);
             
             const matchesClass = filterClass === 'ALL' || r.classId === filterClass;
             const matchesWeek = filterWeek === 'ALL' || r.weekId === filterWeek;
@@ -49,6 +52,10 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
         });
     }, [allReviews, searchTerm, filterClass, filterWeek]);
 
+    const availableWeeks = useMemo(() => 
+        Array.from(new Set(allReviews.map(r => r.weekId))).sort((a, b) => parseInt(a) - parseInt(b))
+    , [allReviews]);
+
     return (
         <div className="animate-in fade-in duration-500 pb-20 space-y-6">
             {/* HEADER */}
@@ -56,9 +63,9 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                 <div>
                     <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
                         <div className="p-2 bg-rose-100 rounded-xl text-rose-600"><HeartHandshake size={32}/></div>
-                        Bilans & Peer Reviews
+                        Bilans RH & Feedbacks
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Consultez les feedbacks internes et détectez les conflits d'équipe.</p>
+                    <p className="text-slate-500 text-sm mt-1">Surveillez l'ambiance des studios et détectez les conflits internes.</p>
                 </div>
             </div>
 
@@ -70,7 +77,7 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                 searchTerm={searchTerm} setSearchTerm={setSearchTerm}
                 filterClass={filterClass} setFilterClass={setFilterClass}
                 filterWeek={filterWeek} setFilterWeek={setFilterWeek}
-                availableWeeks={Array.from(new Set(allReviews.map(r => r.weekId))).sort()}
+                availableWeeks={availableWeeks}
             />
 
             {/* LISTE DES REVIEWS */}

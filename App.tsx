@@ -15,7 +15,7 @@ import { AdminViews } from './components/AdminViews';
 import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
 import { AdminAnalytics } from './components/AdminAnalytics';
-import { AdminPeerReviews } from './components/AdminPeerReviews'; // IMPORT NOUVEAU
+import { AdminPeerReviews } from './components/admin/AdminPeerReviews'; // Chemin corrigé
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
@@ -68,7 +68,6 @@ const GameContainer: React.FC = () => {
 
   if (!currentUser) return <LandingPage />;
 
-  // CAS 1 : ADMIN OU SUPERVISEUR
   if (userData?.role === 'admin' || userData?.role === 'supervisor') {
       const isReadOnly = userData.role === 'supervisor';
 
@@ -131,7 +130,6 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // CAS 2 : ÉTUDIANT VALIDÉ MAIS PERDU
   const myAgency = agencies.find(a => a.members.some(m => m.id === userData?.uid));
   
   if (userData?.role === 'student' && !myAgency) {
@@ -148,7 +146,6 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // CAS 3 : ÉTUDIANT NORMAL
   if (userData?.role === 'student' && myAgency) {
       return (
         <Layout role="student" switchRole={() => {}}>
@@ -158,7 +155,6 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // CAS 4 : SALLE D'ATTENTE
   return <WaitingScreen />;
 };
 

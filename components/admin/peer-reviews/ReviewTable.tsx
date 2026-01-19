@@ -22,8 +22,8 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({ reviews }) => {
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
             {reviews.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                    <Star size={48} className="mb-4"/>
-                    <p className="font-bold">Aucune évaluation trouvée.</p>
+                    <Star size={48} className="mb-4 text-slate-300"/>
+                    <p className="font-bold text-slate-400">Aucune évaluation enregistrée.</p>
                 </div>
             ) : (
                 <div className="overflow-x-auto">
@@ -31,12 +31,12 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({ reviews }) => {
                         <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
                             <tr>
                                 <th className="p-4">Sem.</th>
-                                <th className="p-4">Auteur (Reviewer)</th>
-                                <th className="p-4">Cible (Target)</th>
-                                <th className="p-4">Agence</th>
+                                <th className="p-4">Auteur / Reviewer</th>
+                                <th className="p-4">Cible / Élève</th>
+                                <th className="p-4">Studio</th>
                                 <th className="p-4">Notes (A/Q/I)</th>
                                 <th className="p-4">Moy.</th>
-                                <th className="p-4">Feedback</th>
+                                <th className="p-4">Feedback Privé</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -45,20 +45,20 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({ reviews }) => {
                                 const isWarning = avg < 2.5;
 
                                 return (
-                                    <tr key={r.id} className={`hover:bg-slate-50 transition-colors ${isWarning ? 'bg-red-50/30' : ''}`}>
+                                    <tr key={r.id} className={`hover:bg-slate-50 transition-colors ${isWarning ? 'bg-red-50/40' : ''}`}>
                                         <td className="p-4">
                                             <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">S{r.weekId}</span>
                                         </td>
                                         <td className="p-4">
                                             <div className="font-bold text-slate-900 text-sm">{r.reviewerName}</div>
-                                            <div className="text-[10px] text-slate-400 uppercase font-medium">Reviewer</div>
+                                            <div className="text-[9px] text-slate-400 uppercase font-medium">Auteur</div>
                                         </td>
                                         <td className="p-4">
-                                            <div className="font-bold text-slate-900 text-sm">{r.targetName}</div>
-                                            <div className="text-[10px] text-rose-500 uppercase font-medium">Cible</div>
+                                            <div className="font-bold text-indigo-900 text-sm">{r.targetName}</div>
+                                            <div className="text-[9px] text-rose-500 uppercase font-medium">Cible</div>
                                         </td>
                                         <td className="p-4">
-                                            <div className="text-sm font-medium text-slate-600">{r.agencyName}</div>
+                                            <div className="text-sm font-medium text-slate-700">{r.agencyName}</div>
                                             <span className={`text-[9px] font-bold px-1.5 rounded text-white ${r.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}>CL. {r.classId}</span>
                                         </td>
                                         <td className="p-4">
@@ -69,19 +69,19 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({ reviews }) => {
                                             </div>
                                         </td>
                                         <td className="p-4">
-                                            <div className={`inline-flex items-center gap-1 font-display font-bold text-lg px-2 py-1 rounded-xl border ${getScoreColor(avg)}`}>
+                                            <div className={`inline-flex items-center gap-1 font-display font-bold text-lg px-2 py-1 rounded-xl border shadow-sm ${getScoreColor(avg)}`}>
                                                 {avg}
                                                 {isWarning && <AlertTriangle size={14} className="text-red-600 animate-pulse"/>}
                                             </div>
                                         </td>
                                         <td className="p-4 max-w-xs">
                                             {r.comment ? (
-                                                <div className="flex gap-2 items-start bg-slate-50 p-2 rounded-lg text-xs italic text-slate-500 border border-slate-100">
+                                                <div className="flex gap-2 items-start bg-slate-50 p-2 rounded-lg text-xs italic text-slate-600 border border-slate-100 shadow-inner">
                                                     <MessageCircle size={12} className="shrink-0 mt-0.5 text-slate-400"/>
-                                                    <span className="line-clamp-2" title={r.comment}>"{r.comment}"</span>
+                                                    <span className="line-clamp-3" title={r.comment}>"{r.comment}"</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-[10px] text-slate-300 italic">Sans commentaire</span>
+                                                <span className="text-[10px] text-slate-300 italic">Aucun commentaire</span>
                                             )}
                                         </td>
                                     </tr>
@@ -96,12 +96,12 @@ export const ReviewTable: React.FC<ReviewTableProps> = ({ reviews }) => {
 };
 
 const RatingBadge: React.FC<{val: number, label: string}> = ({val, label}) => (
-    <div className={`w-8 h-8 rounded-lg flex flex-col items-center justify-center border ${
+    <div className={`w-8 h-8 rounded-lg flex flex-col items-center justify-center border shadow-sm ${
         val >= 4 ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
         val >= 2.5 ? 'bg-amber-50 border-amber-100 text-amber-600' :
         'bg-red-50 border-red-100 text-red-600'
     }`}>
-        <span className="text-[8px] font-black leading-none opacity-50">{label}</span>
+        <span className="text-[7px] font-black leading-none opacity-40">{label}</span>
         <span className="text-xs font-bold leading-none mt-0.5">{val}</span>
     </div>
 );
