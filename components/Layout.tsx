@@ -7,9 +7,10 @@ interface LayoutProps {
   children: React.ReactNode;
   role: 'admin' | 'student';
   switchRole: () => void;
+  onLogout?: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, role, switchRole }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, role, switchRole, onLogout }) => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20 md:pb-0">
       
@@ -37,7 +38,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, role, switchRole }) =>
                 >
                   {role === 'admin' ? 'Enseignant' : 'Étudiant'}
                 </button>
-                <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+                <button 
+                    onClick={onLogout}
+                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                    title="Se déconnecter"
+                >
                     <LogOut size={20} />
                 </button>
             </div>

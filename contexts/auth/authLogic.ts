@@ -28,7 +28,11 @@ const normalizeName = (name: string) => {
 
 // --- FONCTION DE RÉPARATION AUTOMATIQUE ---
 export const attemptAutoHeal = async (user: User, currentData: UserData): Promise<void> => {
-    console.log(`[AUTH FIX] Tentative de réparation pour ${user.displayName}...`);
+    // SÉCURITÉ : On n'auto-répare que si l'utilisateur est STRICTEMENT en attente (pending)
+    // et qu'il n'est pas déjà admin/superviseur
+    if (currentData.role !== 'pending') return;
+
+    console.log(`[AUTH FIX] Tentative de réparation sécurisée pour ${user.displayName}...`);
     
     try {
         const agenciesSnap = await getDocs(collection(db, 'agencies'));
@@ -43,17 +47,14 @@ export const attemptAutoHeal = async (user: User, currentData: UserData): Promis
             const agencyData = doc.data();
             if (agencyData.id === 'unassigned') continue; 
 
-            // Safety check for members array
             const members = agencyData.members || [];
-
-            let member = members.find((m: any) => m.id === user.uid);
             
-            if (!member) {
-                member = members.find((m: any) => {
-                    const memberNameNorm = normalizeName(m.name);
-                    return googleNameNorm.includes(memberNameNorm) || memberNameNorm.includes(googleNameNorm);
-                });
-            }
+            // On ne cherche que des membres qui ont encore un ID temporaire (ex: s-...)
+            const member = members.find((m: any) => {
+                if (!m.id.startsWith('s-') && !m.id.startsWith('agency_')) return false;
+                const memberNameNorm = normalizeName(m.name);
+                return googleNameNorm === memberNameNorm; // Match exact uniquement pour l'auto-heal par sécurité
+            });
 
             if (member) {
                 foundAgencyId = agencyData.id;
@@ -80,21 +81,19 @@ export const attemptAutoHeal = async (user: User, currentData: UserData): Promis
             });
 
             // 2. Mettre à jour le document AGENCE (SWAP ID)
-            if (foundMemberId !== user.uid) {
-                const agencyRef = doc(db, "agencies", foundAgencyId);
-                const updatedMembers = (agencyDataToUpdate.members || []).map((m: any) => {
-                    if (m.id === foundMemberId) {
-                        return { 
-                            ...m, 
-                            id: user.uid,
-                            avatarUrl: user.photoURL || m.avatarUrl,
-                            connectionStatus: 'online'
-                        };
-                    }
-                    return m;
-                });
-                batch.update(agencyRef, { members: updatedMembers });
-            }
+            const agencyRef = doc(db, "agencies", foundAgencyId);
+            const updatedMembers = (agencyDataToUpdate.members || []).map((m: any) => {
+                if (m.id === foundMemberId) {
+                    return { 
+                        ...m, 
+                        id: user.uid,
+                        avatarUrl: user.photoURL || m.avatarUrl,
+                        connectionStatus: 'online'
+                    };
+                }
+                return m;
+            });
+            batch.update(agencyRef, { members: updatedMembers });
 
             await batch.commit();
             console.log("[AUTH FIX] Réparation DB effectuée.");
@@ -130,6 +129,7 @@ export const fetchOrCreateProfile = async (user: User) => {
                 lastLogin: serverTimestamp()
             });
 
+            // On ne tente l'auto-heal que pour les non-admins
             if (!isRoot) {
                 await attemptAutoHeal(user, newUserData);
             }

@@ -1,11 +1,25 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Wifi, WifiOff, Link, UserCheck, ShieldCheck, Loader2, Mail, Database, ServerCrash, FileClock, History, UserX, Trash2, Edit, Save, AlertCircle, RefreshCw, PlugZap, Shield, XCircle } from 'lucide-react';
-import { collection, query, where, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db } from '../services/firebase';
+import { Search, Database, UserX, Shield, XCircle, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink } from 'lucide-react';
+import { collection, query, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
-import { useGame } from '../contexts/GameContext'; 
-import { Modal } from './Modal';
+
+// SUB-COMPONENTS
+import { AccessStats } from './admin/access/AccessStats';
+import { DuplicateAlerts } from './admin/access/DuplicateAlerts';
+import { SupervisorsList } from './admin/access/SupervisorsList';
+
+export interface UserProfile {
+    uid: string;
+    displayName: string;
+    email: string;
+    photoURL: string;
+    role: 'admin' | 'student' | 'pending' | 'supervisor';
+    linkedStudentId?: string | null;
+    studentProfileName?: string | null;
+    agencyId?: string | null;
+}
 
 interface AdminAccessProps {
   agencies: Agency[];
@@ -13,22 +27,12 @@ interface AdminAccessProps {
   readOnly?: boolean;
 }
 
-interface UserProfile {
-    uid: string;
-    displayName: string;
-    email: string;
-    photoURL: string;
-    role: 'admin' | 'student' | 'pending' | 'supervisor';
-}
-
 export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgencies, readOnly }) => {
   const { toast, confirm } = useUI();
-  const { resetGame } = useGame();
   const [searchTerm, setSearchTerm] = useState('');
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [isResetting, setIsResetting] = useState(false);
 
-  // 1. ÉCOUTE DE TOUS LES UTILISATEURS (Pour détecter les orphelins)
+  // 1. ÉCOUTER LES COMPTS FIREBASE
   useEffect(() => {
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,301 +45,249 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
     return () => unsubscribe();
   }, []);
 
-  // Extraction des données de jeu
-  const allGameStudents = useMemo(() => {
-    const students: { student: Student, agency: Agency }[] = [];
-    agencies.forEach(agency => {
-        agency.members.forEach(member => {
-            students.push({ student: member, agency });
-        });
-    });
-    return students;
+  // 2. LOGIQUE DES DOUBLONS
+  const duplicates = useMemo(() => {
+      const studentMap: Record<string, UserProfile[]> = {};
+      allUsers.forEach(u => {
+          if (u.linkedStudentId) {
+              if (!studentMap[u.linkedStudentId]) studentMap[u.linkedStudentId] = [];
+              studentMap[u.linkedStudentId].push(u);
+          }
+      });
+      return Object.entries(studentMap)
+          .filter(([_, accounts]) => accounts.length > 1)
+          .map(([id, accounts]) => ({
+              studentName: accounts[0].studentProfileName || id,
+              accounts
+          }));
+  }, [allUsers]);
+
+  // 3. VIVIER DES SLOTS DE JEU DISPONIBLES
+  const availableSlots = useMemo(() => {
+      const slots: { student: Student, agency: Agency }[] = [];
+      agencies.forEach(agency => {
+          agency.members.forEach(member => {
+              if (member.id.startsWith('s-') || member.id.startsWith('agency_') || member.id.startsWith('unassigned_')) {
+                  slots.push({ student: member, agency });
+              }
+          });
+      });
+      return slots.sort((a,b) => a.student.name.localeCompare(b.student.name));
   }, [agencies]);
 
-  // Filtrage des slots libres (IDs commençant par s- ou temporaires)
-  // Ce sont les "coquilles vides" qui attendent un vrai utilisateur
-  const availableSlots = useMemo(() => 
-    allGameStudents
-        .filter(({student}) => student.id.startsWith('s-') || student.id.startsWith('agency_'))
-        .sort((a,b) => a.student.name.localeCompare(b.student.name))
-  , [allGameStudents]);
+  const pendingUsers = allUsers.filter(u => u.role === 'pending');
 
-  // USERS DISCONNECTED : Ceux qui sont connectés (Auth) mais pas liés au jeu (Agencies)
-  const disconnectedUsers = useMemo(() => {
-      return allUsers.filter(u => {
-          if (u.role === 'admin' || u.role === 'supervisor') return false;
-          // L'utilisateur est-il présent dans une agence avec son UID actuel ?
-          const isLinked = allGameStudents.some(ags => ags.student.id === u.uid);
-          return !isLinked;
-      });
-  }, [allUsers, allGameStudents]);
+  // --- ACTIONS ---
 
-  const handleAssignStudent = async (firebaseUser: UserProfile, targetStudentId: string) => {
+  const handleFullResetAccount = async (uid: string, displayName: string) => {
       if(readOnly) return;
-      const targetAgency = agencies.find(a => a.members.some(m => m.id === targetStudentId));
-      if (!targetAgency) return;
+      if (await confirm({ 
+          title: "Réinitialiser le compte ?", 
+          message: `L'utilisateur "${displayName}" sera déconnecté de tout profil étudiant et repassera en attente de validation.`, 
+          confirmText: "Réinitialiser", 
+          isDangerous: true 
+      })) {
+           try {
+               const batch = writeBatch(db);
+               // Libérer le slot dans l'agence si nécessaire
+               agencies.forEach(agency => {
+                   const member = agency.members.find(m => m.id === uid);
+                   if (member) {
+                       const newMockId = `s-reset-${Date.now()}`;
+                       const updatedMembers = agency.members.map(m => m.id === uid ? { ...m, id: newMockId, connectionStatus: 'offline' as const } : m);
+                       batch.update(doc(db, "agencies", agency.id), { members: updatedMembers });
+                   }
+               });
+               
+               batch.update(doc(db, "users", uid), { 
+                   role: 'pending', agencyId: null, linkedStudentId: null, studentProfileName: null
+               });
+               
+               await batch.commit();
+               toast('success', "Le compte a été remis en attente.");
+           } catch (e) { toast('error', "Échec du reset."); }
+      }
+  };
 
-      const oldMemberData = targetAgency.members.find(m => m.id === targetStudentId);
-      if (!oldMemberData) return;
+  const handleAssign = async (firebaseUser: UserProfile, targetStudentId: string) => {
+      if(readOnly) return;
+      const target = availableSlots.find(s => s.student.id === targetStudentId);
+      if (!target) return;
 
-      // Auto-validation si les noms sont très proches
-      const similarity = firebaseUser.displayName?.toLowerCase() === oldMemberData.name.toLowerCase();
-      
-      const confirmed = similarity ? true : await confirm({
+      const confirmed = await confirm({
           title: "Confirmer la liaison",
-          message: `Lier le compte Google "${firebaseUser.displayName}" \n\n➡️ au profil de jeu "${oldMemberData.name}" (${targetAgency.name}) ?\n\nL'ancien ID (${targetStudentId}) sera remplacé par l'ID Google (${firebaseUser.uid}).`,
-          confirmText: "Valider la fusion"
+          message: `Lier "${firebaseUser.displayName}" au profil "${target.student.name}" ?`,
+          confirmText: "Lier le compte"
       });
 
       if (!confirmed) return;
 
       try {
           const batch = writeBatch(db);
-          
-          // 1. Update User Profile in 'users' collection
           batch.update(doc(db, "users", firebaseUser.uid), {
               role: 'student',
-              agencyId: targetAgency.id,
-              linkedStudentId: targetStudentId,
-              studentProfileName: oldMemberData.name,
-              lastLogin: new Date().toISOString()
+              agencyId: target.agency.id,
+              linkedStudentId: firebaseUser.uid, // On utilise l'UID final pour l'agence
+              studentProfileName: target.student.name
           });
-
-          // 2. Update Agency Member in 'agencies' collection (SWAP ID)
-          const updatedMembers = targetAgency.members.map(member => 
-              member.id === targetStudentId 
-              ? { 
-                  ...member, 
-                  id: firebaseUser.uid, // CRITICAL: Swap mock ID with real Auth UID
-                  avatarUrl: firebaseUser.photoURL || member.avatarUrl, 
-                  connectionStatus: 'online' as const
-                } 
-              : member
+          const updatedMembers = target.agency.members.map(m => 
+              m.id === targetStudentId ? { ...m, id: firebaseUser.uid, connectionStatus: 'online' as const } : m
           );
-          
-          batch.update(doc(db, "agencies", targetAgency.id), { members: updatedMembers });
-          
+          batch.update(doc(db, "agencies", target.agency.id), { members: updatedMembers });
           await batch.commit();
-          toast('success', `Compte lié : ${firebaseUser.displayName} est maintenant connecté.`);
-      } catch (error) { 
-          console.error(error);
-          toast('error', "Erreur technique lors de la liaison."); 
-      }
+          toast('success', `Compte lié.`);
+      } catch (error) { toast('error', "Erreur technique."); }
   };
 
-  const handleForceOffline = async (student: Student, agencyId: string) => {
-       if(readOnly || student.id.startsWith('s-')) return;
-       if (await confirm({ title: "Délier l'étudiant ?", message: "L'étudiant sera déconnecté du jeu et retournera en salle d'attente.\nSon profil de jeu redeviendra un slot vide (bot).", confirmText: "Délier (Reset)", isDangerous: true })) {
-           try {
-               const batch = writeBatch(db);
-               // Générer un nouvel ID de bot pour occuper la place
-               const newMockId = `s-reset-${Date.now()}`; 
-               const agency = agencies.find(a => a.id === agencyId);
-               if (!agency) return;
-
-               // On remet un ID "s-..." dans l'agence
-               const updatedMembers = agency.members.map(m => m.id === student.id ? { ...m, id: newMockId, connectionStatus: 'offline' as const } : m);
-               batch.update(doc(db, "agencies", agencyId), { members: updatedMembers });
-               
-               // On remet l'user en 'pending'
-               batch.update(doc(db, "users", student.id), { role: 'pending', agencyId: null });
-               
-               await batch.commit();
-               toast('success', "Lien rompu. Slot libéré.");
-           } catch (e) { toast('error', "Erreur"); }
-       }
-  };
-
-  const handlePromoteSupervisor = async (user: UserProfile) => {
+  const handlePromote = async (uid: string) => {
       if(readOnly) return;
-      if(await confirm({ title: "Promouvoir Superviseur ?", message: `L'utilisateur ${user.displayName} aura accès au Dashboard Admin en lecture seule.`, confirmText: "Promouvoir" })) {
-          try {
-              await updateDoc(doc(db, "users", user.uid), { role: 'supervisor' });
-              toast('success', `${user.displayName} est maintenant Superviseur.`);
-          } catch(e) { console.error(e); toast('error', "Erreur promotion"); }
+      if (await confirm({ title: "Promouvoir Superviseur ?", message: "Cet utilisateur pourra voir toutes les agences en lecture seule." })) {
+          await updateDoc(doc(db, "users", uid), { role: 'supervisor', linkedStudentId: null, agencyId: null });
+          toast('success', "Promu !");
       }
   };
 
-  const handleRejectUser = async (user: UserProfile) => {
-      if(readOnly) return;
-      if(await confirm({ title: "Refuser la connexion ?", message: `Attention : Cela va supprimer le profil de ${user.displayName} de la base de données. Il devra se reconnecter.`, confirmText: "Supprimer", isDangerous: true })) {
-          try {
-              await deleteDoc(doc(db, "users", user.uid));
-              toast('success', "Utilisateur supprimé de la liste d'attente.");
-          } catch(e) { console.error(e); toast('error', "Erreur suppression"); }
-      }
-  };
-
-  const filteredStudents = allGameStudents.filter(s => s.student.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredDirectory = allUsers.filter(u => 
+      u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
-                    <div className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><PlugZap size={32}/></div>
-                    Accès & Connexions
-                </h2>
-                <p className="text-slate-500 text-sm mt-1">Réparez les liens entre les comptes Google et les profils du jeu.</p>
-            </div>
-            {!readOnly && (
-                <button onClick={async () => { if(await confirm({title:"Reset Complet", message:"ATTENTION : Ceci va réinitialiser toute la base de données (Agences, Membres, Scores). Tous les liens seront rompus.", isDangerous:true})) { setIsResetting(true); await resetGame(); setIsResetting(false); }}} className="text-xs font-bold text-slate-400 hover:text-red-600 border px-3 py-2 rounded-lg flex items-center gap-2 transition-colors">
-                    {isResetting ? <Loader2 className="animate-spin" size={14}/> : <Database size={14}/>} Factory Reset
-                </button>
-            )}
+         <div className="mb-8">
+            <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
+                <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg"><KeyRound size={32}/></div>
+                Gestion des Accès
+            </h2>
+            <p className="text-slate-500 text-sm mt-1">Surveillez les connexions et corrigez les erreurs d'identité.</p>
         </div>
 
-        {/* --- SECTION CRITIQUE : UTILISATEURS DÉCONNECTÉS --- */}
-        <div className={`mb-8 border-l-4 rounded-2xl p-6 shadow-lg transition-all ${disconnectedUsers.length > 0 ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-300'}`}>
-            <h3 className={`font-bold text-lg mb-2 flex items-center gap-2 ${disconnectedUsers.length > 0 ? 'text-amber-800' : 'text-slate-500'}`}>
-                {disconnectedUsers.length > 0 ? <AlertCircle size={24} className="animate-pulse"/> : <UserCheck size={24}/>}
-                File d'Attente & Problèmes de Connexion ({disconnectedUsers.length})
-            </h3>
-            
-            {disconnectedUsers.length > 0 ? (
-                <>
-                    <p className="text-sm text-amber-800/80 mb-6">
-                        Ces utilisateurs sont connectés à l'application mais <strong>ne sont pas liés</strong> à une agence. 
-                        <br/>Sélectionnez leur profil "Jeu" (Slot) dans la liste de droite pour les reconnecter.
-                    </p>
-                    <div className="space-y-4">
-                        {disconnectedUsers.map(user => (
-                            <div key={user.uid} className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 animate-in slide-in-from-left-2">
-                                {/* GAUCHE: L'utilisateur Google */}
-                                <div className="flex items-center gap-4 min-w-[300px]">
-                                    <div className="relative">
-                                        <img src={user.photoURL} className="w-12 h-12 rounded-full border-2 border-amber-100" alt="Avatar" />
-                                        <div className="absolute -bottom-1 -right-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">Google</div>
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-slate-900 text-base">{user.displayName}</p>
-                                        <p className="text-xs text-slate-500 font-mono">{user.email}</p>
-                                        <div className="flex gap-2 mt-1">
-                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${user.role === 'pending' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-500'}`}>
-                                                {user.role === 'pending' ? 'En attente' : 'Lien perdu'}
-                                            </span>
-                                            <span className="text-[9px] text-slate-300 font-mono" title={user.uid}>ID: ...{user.uid.slice(-4)}</span>
-                                        </div>
-                                    </div>
-                                </div>
+        <AccessStats 
+            total={allUsers.length} 
+            supervisors={allUsers.filter(u => u.role === 'supervisor' || u.role === 'admin').length}
+            linked={allUsers.filter(u => u.role === 'student').length}
+            pending={pendingUsers.length}
+            duplicates={duplicates.length}
+        />
 
-                                {/* CENTRE: Les Actions Rapides (Reject / Promote) */}
-                                {!readOnly && (
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => handleRejectUser(user)}
-                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" 
-                                        title="Refuser / Supprimer"
-                                    >
-                                        <XCircle size={20}/>
-                                    </button>
-                                    <button 
-                                        onClick={() => handlePromoteSupervisor(user)}
-                                        className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100" 
-                                        title="Promouvoir Superviseur"
-                                    >
-                                        <Shield size={20}/>
-                                    </button>
-                                </div>
-                                )}
+        <DuplicateAlerts duplicates={duplicates} onReset={handleFullResetAccount} />
 
-                                {/* CENTRE: L'icone de lien */}
-                                <div className="hidden xl:flex text-slate-300">
-                                    <Link size={24} />
-                                </div>
+        <SupervisorsList users={allUsers} />
 
-                                {/* DROITE: Le Slot à remplir */}
-                                <div className="flex-1 w-full">
-                                    <select 
-                                        className="w-full p-3 rounded-xl bg-indigo-50/50 text-indigo-900 text-sm font-bold border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:bg-indigo-50"
-                                        onChange={(e) => handleAssignStudent(user, e.target.value)}
-                                        defaultValue=""
-                                    >
-                                        <option value="" disabled>⚡️ Sélectionner le profil à lier...</option>
-                                        {availableSlots.map(({student, agency}) => (
-                                            <option key={student.id} value={student.id}>
-                                                {student.name} — {agency.name} (Classe {agency.classId})
-                                            </option>
-                                        ))}
-                                    </select>
+        {/* SECTION : NOUVELLES CONNEXIONS (PENDING) */}
+        {pendingUsers.length > 0 && (
+            <div className="mb-8 bg-amber-50 rounded-3xl p-6 border-2 border-amber-200 shadow-lg">
+                <h3 className="font-bold text-amber-800 text-lg mb-4 flex items-center gap-2">
+                    <AlertCircle size={24} className="animate-pulse text-amber-600"/> 
+                    Comptes en attente d'affectation ({pendingUsers.length})
+                </h3>
+                <div className="space-y-3">
+                    {pendingUsers.map(user => (
+                        <div key={user.uid} className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col lg:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 min-w-[250px]">
+                                <img src={user.photoURL} className="w-10 h-10 rounded-full" />
+                                <div>
+                                    <p className="font-bold text-slate-900">{user.displayName}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono">{user.email}</p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </>
-            ) : (
-                <p className="text-sm text-slate-500 italic">Aucun utilisateur en attente. Tout le monde est connecté.</p>
-            )}
-        </div>
+                            <div className="flex-1 w-full max-w-md">
+                                <select 
+                                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                                    onChange={(e) => handleAssign(user, e.target.value)}
+                                    defaultValue=""
+                                >
+                                    <option value="" disabled>Lier à un profil Étudiant...</option>
+                                    {availableSlots.map(({student, agency}) => (
+                                        <option key={student.id} value={student.id}>{student.name} ({agency.name})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                                <button onClick={() => handlePromote(user.uid)} className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
+                                    <Shield size={14}/> Superviseur
+                                </button>
+                                <button onClick={() => handleFullResetAccount(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                    <XCircle size={20}/>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
 
-        {/* SECTION : ANNUAIRE GLOBAL */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-            <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
-                 <h3 className="font-bold text-slate-700 flex items-center gap-2"><ShieldCheck size={18} /> Annuaire & Statut des Liens</h3>
+        {/* ANNUAIRE COMPLET */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                 <h3 className="font-bold text-slate-700 flex items-center gap-2"><Database size={18} /> Annuaire des Authentifiés</h3>
                  <div className="relative w-full md:w-64">
-                     <Search size={16} className="absolute left-3 top-3 text-slate-400"/>
-                     <input type="text" placeholder="Rechercher un profil..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+                     <Search size={18} className="absolute left-3 top-2.5 text-slate-400"/>
+                     <input 
+                        type="text" 
+                        placeholder="Chercher email ou nom..." 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)} 
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
+                    />
                  </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
                         <tr>
-                            <th className="p-4">Profil Jeu</th>
-                            <th className="p-4">Agence</th>
-                            <th className="p-4">Classe</th>
-                            <th className="p-4">État du lien</th>
-                            <th className="p-4 text-right">Action</th>
+                            <th className="p-4">Utilisateur Firebase</th>
+                            <th className="p-4">Statut / Lien Jeu</th>
+                            <th className="p-4 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredStudents.map(({student, agency}) => {
-                            // Un ID qui commence par "s-" ou "agency_" est un ID généré/bot, donc pas lié à un vrai user Google (qui a un ID alphanumérique long)
-                            const isLinked = !student.id.startsWith('s-') && !student.id.startsWith('agency_');
-                            
+                        {filteredDirectory.map(user => {
+                            const isLinked = user.role === 'student';
                             return (
-                                <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                                <tr key={user.uid} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
-                                            <img src={student.avatarUrl} className={`w-8 h-8 rounded-full ${isLinked ? '' : 'grayscale opacity-50'}`} />
+                                            <img src={user.photoURL} className="w-8 h-8 rounded-full bg-slate-100" />
                                             <div>
-                                                <div className="font-bold text-slate-900 text-sm">{student.name}</div>
-                                                <div className="text-[10px] text-slate-400 font-mono">{student.id.slice(0, 8)}...</div>
+                                                <div className="font-bold text-slate-900 text-sm">{user.displayName}</div>
+                                                <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-4 text-sm text-slate-600 font-medium">{agency.name}</td>
                                     <td className="p-4">
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded ${agency.classId === 'A' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                                            CLASSE {agency.classId}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        {isLinked ? 
-                                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
-                                                <Wifi size={12}/> Connecté
-                                            </span> 
-                                            : 
-                                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full border border-slate-200" title="En attente de liaison avec un compte Google">
-                                                <WifiOff size={12}/> Slot Vide (Bot)
+                                        {isLinked ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1 bg-emerald-100 text-emerald-600 rounded">
+                                                    <Check size={12}/>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-700">{user.studentProfileName}</p>
+                                                    <p className="text-[10px] text-slate-400">Agence ID: {user.agencyId}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                                                user.role === 'admin' ? 'bg-indigo-600 text-white' : 
+                                                user.role === 'supervisor' ? 'bg-purple-100 text-purple-700' : 
+                                                'bg-slate-100 text-slate-400'
+                                            }`}>
+                                                {user.role}
                                             </span>
-                                        }
+                                        )}
                                     </td>
                                     <td className="p-4 text-right">
-                                        <div className="flex gap-2 justify-end">
-                                            {isLinked && !readOnly && (
-                                                <button 
-                                                    onClick={() => handleForceOffline(student, agency.id)} 
-                                                    className="text-xs font-bold text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-all flex items-center gap-2" 
-                                                    title="Rompre le lien (Kick)"
-                                                >
-                                                    <UserX size={14}/> Délier
-                                                </button>
-                                            )}
-                                        </div>
+                                        {user.role !== 'admin' && !readOnly && (
+                                            <button 
+                                                onClick={() => handleFullResetAccount(user.uid, user.displayName)}
+                                                className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all flex items-center gap-2 ml-auto"
+                                            >
+                                                <RefreshCw size={12}/> Réinitialiser
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
-                            )
+                            );
                         })}
                     </tbody>
                 </table>

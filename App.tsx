@@ -15,13 +15,13 @@ import { AdminViews } from './components/AdminViews';
 import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
 import { AdminAnalytics } from './components/AdminAnalytics';
-import { AdminPeerReviews } from './components/admin/AdminPeerReviews'; // Chemin corrigé
+import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
@@ -58,6 +58,11 @@ const GameContainer: React.FC = () => {
     touchStart.current = 0; touchEnd.current = 0;
   };
 
+  const handleLogout = async () => {
+      await signOut(auth);
+      window.location.reload();
+  };
+
   if (loading) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -68,6 +73,7 @@ const GameContainer: React.FC = () => {
 
   if (!currentUser) return <LandingPage />;
 
+  // CAS 1 : ADMIN OU SUPERVISEUR
   if (userData?.role === 'admin' || userData?.role === 'supervisor') {
       const isReadOnly = userData.role === 'supervisor';
 
@@ -80,7 +86,7 @@ const GameContainer: React.FC = () => {
                   </div>
                   <div className="flex-1 relative">
                     {simulationMode === 'WAITING' ? <WaitingScreen /> : simulatedAgencyId && (
-                        <Layout role="student" switchRole={() => {}}>
+                        <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
                             <StudentAgencyView agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} allAgencies={agencies} onUpdateAgency={updateAgency} />
                         </Layout>
                     )}
@@ -98,14 +104,16 @@ const GameContainer: React.FC = () => {
                     <button onClick={() => selectAgency(null)} className="text-slate-400 hover:text-indigo-600 flex items-center gap-1 text-sm font-medium transition-colors"><Home size={16}/> Dashboard</button>
                     <ChevronRight size={14} className="text-slate-300"/><span className="text-slate-400 text-sm font-medium">Agences</span><ChevronRight size={14} className="text-slate-300"/><span className="text-indigo-700 text-sm font-bold bg-indigo-50 px-2 py-0.5 rounded-md">{agency.name}</span>
                  </div>
-                 <div className="p-4 md:p-8"><StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={isReadOnly ? () => {} : updateAgency} /></div>
+                 <div className="p-4 md:p-8">
+                    <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={isReadOnly ? () => {} : updateAgency} />
+                 </div>
             </div>
         );
       }
 
       return (
           <>
-            <AdminSidebar activeView={adminView} onNavigate={(view) => setAdminView(view as AdminViewType)} onLogout={() => signOut(auth)} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <AdminSidebar activeView={adminView} onNavigate={(view) => setAdminView(view as AdminViewType)} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                 <NewsTicker />
                 {isReadOnly && <div className="bg-purple-600 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2"><Eye size={14}/> Mode Superviseur (Lecture Seule)</div>}
@@ -130,6 +138,7 @@ const GameContainer: React.FC = () => {
       );
   }
 
+  // CAS 2 : ÉTUDIANT SANS AGENCE (Bloqué)
   const myAgency = agencies.find(a => a.members.some(m => m.id === userData?.uid));
   
   if (userData?.role === 'student' && !myAgency) {
@@ -137,18 +146,26 @@ const GameContainer: React.FC = () => {
           <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center text-white">
               <div className="max-w-md space-y-6">
                   <div className="flex justify-center"><div className="p-6 bg-red-500/20 rounded-full border-2 border-red-500/50 text-red-500 animate-pulse"><Unplug size={64}/></div></div>
-                  <h2 className="text-3xl font-display font-bold">Lien Studio Rompu</h2>
-                  <p className="text-slate-400 leading-relaxed">Votre compte est bien validé, mais suite à une réinitialisation des données, le lien avec votre studio a été perdu.</p>
-                  <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors"><RefreshCw size={20}/> Rafraîchir la page</button>
-                  <button onClick={() => signOut(auth)} className="text-slate-500 hover:text-white text-sm font-bold">Déconnexion</button>
+                  <h2 className="text-3xl font-display font-bold">Session Incorrecte</h2>
+                  <p className="text-slate-400 leading-relaxed">Votre compte est actuellement identifié comme <strong>Étudiant</strong> mais n'est lié à aucune agence active.</p>
+                  <div className="space-y-3">
+                    <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors">
+                        <RefreshCw size={20}/> Réessayer
+                    </button>
+                    <button onClick={handleLogout} className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-red-700 transition-colors">
+                        <LogOut size={20}/> Déconnexion Forcée (Sortir)
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">Contactez l'administrateur pour réinitialiser votre rôle.</p>
               </div>
           </div>
       );
   }
 
+  // CAS 3 : ÉTUDIANT VALIDE
   if (userData?.role === 'student' && myAgency) {
       return (
-        <Layout role="student" switchRole={() => {}}>
+        <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
           <NewsTicker />
           <StudentAgencyView agency={myAgency} allAgencies={agencies} onUpdateAgency={updateAgency} />
         </Layout>
