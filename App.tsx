@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { AdminDashboard } from './components/AdminDashboard';
 import { StudentAgencyView } from './components/StudentAgencyView';
@@ -44,6 +44,13 @@ const GameContainer: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY'>('NONE');
   const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
+
+  // Redirection initiale pour les superviseurs
+  useEffect(() => {
+    if (userData?.role === 'supervisor' && adminView === 'OVERVIEW') {
+      setAdminView('MARKET');
+    }
+  }, [userData]);
 
   const touchStart = useRef(0);
   const touchEnd = useRef(0);
@@ -113,25 +120,40 @@ const GameContainer: React.FC = () => {
 
       return (
           <>
-            <AdminSidebar activeView={adminView} onNavigate={(view) => setAdminView(view as AdminViewType)} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <AdminSidebar 
+              activeView={adminView} 
+              onNavigate={(view) => setAdminView(view as AdminViewType)} 
+              onLogout={handleLogout} 
+              isOpen={isSidebarOpen} 
+              onClose={() => setIsSidebarOpen(false)} 
+              role={userData.role}
+            />
             <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                 <NewsTicker />
                 {isReadOnly && <div className="bg-purple-600 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2"><Eye size={14}/> Mode Superviseur (Lecture Seule)</div>}
                 <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
                     <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"><Menu size={24} /></button>
-                    {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
-                    {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
-                    {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
+                    
+                    {/* Vues Communes Admin & Superviseur */}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
-                    {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
-                    {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
-                    {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
-                    {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
+                    {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
-                    {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
-                    {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isReadOnly} />}
-                    {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
                     {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} />}
+                    {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
+
+                    {/* Vues réservées Admin Principal */}
+                    {!isReadOnly && (
+                      <>
+                        {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
+                        {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
+                        {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
+                        {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
+                        {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
+                        {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
+                        {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
+                        {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isReadOnly} />}
+                      </>
+                    )}
                 </div>
             </div>
           </>
@@ -143,7 +165,7 @@ const GameContainer: React.FC = () => {
   
   if (userData?.role === 'student' && !myAgency) {
       return (
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-center text-white">
+          <div className="min-screen bg-slate-900 flex items-center justify-center p-6 text-center text-white">
               <div className="max-w-md space-y-6">
                   <div className="flex justify-center"><div className="p-6 bg-red-500/20 rounded-full border-2 border-red-500/50 text-red-500 animate-pulse"><Unplug size={64}/></div></div>
                   <h2 className="text-3xl font-display font-bold">Session Incorrecte</h2>

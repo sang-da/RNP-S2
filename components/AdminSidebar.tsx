@@ -8,27 +8,32 @@ interface AdminSidebarProps {
   onLogout: () => void;
   isOpen: boolean; // Mobile state
   onClose: () => void; // Mobile action
+  role?: string; // Role de l'utilisateur
 }
 
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNavigate, onLogout, isOpen, onClose }) => {
+export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNavigate, onLogout, isOpen, onClose, role }) => {
+  const isSupervisor = role === 'supervisor';
+
   const menuItems = [
-    { id: 'OVERVIEW', label: 'Vue Globale', icon: <LayoutDashboard size={20} /> },
-    { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} /> },
-    { id: 'PEER_REVIEWS', label: 'Bilans RH', icon: <HeartHandshake size={20} /> }, // NOUVEAU
+    { id: 'OVERVIEW', label: 'Vue Globale', icon: <LayoutDashboard size={20} />, adminOnly: true },
+    { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} />, adminOnly: true },
+    { id: 'PEER_REVIEWS', label: 'Bilans RH', icon: <HeartHandshake size={20} /> },
     { id: 'MARKET', label: 'Marché Live', icon: <TrendingUp size={20} /> },
-    { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: <Bot size={20} /> },
-    { id: 'ACCESS', label: 'Accès & Comptes', icon: <KeyRound size={20} /> },
-    { id: 'SCHEDULE', label: 'Calendrier', icon: <CalendarRange size={20} /> },
-    { id: 'MERCATO', label: 'Mercato RH', icon: <Users size={20} /> },
+    { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: <Bot size={20} />, adminOnly: true },
+    { id: 'ACCESS', label: 'Accès & Comptes', icon: <KeyRound size={20} />, adminOnly: true },
+    { id: 'SCHEDULE', label: 'Calendrier', icon: <CalendarRange size={20} />, adminOnly: true },
+    { id: 'MERCATO', label: 'Mercato RH', icon: <Users size={20} />, adminOnly: true },
     { id: 'PROJECTS', label: 'Gestion Projets', icon: <Briefcase size={20} /> },
-    { id: 'CRISIS', label: 'Zone de Crise', icon: <Flame size={20} /> },
+    { id: 'CRISIS', label: 'Zone de Crise', icon: <Flame size={20} />, adminOnly: true },
   ];
 
   const secondaryItems = [
-    { id: 'RESOURCES', label: 'Ressources', icon: <FolderOpen size={20} /> },
+    { id: 'RESOURCES', label: 'Ressources', icon: <FolderOpen size={20} />, adminOnly: true },
     { id: 'VIEWS', label: 'Vues & Simulation', icon: <MonitorPlay size={20} /> },
     { id: 'SETTINGS', label: 'Paramètres', icon: <Settings size={20} /> },
   ];
+
+  const filterItems = (items: any[]) => items.filter(item => !isSupervisor || !item.adminOnly);
 
   return (
     <>
@@ -52,7 +57,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                     <div className="w-3 h-3 bg-white rounded-full"></div>
                 </div>
-                <span className="font-display font-bold text-lg tracking-tight">RNP Admin</span>
+                <span className="font-display font-bold text-lg tracking-tight">RNP Staff</span>
             </div>
             {/* Mobile Close Button */}
             <button onClick={onClose} className="md:hidden text-slate-400 hover:text-white">
@@ -66,7 +71,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
             {/* Main Section */}
             <div className="space-y-2">
                 <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Gestion</p>
-                {menuItems.map((item) => (
+                {filterItems(menuItems).map((item) => (
                     <button
                         key={item.id}
                         onClick={() => { onNavigate(item.id as any); onClose(); }}
@@ -85,7 +90,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
             {/* Secondary Section */}
             <div className="space-y-2">
                 <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Outils</p>
-                {secondaryItems.map((item) => (
+                {filterItems(secondaryItems).map((item) => (
                     <button
                         key={item.id}
                         onClick={() => { onNavigate(item.id as any); onClose(); }}
