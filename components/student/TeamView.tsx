@@ -6,7 +6,7 @@ import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
-import { SoloPanel } from './team/SoloPanel'; // IMPORT NOUVEAU
+import { SoloPanel } from './team/SoloPanel';
 
 interface TeamViewProps {
   agency: Agency;
@@ -167,7 +167,6 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   );
 };
 
-// ... PeerReviewForm et RangeInput restent identiques (copiés pour que ça compile, mais en réalité ils sont déjà là)
 interface PeerReviewFormProps {
     reviewer: Student;
     target: Student;
@@ -181,8 +180,14 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
     const [quality, setQuality] = useState(3);
     const [involvement, setInvolvement] = useState(3);
     const [comment, setComment] = useState("");
+    const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = () => {
+        if (comment.trim().length < 10) {
+            setError("La justification doit faire au moins 10 caractères.");
+            return;
+        }
+
         const review: PeerReview = {
             id: `rev-${Date.now()}`,
             weekId: weekId, 
@@ -192,10 +197,12 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
             targetId: target.id,
             targetName: target.name,
             ratings: { attendance, quality, involvement },
-            comment
+            comment: comment.trim()
         };
         onSubmit(review);
     };
+
+    const isCommentValid = comment.trim().length >= 10;
 
     return (
         <Modal isOpen={true} onClose={onClose} title={`Évaluation Hebdo (Sem ${weekId}): ${target.name}`}>
@@ -210,12 +217,31 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                 </div>
                 <div>
                     <div className="flex justify-between items-end mb-2">
-                        <label className="block text-sm font-bold text-slate-700">Feedback Privé</label>
+                        <label className="block text-sm font-bold text-slate-700">
+                            Justification / Feedback Privé <span className="text-red-500">*</span>
+                        </label>
                         <span className="text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 text-[10px]"><Lock size={10} /> Admin only</span>
                     </div>
-                    <textarea value={comment} onChange={e => setComment(e.target.value)} className="w-full p-3 rounded-xl border border-slate-200 text-sm min-h-[80px]" />
+                    <textarea 
+                        value={comment} 
+                        onChange={e => { setComment(e.target.value); if(error) setError(null); }} 
+                        placeholder="Pourquoi cette note ? Justifiez l'investissement de votre collègue..."
+                        className={`w-full p-3 rounded-xl border ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'} text-sm min-h-[80px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none`} 
+                    />
+                    {error && <p className="text-[10px] text-red-500 font-bold mt-1 animate-pulse">{error}</p>}
+                    {!error && <p className="text-[10px] text-slate-400 mt-1 italic">Min. 10 caractères pour justifier l'évaluation.</p>}
                 </div>
-                <button onClick={handleSubmit} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2"><Send size={18} /> Envoyer</button>
+                <button 
+                    onClick={handleSubmit} 
+                    disabled={!isCommentValid}
+                    className={`w-full font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-all ${
+                        isCommentValid 
+                        ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg' 
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                >
+                    <Send size={18} /> Envoyer
+                </button>
             </div>
         </Modal>
     );

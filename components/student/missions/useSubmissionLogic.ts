@@ -52,7 +52,7 @@ export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) =
         else if (diffHours > 12) bonusScore = 1;
       }
 
-      // --- PRÉPARATION DU LIVRABLE (CORRECTION UNDEFINED) ---
+      // --- PRÉPARATION DU LIVRABLE (SÉCURISATION DES NULLS) ---
       const updatedDeliverables = currentWeekData.deliverables.map((d): Deliverable => 
         d.id === deliverableId 
         ? { 
@@ -62,9 +62,18 @@ export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) =
             feedback: bonusScore > 0 ? `Bonus Early Bird (+${bonusScore}) appliqué ! En attente de note.` : "Fichier reçu. En attente de notation.",
             submissionDate: new Date().toISOString(),
             selfAssessment: selfAssessment, 
-            nominatedMvpId: nominatedMvp || "", // Utilisation d'une string vide plutôt qu'undefined pour Firestore
+            nominatedMvpId: nominatedMvp || null, // Forcer null si pas de MVP
+            grading: d.grading || null // Maintenir la structure
           } 
-        : d
+        : {
+            ...d,
+            fileUrl: d.fileUrl || null,
+            feedback: d.feedback || null,
+            submissionDate: d.submissionDate || null,
+            selfAssessment: d.selfAssessment || null,
+            nominatedMvpId: d.nominatedMvpId || null,
+            grading: d.grading || null
+          }
       );
 
       const updatedWeek = { ...currentWeekData, deliverables: updatedDeliverables };
@@ -82,24 +91,26 @@ export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) =
         ...m, individualScore: Math.min(100, m.individualScore + bonusScore)
       }));
 
-      // Construction de l'objet final
-      let updatedAgency: Agency = {
+      // Construction de l'objet final propre
+      const updatedAgencyPayload: any = {
         ...agency,
         members: updatedMembers,
         eventLog: [...agency.eventLog, newEvent],
         progress: { ...agency.progress, [weekId]: updatedWeek }
       };
 
-      if (type === 'SPECIAL_LOGO') updatedAgency.logoUrl = downloadUrl;
-      else if (type === 'SPECIAL_BANNER') updatedAgency.branding = { ...updatedAgency.branding, bannerUrl: downloadUrl };
+      if (type === 'SPECIAL_LOGO') updatedAgencyPayload.logoUrl = downloadUrl;
+      else if (type === 'SPECIAL_BANNER') updatedAgencyPayload.branding = { ...updatedAgencyPayload.branding, bannerUrl: downloadUrl };
 
-      onUpdateAgency(updatedAgency);
+      // Appel de la sauvegarde
+      onUpdateAgency(updatedAgencyPayload);
       
       if (bonusScore > 0) toast('success', `Early Bird ! +${bonusScore} points de score.`);
       else toast('success', "Fichier enregistré !");
 
     } catch (error: any) {
-      toast('error', `Erreur : ${error.message}`);
+      console.error("Critical Upload Error:", error);
+      toast('error', `Erreur technique : ${error.message}`);
     } finally {
       setIsUploading(null);
     }
