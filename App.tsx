@@ -14,7 +14,8 @@ import { AdminSettings } from './components/AdminSettings';
 import { AdminViews } from './components/AdminViews';
 import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
-import { AdminAnalytics } from './components/AdminAnalytics'; // IMPORT
+import { AdminAnalytics } from './components/AdminAnalytics';
+import { AdminPeerReviews } from './components/AdminPeerReviews'; // IMPORT NOUVEAU
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { GameProvider, useGame } from './contexts/GameContext';
@@ -24,7 +25,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw } from 'lucide
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -113,6 +114,7 @@ const GameContainer: React.FC = () => {
                     <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"><Menu size={24} /></button>
                     {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
                     {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
+                    {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
                     {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
                     {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
@@ -129,7 +131,7 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // CAS 2 : ÉTUDIANT VALIDÉ MAIS PERDU (Reset ou ID invalide)
+  // CAS 2 : ÉTUDIANT VALIDÉ MAIS PERDU
   const myAgency = agencies.find(a => a.members.some(m => m.id === userData?.uid));
   
   if (userData?.role === 'student' && !myAgency) {
@@ -139,9 +141,6 @@ const GameContainer: React.FC = () => {
                   <div className="flex justify-center"><div className="p-6 bg-red-500/20 rounded-full border-2 border-red-500/50 text-red-500 animate-pulse"><Unplug size={64}/></div></div>
                   <h2 className="text-3xl font-display font-bold">Lien Studio Rompu</h2>
                   <p className="text-slate-400 leading-relaxed">Votre compte est bien validé, mais suite à une réinitialisation des données, le lien avec votre studio a été perdu.</p>
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-sm">
-                      Veuillez demander à votre enseignant de vous ré-assigner à votre agence dans l'onglet <strong>"Accès & Comptes"</strong> (Section: Étudiants Orphelins).
-                  </div>
                   <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors"><RefreshCw size={20}/> Rafraîchir la page</button>
                   <button onClick={() => signOut(auth)} className="text-slate-500 hover:text-white text-sm font-bold">Déconnexion</button>
               </div>
@@ -159,7 +158,7 @@ const GameContainer: React.FC = () => {
       );
   }
 
-  // CAS 4 : SALLE D'ATTENTE (Nouveaux venus)
+  // CAS 4 : SALLE D'ATTENTE
   return <WaitingScreen />;
 };
 

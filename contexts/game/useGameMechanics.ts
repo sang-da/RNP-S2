@@ -5,6 +5,7 @@ import { calculateVECap, CONSTRAINTS_POOL } from '../../constants';
 import { usePerformanceLogic } from './mechanics/usePerformanceLogic';
 import { useOperationsLogic } from './mechanics/useOperationsLogic';
 import { useVotingLogic } from './mechanics/useVotingLogic';
+import { sanitizeForFirestore } from '../../utils/firestore';
 
 export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
@@ -18,11 +19,16 @@ export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: 
     try {
         const veCap = calculateVECap(updatedAgency);
         const finalVE = Math.min(updatedAgency.ve_current, veCap);
+        
+        // --- NETTOYAGE CRITIQUE ---
+        // On s'assure que l'objet est une "plain JS Object" et qu'il n'a pas de undefined
         const agencyRef = doc(db, "agencies", updatedAgency.id);
-        await updateDoc(agencyRef, { ...updatedAgency, ve_current: finalVE });
-    } catch (e) {
-        console.error(e);
-        toast('error', 'Erreur sauvegarde');
+        const cleanPayload = sanitizeForFirestore({ ...updatedAgency, ve_current: finalVE });
+        
+        await updateDoc(agencyRef, cleanPayload);
+    } catch (e: any) {
+        console.error("Update Agency Failed:", e);
+        toast('error', `Erreur sauvegarde: ${e.message}`);
     }
   };
 

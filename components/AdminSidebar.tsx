@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp, PieChart } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp, PieChart, HeartHandshake } from 'lucide-react';
 
 interface AdminSidebarProps {
   activeView: string;
@@ -13,7 +13,8 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNavigate, onLogout, isOpen, onClose }) => {
   const menuItems = [
     { id: 'OVERVIEW', label: 'Vue Globale', icon: <LayoutDashboard size={20} /> },
-    { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} /> }, // NOUVEAU
+    { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} /> },
+    { id: 'PEER_REVIEWS', label: 'Bilans RH', icon: <HeartHandshake size={20} /> }, // NOUVEAU
     { id: 'MARKET', label: 'Marché Live', icon: <TrendingUp size={20} /> },
     { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: <Bot size={20} /> },
     { id: 'ACCESS', label: 'Accès & Comptes', icon: <KeyRound size={20} /> },
@@ -102,7 +103,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
 
           </nav>
 
-          {/* Footer (Simplified as Logout is in Settings now, or keep just quick logout) */}
+          {/* Footer */}
           <div className="p-4 border-t border-slate-800">
             <button 
                 onClick={onLogout}

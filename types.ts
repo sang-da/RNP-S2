@@ -22,34 +22,32 @@ export interface PeerReview {
   comment: string;
 }
 
-// NOUVEAU : Types de livrables pour le Mission Builder
 export type DeliverableType = 'FILE' | 'LINK' | 'FORM_CHARTER' | 'FORM_NAMING' | 'SPECIAL_LOGO' | 'SPECIAL_BANNER';
 
 export interface Deliverable {
   id: string;
   name: string;
   description: string;
-  type?: DeliverableType; // NOUVEAU CHAMP (Optionnel pour rétrocompatibilité, défaut = FILE)
+  type?: DeliverableType;
   status: 'pending' | 'submitted' | 'validated' | 'rejected';
-  score?: number; // 0-100
+  score?: number; 
   feedback?: string;
   fileUrl?: string;
-  deadline?: string; // NOUVEAU: Date limite de rendu
-  selfAssessment?: 'A' | 'B' | 'C'; // NOUVEAU: Indice de Lucidité
-  nominatedMvpId?: string; // NOUVEAU: Lead suggéré par l'équipe
-  // Grading Details
+  deadline?: string; 
+  selfAssessment?: 'A' | 'B' | 'C'; 
+  nominatedMvpId?: string | null; // Changé en nullable pour Firestore
   submissionDate?: string;
   grading?: {
     quality: 'A' | 'B' | 'C' | 'REJECTED';
     daysLate: number;
     constraintBroken: boolean;
     finalDelta: number;
-    mvpId?: string; // NEW: The student who carried the task (Validated by Admin)
-  }
+    mvpId?: string | null; // Changé en nullable
+  } | null;
 }
 
 export interface ClassSession {
-    date: string; // YYYY-MM-DD
+    date: string; 
     slot: 'MATIN' | 'APRÈS-MIDI' | 'JOURNÉE';
 }
 
@@ -67,32 +65,30 @@ export interface WeekModule {
   };
 }
 
-// --- NEW: STUDENT HISTORY ---
 export interface StudentHistoryEntry {
     date: string;
     agencyId: string;
     agencyName: string;
     action: 'JOINED' | 'LEFT' | 'FIRED' | 'RESIGNED' | 'MERGED';
-    contextVE: number;      // VE de l'agence au moment du départ/arrivée
-    contextBudget: number;  // Tréso de l'agence au moment du départ/arrivée
-    reason?: string;        // Motif (ex: "Licenciement économique", "Démission")
+    contextVE: number;      
+    contextBudget: number;  
+    reason?: string;        
 }
 
 export interface Badge {
     id: string;
     label: string;
     description: string;
-    icon: string; // Identifier for Lucide icon or image path
+    icon: string; 
     unlockedAt?: string;
 }
 
-// --- NEW: BETTING SYSTEM (SHORT SELLING) ---
 export interface Bet {
     id: string;
     targetAgencyId: string;
     targetAgencyName: string;
-    amountWagered: number; // Mise (ex: 500)
-    weekId: string; // Semaine du pari
+    amountWagered: number; 
+    weekId: string; 
     status: 'ACTIVE' | 'WON' | 'LOST';
     date: string;
 }
@@ -100,81 +96,78 @@ export interface Bet {
 export interface Student {
   id: string;
   name: string;
-  email?: string; // AJOUT : Email pour les notifications
-  role: string; // Standardisé (ex: "Associé")
+  email?: string; 
+  role: string; 
   avatarUrl: string;
-  individualScore: number; // 0-100
-  wallet: number; // NEW: Personal Funds in PiXi
-  karma?: number; // NEW: Hidden score based on behavior (+ = Altruiste, - = Toxique)
-  cvUrl?: string; // URL vers le PDF du CV
-  classId: 'A' | 'B'; // Gestion des deux promotions
+  individualScore: number; 
+  wallet: number; 
+  karma?: number; 
+  cvUrl?: string; 
+  classId: 'A' | 'B'; 
   connectionStatus?: 'online' | 'offline' | 'pending';
-  history?: StudentHistoryEntry[]; // Parcours professionnel
-  badges?: Badge[]; // NEW: Individual Badges
-  streak?: number; // NEW: Streak for performance
-  activeBets?: Bet[]; // NEW: Paris en cours
+  history?: StudentHistoryEntry[]; 
+  badges?: Badge[]; 
+  streak?: number; 
+  activeBets?: Bet[]; 
 }
 
 export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE' | 'BLACK_OP' | 'MERGER';
 
 export interface GameEvent {
   id: string;
-  date: string; // ISO String
+  date: string; 
   type: EventType;
-  label: string; // Titre court (ex: "Pénurie matériaux")
+  label: string; 
   description?: string;
-  deltaVE?: number; // Impact sur la VE (ex: -15)
+  deltaVE?: number; 
   deltaBudgetReal?: number;
   deltaBudgetValued?: number;
 }
 
 export interface ProjectDefinition {
-  problem: string;      // Problème réel et local
-  target: string;       // Qui souffre (Persona)
-  location: string;     // Où ça se passe
-  gesture: string;      // Geste architectural unique
-  theme?: string;       // NOUVEAU: Thématique globale
-  direction?: string;   // NOUVEAU: Direction Artistique / Intention
-  context?: string;     // NOUVEAU: Contexte sociétal ou urbain
-  isLocked: boolean;    // Validé par le prof ?
+  problem: string;      
+  target: string;       
+  location: string;     
+  gesture: string;      
+  theme?: string;       
+  direction?: string;   
+  context?: string;     
+  isLocked: boolean;    
 }
 
 export interface MercatoRequest {
   id: string;
   type: 'HIRE' | 'FIRE' | 'FOUND_AGENCY'; 
-  studentId: string; // La cible du mouvement
+  studentId: string; 
   studentName: string;
-  requesterId?: string; // Qui a fait la demande
-  targetAgencyId: string; // L'agence concernée (ou 'new' pour foundation)
-  status: 'PENDING' | 'REJECTED';
+  requesterId?: string; 
+  targetAgencyId: string; 
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED'; // Ajout de ACCEPTED
   date: string;
-  motivation?: string; // Texte justificatif
+  motivation?: string; 
   votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; 
 }
 
-// --- NEW: CHALLENGE REQUEST (AI GENERATED) ---
 export interface ChallengeRequest {
     id: string;
     title: string;
     description: string;
     status: 'PENDING_VOTE' | 'ACCEPTED' | 'REJECTED';
     date: string;
-    rewardVE: number; // Bonus si réussi
+    rewardVE: number; 
     votes: { [studentId: string]: 'APPROVE' | 'REJECT' };
 }
 
-// --- NEW: MERGER REQUEST ---
 export interface MergerRequest {
     id: string;
     requesterAgencyId: string;
     requesterAgencyName: string;
-    targetAgencyId: string; // L'agence qui va se faire absorber
+    targetAgencyId: string; 
     status: 'PENDING' | 'REJECTED';
     date: string;
-    offerDetails: string; // Description de l'offre (ex: "Rachat de dette")
+    offerDetails: string; 
 }
 
-// --- NEW: FINANCIAL REQUESTS ---
 export interface TransactionRequest {
     id: string;
     studentId: string;
@@ -186,22 +179,19 @@ export interface TransactionRequest {
     date: string;
 }
 
-// --- NEW: AI ANALYSIS TYPES ---
 export interface AIInsight {
     id: string;
     type: 'URGENT' | 'WARNING' | 'OPPORTUNITY';
     title: string;
-    analysis: string; // L'explication du "Pourquoi"
+    analysis: string; 
     suggestedAction: {
         label: string;
         actionType: 'CRISIS' | 'REWARD' | 'MESSAGE' | 'AUDIT';
-        payload?: any; // Données pour pré-remplir l'action
+        payload?: any; 
     };
     targetAgencyId?: string;
     targetStudentId?: string;
 }
-
-// --- NEW TYPES FOR GAMIFICATION ---
 
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
 
@@ -217,38 +207,31 @@ export interface Agency {
   logoUrl?: string;
   members: Student[];
   peerReviews: PeerReview[];
-  classId: 'A' | 'B' | 'ALL'; // ALL pour l'agence Chômage
+  classId: 'A' | 'B' | 'ALL'; 
   
-  // Data Driven by Events
-  ve_current: number; // 0-100 (La note/valeur)
-  veCapOverride?: number; // NEW: Manual override for the VE Ceiling
-  budget_real: number; // En PiXi
-  budget_valued: number; // En PiXi
-  weeklyTax: number; // Pourcentage de charges hebdo (0.1 = 10%)
-  weeklyRevenueModifier: number; // Bonus/Malus récurrent en PiXi (ex: +500 par semaine grâce à un prix)
+  ve_current: number; 
+  veCapOverride?: number; 
+  budget_real: number; 
+  budget_valued: number; 
+  weeklyTax: number; 
+  weeklyRevenueModifier: number; 
   
   status: 'stable' | 'fragile' | 'critique';
   
-  eventLog: GameEvent[]; // Source of Truth
+  eventLog: GameEvent[]; 
   
   currentCycle: CycleType;
   
-  // New Project Structure
   projectDef: ProjectDefinition;
   
-  // Mercato Requests (Pending)
   mercatoRequests: MercatoRequest[];
   
-  // Financial Requests (Pending)
   transactionRequests: TransactionRequest[];
 
-  // Merger Requests (Pending)
   mergerRequests?: MergerRequest[];
 
-  // Active Challenges (AI)
   challenges?: ChallengeRequest[];
 
-  // Legacy constraints
   constraints: {
     space: string;
     style: string;
@@ -259,7 +242,6 @@ export interface Agency {
     [weekId: string]: WeekModule;
   };
 
-  // --- NEW FIELDS ---
   branding: AgencyBranding;
   badges: Badge[];
 }
@@ -278,18 +260,16 @@ export interface CrisisPreset {
   icon: any;
 }
 
-// --- NEW: AWARDS ---
 export interface CycleAwardDefinition {
     id: string;
     cycleId: CycleType;
     title: string;
     description: string;
     veBonus: number;
-    weeklyBonus: number; // En PiXi/semaine (Récurrent)
+    weeklyBonus: number; 
     iconName: 'compass' | 'mic' | 'eye' | 'crown';
 }
 
-// --- WIKI / RESOURCES ---
 export interface WikiResource {
     id: string;
     title: string;
