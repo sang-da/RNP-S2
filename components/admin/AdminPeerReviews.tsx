@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Agency, PeerReview } from '../../types';
 import { HeartHandshake } from 'lucide-react';
@@ -53,7 +52,7 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     }, [allReviews, searchTerm, filterClass, filterWeek]);
 
     const availableWeeks = useMemo(() => 
-        Array.from(new Set(allReviews.map(r => r.weekId))).sort((a, b) => parseInt(a) - parseInt(b))
+        Array.from(new Set(allReviews.map(r => r.weekId))).sort((a: any, b: any) => parseInt(a) - parseInt(b))
     , [allReviews]);
 
     return (

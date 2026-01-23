@@ -129,10 +129,14 @@ export const fetchOrCreateProfile = async (user: User) => {
                 lastLogin: serverTimestamp()
             });
 
-            // On ne tente l'auto-heal que pour les non-admins
+            // MODIFICATION: Suppression de l'auto-heal automatique à la création.
+            // On veut forcer l'utilisateur à rester dans la salle d'attente 
+            // jusqu'à ce qu'il clique sur "Je suis déjà dans une agence" ou soit validé par l'admin.
+            /* 
             if (!isRoot) {
                 await attemptAutoHeal(user, newUserData);
             }
+            */
         } else {
             await updateDoc(userRef, { lastLogin: serverTimestamp() });
         }

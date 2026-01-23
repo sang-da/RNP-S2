@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Student, Agency } from '../../types';
 import { Wallet, Landmark, ArrowUpRight, Send, TrendingUp } from 'lucide-react';
 import { GAME_RULES } from '../../constants';
+import { useUI } from '../../contexts/UIContext';
 
 interface WalletViewProps {
     student: Student;
@@ -14,6 +15,7 @@ interface WalletViewProps {
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStudents, onTransfer, onInjectCapital, onRequestScore}) => {
+    const { confirm } = useUI();
     const [targetId, setTargetId] = useState('');
     const [amount, setAmount] = useState(0);
     const [scoreToBuy, setScoreToBuy] = useState(0);
@@ -21,23 +23,64 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     const isPrecarious = (student.wallet || 0) < 0;
     const isBankrupt = agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD;
 
+    // --- LOGIQUE DE CONFIRMATION ---
+
     const handleTransfer = async () => {
         if(!targetId || amount <= 0) return;
-        await onTransfer(student.id, targetId, amount);
-        setAmount(0);
+        
+        const targetStudent = allStudents.find(s => s.id === targetId);
+        const remaining = (student.wallet || 0) - amount;
+
+        const confirmed = await confirm({
+            title: "Confirmer le virement",
+            message: `Vous allez envoyer ${amount} PiXi à ${targetStudent?.name}.\n\nCe virement est irréversible.\nVotre nouveau solde : ${remaining} PiXi.`,
+            confirmText: "Envoyer les fonds",
+            isDangerous: false
+        });
+
+        if (confirmed) {
+            await onTransfer(student.id, targetId, amount);
+            setAmount(0);
+        }
     };
 
     const handleInject = async () => {
         if(amount <= 0) return;
-        await onInjectCapital(student.id, agency.id, amount);
-        setAmount(0);
+
+        const tax = Math.floor(amount * GAME_RULES.INJECTION_TAX);
+        const netReceived = amount - tax;
+        const newAgencyBudget = agency.budget_real + netReceived;
+        const remaining = (student.wallet || 0) - amount;
+
+        const confirmed = await confirm({
+            title: "Confirmer l'Investissement",
+            message: `Vous allez injecter ${amount} PiXi dans l'agence "${agency.name}".\n\n💰 Taxe (20%) : -${tax} PiXi\n✅ L'agence recevra : +${netReceived} PiXi\n🏦 Nouveau budget agence : ${newAgencyBudget} PiXi\n\nVotre nouveau solde perso : ${remaining} PiXi.\nÊtes-vous sûr ?`,
+            confirmText: "Injecter le Capital",
+            isDangerous: false // Ce n'est pas "dangereux" négativement, c'est un investissement
+        });
+
+        if (confirmed) {
+            await onInjectCapital(student.id, agency.id, amount);
+            setAmount(0);
+        }
     };
 
     const handleBuyScore = async () => {
         if(scoreToBuy <= 0) return;
         const cost = scoreToBuy * 200;
-        await onRequestScore(student.id, agency.id, cost, scoreToBuy);
-        setScoreToBuy(0);
+        const remaining = (student.wallet || 0) - cost;
+
+        const confirmed = await confirm({
+            title: "Confirmer l'Achat de Formation",
+            message: `Vous souhaitez acheter ${scoreToBuy} points de Score.\n\nCoût total : ${cost} PiXi.\nVotre nouveau solde : ${remaining} PiXi.\n\nLe score sera ajouté après validation administrative.`,
+            confirmText: "Acheter",
+            isDangerous: false
+        });
+
+        if (confirmed) {
+            await onRequestScore(student.id, agency.id, cost, scoreToBuy);
+            setScoreToBuy(0);
+        }
     };
 
     return (

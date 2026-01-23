@@ -37,7 +37,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
       // 1. Récupération de toutes les dates uniques présentes dans les logs
       let allDates = Array.from(new Set(
           validAgencies.flatMap(a => a.eventLog.map(e => e.date))
-      )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+      )).sort((a: any, b: any) => new Date(a).getTime() - new Date(b).getTime());
 
       // Sécurité : Si aucune date (début de semestre), on met la date du jour
       if (allDates.length === 0) {

@@ -51,6 +51,13 @@ export interface ClassSession {
     slot: 'MATIN' | 'APRÈS-MIDI' | 'JOURNÉE';
 }
 
+export interface WeekScoringConfig {
+    pointsA: number;
+    pointsB: number;
+    penaltyLatePerDay: number;
+    penaltyConstraint: number;
+}
+
 export interface WeekModule {
   id: string;
   title: string;
@@ -63,6 +70,7 @@ export interface WeekModule {
       classA: ClassSession | null;
       classB: ClassSession | null;
   };
+  scoring?: WeekScoringConfig; // Configuration optionnelle (fallback sur défaut si vide)
 }
 
 export interface StudentHistoryEntry {

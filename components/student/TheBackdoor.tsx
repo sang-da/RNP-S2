@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
@@ -134,8 +133,8 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
         else if (selectedItem === 'FAKE_CERT') {
             // Find a late deliverable
             let lateDeliv: {weekId: string, delId: string} | null = null;
-            Object.values(agency.progress).forEach(w => {
-                w.deliverables.forEach(d => {
+            Object.values(agency.progress).forEach((w: any) => {
+                w.deliverables.forEach((d: any) => {
                     if (d.grading && d.grading.daysLate > 0) lateDeliv = { weekId: w.id, delId: d.id };
                 });
             });

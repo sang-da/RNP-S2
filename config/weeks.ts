@@ -1,6 +1,13 @@
 
 import { WeekModule } from '../types';
 
+const DEFAULT_SCORING = {
+    pointsA: 10,
+    pointsB: 4,
+    penaltyLatePerDay: 5,
+    penaltyConstraint: 10
+};
+
 export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   "1": {
     id: "1",
@@ -16,7 +23,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: false,
     status: 'pending',
-    schedule: { classA: { date: '2026-01-07', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-06', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-01-07', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-06', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "2": {
     id: "2",
@@ -29,7 +37,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: false,
     status: 'pending',
-    schedule: { classA: { date: '2026-01-14', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-13', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-01-14', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-13', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "3": {
     id: "3",
@@ -43,7 +52,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-01-28', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-27', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-01-28', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-27', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "4": {
     id: "4",
@@ -57,7 +67,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-03', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-03', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "5": {
     id: "5",
@@ -71,7 +82,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-02-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-10', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-02-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-10', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "6": {
     id: "6",
@@ -85,7 +97,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-17', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-17', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "7": {
     id: "7",
@@ -99,7 +112,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-03-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-03', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-03-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-03', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "8": {
     id: "8",
@@ -113,7 +127,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-03-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-10', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-03-11', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-10', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "9": {
     id: "9",
@@ -127,7 +142,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-03-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-17', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-03-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-17', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "10": {
     id: "10",
@@ -141,7 +157,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: { date: '2026-03-25', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-24', slot: 'MATIN' } }
+    schedule: { classA: { date: '2026-03-25', slot: 'APRÈS-MIDI' }, classB: { date: '2026-03-24', slot: 'MATIN' } },
+    scoring: DEFAULT_SCORING
   },
   "11": {
     id: "11",
@@ -155,7 +172,8 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: null, classB: null }
+    schedule: { classA: null, classB: null },
+    scoring: DEFAULT_SCORING
   },
   "12": {
     id: "12",
@@ -169,6 +187,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     ],
     locked: true,
     status: 'pending',
-    schedule: { classA: null, classB: null }
+    schedule: { classA: null, classB: null },
+    scoring: { ...DEFAULT_SCORING, pointsA: 30, pointsB: 15 } // Bonus Jury par défaut
   }
 };

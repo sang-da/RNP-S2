@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Agency, Deliverable, GameEvent } from '../../../../types';
+import { Agency, Deliverable, GameEvent, WeekScoringConfig } from '../../../../types';
 import { Modal } from '../../../Modal';
 import { useUI } from '../../../../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../../../../constants';
@@ -32,6 +32,17 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         if (!agency || !item.deliverable.nominatedMvpId) return null;
         return agency.members.find(m => m.id === item.deliverable.nominatedMvpId);
     }, [agency, item.deliverable.nominatedMvpId]);
+
+    // Récupérer la configuration de scoring de la semaine (ou défaut)
+    const scoringConfig: WeekScoringConfig = useMemo(() => {
+        if (!agency) return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10 };
+        const weekData = agency.progress[item.weekId];
+        if (weekData && weekData.scoring) {
+            return weekData.scoring;
+        }
+        // Fallback default
+        return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10 };
+    }, [agency, item.weekId]);
 
     // --- AUTO-FILL LOGIC ---
     useEffect(() => {
@@ -66,9 +77,10 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const calculation = useMemo(() => {
         if (!agency) return { base: 0, penalty: 0, final: 0, multiplier: 1, lucidity: 0 };
 
-        const baseScore = quality === 'A' ? 10 : quality === 'B' ? 4 : 0;
-        const penaltyLate = (daysLate || 0) * 5;
-        const penaltyConstraint = constraintBroken ? 10 : 0;
+        // Utilisation des valeurs dynamiques de la semaine
+        const baseScore = quality === 'A' ? scoringConfig.pointsA : quality === 'B' ? scoringConfig.pointsB : 0;
+        const penaltyLate = (daysLate || 0) * scoringConfig.penaltyLatePerDay;
+        const penaltyConstraint = constraintBroken ? scoringConfig.penaltyConstraint : 0;
         
         const rawScore = baseScore - penaltyLate - penaltyConstraint;
         const multiplier = getAgencyPerformanceMultiplier(agency);
@@ -91,7 +103,7 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
             multiplier,
             lucidityBonus
         };
-    }, [quality, daysLate, constraintBroken, agency, item.deliverable.selfAssessment]);
+    }, [quality, daysLate, constraintBroken, agency, item.deliverable.selfAssessment, scoringConfig]);
 
     const handleValidate = async () => {
         if(!agency) return;
@@ -214,6 +226,13 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                             </span>
                         </div>
                     )}
+                </div>
+
+                {/* INFO PARAMETRES SEMAINE */}
+                <div className="flex justify-center gap-4 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    <span>A: +{scoringConfig.pointsA} VE</span>
+                    <span>B: +{scoringConfig.pointsB} VE</span>
+                    <span>Retard: -{scoringConfig.penaltyLatePerDay}/j</span>
                 </div>
 
                 {/* QUALITÉ DU RENDU */}
