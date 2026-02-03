@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -16,9 +15,12 @@ import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
 import { AdminAnalytics } from './components/AdminAnalytics';
 import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
+import { AdminBank } from './components/AdminBank'; 
+import { AdminBlackMarket } from './components/AdminBlackMarket';
+import { AdminStudentTracker } from './components/AdminStudentTracker'; // IMPORT
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
-import { TheBackdoor } from './components/student/TheBackdoor'; // IMPORT
+import { TheBackdoor } from './components/student/TheBackdoor'; 
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -26,7 +28,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Termi
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -157,6 +159,8 @@ const GameContainer: React.FC = () => {
                     
                     {/* Vues Communes Admin & Superviseur */}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
+                    {adminView === 'BANK' && <AdminBank agencies={agencies} />}
+                    {adminView === 'STUDENT_TRACKER' && <AdminStudentTracker agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
                     {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} />}
@@ -168,6 +172,7 @@ const GameContainer: React.FC = () => {
                         {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
                         {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
                         {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
+                        {adminView === 'BLACK_MARKET' && <AdminBlackMarket />}
                         {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
                         {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
                         {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}

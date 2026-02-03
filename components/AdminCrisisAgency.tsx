@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Agency, CrisisPreset, GameEvent } from '../types';
-import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown, Gift } from 'lucide-react';
+import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown, Gift, RefreshCw } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../constants';
 
@@ -14,6 +14,7 @@ interface AdminCrisisAgencyProps {
 interface AgencyPreset extends CrisisPreset {
     category: 'AGENCY_CRISIS' | 'AGENCY_REWARD' | 'CEREMONY';
     isPercentage?: boolean; 
+    weeklyBonus?: number; // NOUVEAU : Flux hebdomadaire
     defaultReason: string;
 }
 
@@ -28,6 +29,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
       reason: "",
       deltaVE: 0,
       deltaBudget: 0,
+      weeklyBonus: 0,
       isPercentage: false
   });
 
@@ -36,24 +38,24 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
   // --- PRESETS CATALOG ---
   const PRESETS: AgencyPreset[] = [
     // CRISES
-    { label: "Inflation Matériaux", defaultReason: "Hausse globale des coûts des matières premières (-10% Budget).", deltaVE: 0, deltaBudget: -10, isPercentage: true, icon: <Percent/>, category: 'AGENCY_CRISIS', description: "Impact financier pur" },
-    { label: "Taxe Carbone", defaultReason: "Non-respect des normes écologiques.", deltaVE: -5, deltaBudget: -5, isPercentage: true, icon: <Banknote/>, category: 'AGENCY_CRISIS', description: "Sanction Eco" },
-    { label: "Krach Réputation", defaultReason: "Perte de confiance du marché suite à une polémique.", deltaVE: -15, deltaBudget: 0, icon: <Flame/>, category: 'AGENCY_CRISIS', description: "Chute de VE" },
-    { label: "Plagiat Avéré", defaultReason: "Copie substantielle détectée. Tolérance zéro.", deltaVE: -25, deltaBudget: -1000, isPercentage: false, icon: <AlertOctagon/>, category: 'AGENCY_CRISIS', description: "Sanction Lourde" },
-    { label: "Bad Buzz", defaultReason: "Communication désastreuse sur les réseaux.", deltaVE: -8, deltaBudget: 0, icon: <Megaphone/>, category: 'AGENCY_CRISIS', description: "Impact Image" },
+    { label: "Inflation Matériaux", defaultReason: "Hausse globale des coûts des matières premières (-10% Budget).", deltaVE: 0, deltaBudget: -10, weeklyBonus: 0, isPercentage: true, icon: <Percent/>, category: 'AGENCY_CRISIS', description: "Impact financier pur" },
+    { label: "Taxe Carbone", defaultReason: "Non-respect des normes écologiques.", deltaVE: -5, deltaBudget: -5, weeklyBonus: 0, isPercentage: true, icon: <Banknote/>, category: 'AGENCY_CRISIS', description: "Sanction Eco" },
+    { label: "Krach Réputation", defaultReason: "Perte de confiance du marché suite à une polémique.", deltaVE: -15, deltaBudget: 0, weeklyBonus: 0, icon: <Flame/>, category: 'AGENCY_CRISIS', description: "Chute de VE" },
+    { label: "Plagiat Avéré", defaultReason: "Copie substantielle détectée. Tolérance zéro.", deltaVE: -25, deltaBudget: -1000, weeklyBonus: 0, isPercentage: false, icon: <AlertOctagon/>, category: 'AGENCY_CRISIS', description: "Sanction Lourde" },
+    { label: "Bad Buzz", defaultReason: "Communication désastreuse sur les réseaux.", deltaVE: -8, deltaBudget: 0, weeklyBonus: 0, icon: <Megaphone/>, category: 'AGENCY_CRISIS', description: "Impact Image" },
     
     // REWARDS (AGENCE S2)
-    { label: "Cadeau de Bienvenue", defaultReason: "Subvention de lancement pour aider à la structuration.", deltaVE: +5, deltaBudget: 2000, isPercentage: false, icon: <Gift/>, category: 'AGENCY_REWARD', description: "Boost Démarrage" },
-    { label: "Rendu Photoréaliste", defaultReason: "Qualité technique exceptionnelle du rendu.", deltaVE: +8, deltaBudget: 500, isPercentage: false, icon: <Zap/>, category: 'AGENCY_REWARD', description: "Bonus Qualité" },
-    { label: "Innovation Disruptive", defaultReason: "Solution créative jamais vue auparavant.", deltaVE: +10, deltaBudget: 1000, isPercentage: false, icon: <Trophy/>, category: 'AGENCY_REWARD', description: "Bonus Créa" },
-    { label: "Business Angel", defaultReason: "Investissement externe suite au pitch.", deltaVE: +5, deltaBudget: 2500, isPercentage: false, icon: <Wallet/>, category: 'AGENCY_REWARD', description: "Cash Injection" },
-    { label: "Viralité Positive", defaultReason: "Engouement massif sur les réseaux.", deltaVE: +12, deltaBudget: 0, isPercentage: false, icon: <Heart/>, category: 'AGENCY_REWARD', description: "Hype" },
+    { label: "Cadeau de Bienvenue", defaultReason: "Subvention de lancement pour aider à la structuration.", deltaVE: +5, deltaBudget: 2000, weeklyBonus: 0, isPercentage: false, icon: <Gift/>, category: 'AGENCY_REWARD', description: "Boost Démarrage" },
+    { label: "Rendu Photoréaliste", defaultReason: "Qualité technique exceptionnelle du rendu.", deltaVE: +8, deltaBudget: 500, weeklyBonus: 0, isPercentage: false, icon: <Zap/>, category: 'AGENCY_REWARD', description: "Bonus Qualité" },
+    { label: "Innovation Disruptive", defaultReason: "Solution créative jamais vue auparavant.", deltaVE: +10, deltaBudget: 1000, weeklyBonus: 0, isPercentage: false, icon: <Trophy/>, category: 'AGENCY_REWARD', description: "Bonus Créa" },
+    { label: "Business Angel", defaultReason: "Investissement externe suite au pitch.", deltaVE: +5, deltaBudget: 2500, weeklyBonus: 0, isPercentage: false, icon: <Wallet/>, category: 'AGENCY_REWARD', description: "Cash Injection" },
+    { label: "Viralité Positive", defaultReason: "Engouement massif sur les réseaux.", deltaVE: +12, deltaBudget: 0, weeklyBonus: 0, isPercentage: false, icon: <Heart/>, category: 'AGENCY_REWARD', description: "Hype" },
 
-    // CEREMONY (GRANDS PRIX CYCLES)
-    { label: "🏆 Golden Brief (C1)", defaultReason: "Vainqueur du Cycle 1 : Stratégie & Cohérence.", deltaVE: +15, deltaBudget: 1000, isPercentage: false, icon: <Compass/>, category: 'CEREMONY', description: "Grand Prix Cycle 1" },
-    { label: "🏆 Prix Narration (C2)", defaultReason: "Vainqueur du Cycle 2 : Storytelling & IA.", deltaVE: +20, deltaBudget: 1500, isPercentage: false, icon: <Mic/>, category: 'CEREMONY', description: "Grand Prix Cycle 2" },
-    { label: "🏆 Prix Vision (C3)", defaultReason: "Vainqueur du Cycle 3 : Direction Artistique.", deltaVE: +25, deltaBudget: 2000, isPercentage: false, icon: <Eye/>, category: 'CEREMONY', description: "Grand Prix Cycle 3" },
-    { label: "🏆 Prix Signature (C4)", defaultReason: "Vainqueur du Cycle 4 : Packaging Final.", deltaVE: +40, deltaBudget: 3000, isPercentage: false, icon: <Crown/>, category: 'CEREMONY', description: "Grand Prix Final" },
+    // CEREMONY (GRANDS PRIX CYCLES - FLUX HEBDO)
+    { label: "🏆 Golden Brief (C1)", defaultReason: "Vainqueur du Cycle 1 : Stratégie & Cohérence.", deltaVE: +15, deltaBudget: 0, weeklyBonus: 250, isPercentage: false, icon: <Compass/>, category: 'CEREMONY', description: "Rente: +250/sem" },
+    { label: "🏆 Prix Narration (C2)", defaultReason: "Vainqueur du Cycle 2 : Storytelling & IA.", deltaVE: +20, deltaBudget: 0, weeklyBonus: 350, isPercentage: false, icon: <Mic/>, category: 'CEREMONY', description: "Rente: +350/sem" },
+    { label: "🏆 Prix Vision (C3)", defaultReason: "Vainqueur du Cycle 3 : Direction Artistique.", deltaVE: +25, deltaBudget: 0, weeklyBonus: 500, isPercentage: false, icon: <Eye/>, category: 'CEREMONY', description: "Rente: +500/sem" },
+    { label: "🏆 Prix Signature (C4)", defaultReason: "Vainqueur du Cycle 4 : Packaging Final.", deltaVE: +40, deltaBudget: 0, weeklyBonus: 800, isPercentage: false, icon: <Crown/>, category: 'CEREMONY', description: "Rente: +800/sem" },
   ];
 
   const filteredPresets = PRESETS.filter(p => 
@@ -68,6 +70,7 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
           reason: preset.defaultReason,
           deltaVE: preset.deltaVE,
           deltaBudget: preset.deltaBudget,
+          weeklyBonus: preset.weeklyBonus || 0,
           isPercentage: preset.isPercentage || false
       });
   };
@@ -79,7 +82,11 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
           return;
       }
 
-      const message = `Action: ${form.label}\nCible: ${agencyTarget}\nImpact: ${form.deltaVE} VE | ${form.deltaBudget} ${form.isPercentage ? '%' : 'PiXi'}`;
+      let impactMsg = `Impact: ${form.deltaVE > 0 ? '+' : ''}${form.deltaVE} VE`;
+      if (form.deltaBudget !== 0) impactMsg += ` | Cash: ${form.deltaBudget} ${form.isPercentage ? '%' : 'PiXi'}`;
+      if (form.weeklyBonus !== 0) impactMsg += ` | Rente: +${form.weeklyBonus} PiXi/semaine`;
+
+      const message = `Action: ${form.label}\nCible: ${agencyTarget}\n${impactMsg}`;
       
       if(await confirm({title: "Confirmer Action Agence", message, isDangerous: presetType === 'CRISIS'})) {
           agencies.forEach(agency => {
@@ -98,14 +105,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                   }
 
                   // PERFORMANCE MULTIPLIER APPLICATION
-                  // Only apply if the delta is positive (gains). Penalties remain fixed.
                   const multiplier = getAgencyPerformanceMultiplier(agency);
                   const finalVEDelta = form.deltaVE > 0 ? Math.round(form.deltaVE * multiplier) : form.deltaVE;
                   const perfPercent = Math.round(multiplier * 100);
 
-                  const description = form.deltaVE > 0 
+                  let description = form.deltaVE > 0 
                     ? `${form.reason} (Gain VE ajusté perf. ${perfPercent}%)` 
                     : form.reason;
+
+                  if (form.weeklyBonus > 0) {
+                      description += ` [Contrat signé : Rente de +${form.weeklyBonus} PiXi/semaine ajoutée].`;
+                  }
 
                   const newEvent: GameEvent = {
                       id: `evt-${Date.now()}-${agency.id}`,
@@ -121,12 +131,13 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                       ...agency,
                       budget_real: agency.budget_real + budgetDeltaReal,
                       ve_current: Math.max(0, agency.ve_current + finalVEDelta),
+                      weeklyRevenueModifier: (agency.weeklyRevenueModifier || 0) + form.weeklyBonus, // MISE À JOUR DE LA RENTE
                       eventLog: [...agency.eventLog, newEvent]
                   });
               }
           });
           toast('success', "Action globale appliquée.");
-          setForm(prev => ({...prev, deltaVE: 0, deltaBudget: 0}));
+          setForm(prev => ({...prev, deltaVE: 0, deltaBudget: 0, weeklyBonus: 0}));
       }
   };
 
@@ -174,7 +185,12 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                             <div className={`font-bold text-sm ${preset.deltaVE < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                 {preset.deltaVE > 0 ? '+' : ''}{preset.deltaVE} VE
                             </div>
-                            {preset.deltaBudget !== 0 && (
+                            {/* Affichage conditionnel : Cash ou Rente Hebdo */}
+                            {preset.weeklyBonus && preset.weeklyBonus > 0 ? (
+                                <div className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1">
+                                    +{preset.weeklyBonus}/sem
+                                </div>
+                            ) : preset.deltaBudget !== 0 && (
                                 <div className="text-xs font-bold text-slate-400">
                                     {preset.deltaBudget > 0 ? '+' : ''}{preset.deltaBudget} {preset.isPercentage ? '%' : 'PiXi'}
                                 </div>
@@ -229,10 +245,10 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <label className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-2">
-                            <Target size={14}/> Impact VE (Points)
+                            <Target size={14}/> Impact VE
                         </label>
                         <input 
                             type="number" 
@@ -241,16 +257,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                             className={`w-full bg-white p-2 rounded-lg text-xl font-bold text-center border ${form.deltaVE < 0 ? 'text-red-500 border-red-200' : 'text-emerald-500 border-emerald-200'}`}
                         />
                     </div>
+                    
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <div className="flex justify-between items-center mb-2">
                             <label className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-2">
-                                <Wallet size={14}/> Impact Budget
+                                <Wallet size={14}/> Cash (One-Shot)
                             </label>
                             <button 
                                 onClick={() => setForm({...form, isPercentage: !form.isPercentage})}
                                 className="text-[10px] font-bold bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm hover:bg-indigo-50"
                             >
-                                {form.isPercentage ? '% Pourcentage' : '# Fixe (PiXi)'}
+                                {form.isPercentage ? '%' : '#'}
                             </button>
                         </div>
                         <div className="relative">
@@ -258,9 +275,24 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                                 type="number" 
                                 value={form.deltaBudget}
                                 onChange={(e) => setForm({...form, deltaBudget: Number(e.target.value)})}
-                                className={`w-full bg-white p-2 rounded-lg text-xl font-bold text-center border ${form.deltaBudget < 0 ? 'text-red-500 border-red-200' : 'text-emerald-500 border-emerald-200'}`}
+                                className={`w-full bg-white p-2 rounded-lg text-xl font-bold text-center border ${form.deltaBudget < 0 ? 'text-red-500 border-red-200' : 'text-slate-700 border-slate-200'}`}
                             />
-                            <span className="absolute right-3 top-3 text-slate-300 font-bold">{form.isPercentage ? '%' : 'PiXi'}</span>
+                            <span className="absolute right-3 top-3 text-slate-300 font-bold">{form.isPercentage ? '%' : 'px'}</span>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                        <label className="text-[10px] font-bold uppercase text-amber-700 mb-2 flex items-center gap-2">
+                            <RefreshCw size={14}/> Flux Hebdo
+                        </label>
+                        <div className="relative">
+                            <input 
+                                type="number" 
+                                value={form.weeklyBonus}
+                                onChange={(e) => setForm({...form, weeklyBonus: Number(e.target.value)})}
+                                className="w-full bg-white p-2 rounded-lg text-xl font-bold text-center border border-amber-200 text-amber-600"
+                            />
+                            <span className="absolute right-3 top-3 text-amber-300 font-bold text-[10px]">/sem</span>
                         </div>
                     </div>
                 </div>

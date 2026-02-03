@@ -148,6 +148,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
 
       const targetAgency = agencies.find(a => a.members.some(m => m.id === targetId));
       if(!targetAgency) return;
+      const targetStudent = targetAgency.members.find(m => m.id === targetId);
 
       const batch = writeBatch(db);
 
@@ -156,10 +157,45 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           ? { ...m, wallet: (m.wallet || 0) - amount } 
           : m
       );
-      batch.update(doc(db, "agencies", sourceAgency.id), { members: updatedSourceMembers });
+      
+      // LOG THE TRANSFER IN SOURCE AGENCY HISTORY TO TRACK IT
+      const transferLog: GameEvent = {
+          id: `tx-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'INFO',
+          label: 'Virement P2P (Sortant)',
+          deltaBudgetReal: 0,
+          description: `${sourceStudent.name} -> ${targetStudent?.name} : -${amount} PiXi`
+      };
+      
+      batch.update(doc(db, "agencies", sourceAgency.id), { 
+          members: updatedSourceMembers,
+          eventLog: [...sourceAgency.eventLog, transferLog]
+      });
 
       const updatedTargetMembers = targetAgency.members.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
-      batch.update(doc(db, "agencies", targetAgency.id), { members: updatedTargetMembers });
+      
+      // IF TARGET AGENCY IS DIFFERENT, LOG RECEIPT TOO
+      if (sourceAgency.id !== targetAgency.id) {
+          const receiptLog: GameEvent = {
+              id: `tx-rx-${Date.now()}`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'INFO',
+              label: 'Virement P2P (Reçu)',
+              deltaBudgetReal: 0,
+              description: `${targetStudent?.name} <- ${sourceStudent.name} : +${amount} PiXi`
+          };
+          batch.update(doc(db, "agencies", targetAgency.id), { 
+              members: updatedTargetMembers,
+              eventLog: [...targetAgency.eventLog, receiptLog]
+          });
+      } else {
+          // Same agency, one update is enough for members, but we already queued it on source update logic.
+          // Wait, if same agency, we updated members in sourceAgency logic.
+          // Correct logic for same agency:
+          const finalMembers = updatedSourceMembers.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
+          batch.update(doc(db, "agencies", sourceAgency.id), { members: finalMembers });
+      }
 
       await batch.commit();
       toast('success', `Virement de ${amount} PiXi effectué.`);

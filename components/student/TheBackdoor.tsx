@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
-import { TrendingUp, Eye, Vote, FileX, Skull, ShoppingBag, Clock, Zap } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import { BLACK_MARKET_ITEMS } from '../../constants';
 
 interface TheBackdoorProps {
     agency: Agency;
@@ -16,58 +17,6 @@ const generateAlias = (name: string) => {
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return `User-${hash.toString(16).toUpperCase().slice(0,4)}`;
 };
-
-// CATALOGUE COMPLET
-const ALL_ITEMS = [
-    { 
-        id: 'SHORT_SELL', 
-        label: 'Short Selling', 
-        price: 500, 
-        icon: TrendingUp, 
-        desc: "Parier sur la chute d'une agence. Si elle perd de la VE au prochain bilan, vous gagnez 1000 PiXi.",
-        requiresTarget: true 
-    },
-    { 
-        id: 'DOXXING', 
-        label: 'Doxxing RH', 
-        price: 600, 
-        icon: Eye, 
-        desc: "Révèle l'identité des auteurs de mauvaises notes (< 3/5) dans votre agence cette semaine.",
-        requiresTarget: false 
-    },
-    { 
-        id: 'FAKE_CERT', 
-        label: 'Faux Certificat', 
-        price: 500, 
-        icon: FileX, 
-        desc: "Efface rétroactivement un retard noté sur un livrable. Risque de détection: 20%.",
-        requiresTarget: false 
-    },
-    { 
-        id: 'LEAK', 
-        label: 'Fuite Industrielle', 
-        price: 300, 
-        icon: Zap, 
-        desc: "Obtenir un indice sur le prochain brief avant tout le monde (Notif Admin).",
-        requiresTarget: false 
-    },
-    { 
-        id: 'BUY_VOTE', 
-        label: 'Bourrage d\'Urne', 
-        price: 200, 
-        icon: Vote, 
-        desc: "Ajoute un vote 'APPROVE' fantôme sur une demande Mercato active.",
-        requiresTarget: true 
-    },
-    { 
-        id: 'AUDIT_HOSTILE', 
-        label: 'Audit Hostile', 
-        price: 500, 
-        icon: Skull, 
-        desc: "Attaque la crédibilité d'une agence adverse fragile. (-10 VE si succès).",
-        requiresTarget: true 
-    }
-];
 
 // 72 Hours in milliseconds
 const ROTATION_DURATION = 72 * 60 * 60 * 1000; 
@@ -97,7 +46,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
         };
 
         // Shuffle ALL_ITEMS based on seed
-        const shuffled = [...ALL_ITEMS].sort((a, b) => {
+        const shuffled = [...BLACK_MARKET_ITEMS].sort((a, b) => {
             const seedA = currentCycle + a.price; // Simple variation
             const seedB = currentCycle + b.price;
             return seededRandom(seedA) - seededRandom(seedB);
@@ -129,7 +78,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
 
         let opType: any = selectedItem;
         let payload: any = {};
-        let cost = ALL_ITEMS.find(i => i.id === selectedItem)?.price || 0;
+        let cost = BLACK_MARKET_ITEMS.find(i => i.id === selectedItem)?.price || 0;
 
         if (selectedItem === 'SHORT_SELL') {
             if (!targetId) { addToTerminal("ERREUR: Cible manquante."); return; }
