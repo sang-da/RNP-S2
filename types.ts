@@ -6,6 +6,14 @@ export enum CycleType {
   PACKAGING = "Cycle 4: Packaging & Soutenance"
 }
 
+export interface GameConfig {
+    id: string;
+    currentCycle: number; // 1, 2, 3, 4
+    autoPilot: boolean;
+    lastFinanceRun: string | null; // Format "YYYY-WW" (Année-Semaine)
+    lastPerformanceRun: string | null; // Format "YYYY-WW"
+}
+
 export interface PeerReview {
   id: string;
   date: string;
@@ -56,12 +64,12 @@ export interface WeekScoringConfig {
     pointsB: number;
     penaltyLatePerDay: number;
     penaltyConstraint: number;
-    expectedTargetVE: number; // Ce que l'étudiant est censé gagner (pour le prof)
+    expectedTargetVE: number; 
 }
 
 export interface WeekModule {
   id: string;
-  cycleId: number; // 1, 2, 3 ou 4
+  cycleId: number; 
   title: string;
   type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
   objectives: string[];
@@ -75,7 +83,6 @@ export interface WeekModule {
   scoring?: WeekScoringConfig;
 }
 
-// ... (reste des interfaces inchangé)
 export interface StudentHistoryEntry {
     date: string;
     agencyId: string;

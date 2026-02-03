@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable } from '../types';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable, GameConfig } from '../types';
 import { useUI } from './UIContext';
 import { useAuth } from './AuthContext';
-import { doc, updateDoc, writeBatch, setDoc, deleteDoc, db } from '../services/firebase';
+import { doc, updateDoc, writeBatch, setDoc, deleteDoc, db, onSnapshot, getDoc } from '../services/firebase';
 
 // IMPORT SUB-HOOKS
 import { useGameSync } from './game/useGameSync';
@@ -10,34 +10,29 @@ import { useFinanceLogic } from './game/useFinanceLogic';
 import { useGameMechanics } from './game/useGameMechanics';
 
 interface GameContextType {
-  // State
   agencies: Agency[];
   weeks: { [key: string]: WeekModule };
   resources: WikiResource[];
+  gameConfig: GameConfig;
   role: 'admin' | 'student';
   selectedAgencyId: string | null;
-  isAutoMode: boolean;
   
-  // Actions
   setRole: (role: 'admin' | 'student') => void;
   selectAgency: (id: string | null) => void;
-  toggleAutoMode: () => void;
   updateAgency: (agency: Agency) => void;
   updateAgenciesList: (agencies: Agency[]) => void;
   deleteAgency: (agencyId: string) => Promise<void>;
   updateWeek: (weekId: string, week: WeekModule) => void;
+  updateGameConfig: (config: Partial<GameConfig>) => Promise<void>;
   
-  // Wiki Actions
   addResource: (resource: WikiResource) => Promise<void>;
   deleteResource: (id: string) => Promise<void>;
 
-  // Game Logic
   shuffleConstraints: (agencyId: string) => void;
-  processFinance: (targetClass: 'A' | 'B') => Promise<void>;
-  processPerformance: (targetClass: 'A' | 'B') => Promise<void>;
+  processFinance: (targetClass: 'A' | 'B' | 'ALL') => Promise<void>;
+  processPerformance: (targetClass: 'A' | 'B' | 'ALL') => Promise<void>;
   resetGame: () => void;
   
-  // Student Economy & RH
   transferFunds: (sourceId: string, targetId: string, amount: number) => Promise<void>;
   tradeScoreForCash: (studentId: string, scoreAmount: number) => Promise<void>;
   injectCapital: (studentId: string, agencyId: string, amount: number) => Promise<void>;
@@ -45,7 +40,6 @@ interface GameContextType {
   handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
   submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 
-  // Black Ops & Mergers & Challenges
   triggerBlackOp: (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => Promise<void>;
   performBlackOp: (studentId: string, agencyId: string, opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE', payload: any) => Promise<void>;
   proposeMerger: (sourceAgencyId: string, targetAgencyId: string) => Promise<void>;
@@ -65,50 +59,92 @@ export const useGame = () => {
   return context;
 };
 
+const DEFAULT_CONFIG: GameConfig = {
+    id: 'global',
+    currentCycle: 1,
+    autoPilot: true,
+    lastFinanceRun: null,
+    lastPerformanceRun: null
+};
+
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { toast } = useUI();
   const { userData } = useAuth();
   
-  // MAIN STATE
   const [role, setRole] = useState<'admin' | 'student'>('student');
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
-  const [isAutoMode, setIsAutoMode] = useState(false);
+  
+  // FIX: Explicitly define selectAgency to satisfy the GameContext interface and use the state setter
+  const selectAgency = (id: string | null) => setSelectedAgencyId(id);
 
-  // 1. SYNC HOOK (Data Layer)
-  const { agencies, weeks, resources, seedDatabase, setAgencies } = useGameSync(toast);
+  const [gameConfig, setGameConfig] = useState<GameConfig>(DEFAULT_CONFIG);
 
-  // HELPER
-  const getCurrentGameWeek = () => {
+  const { agencies, weeks, resources, seedDatabase } = useGameSync(toast);
+  const finance = useFinanceLogic(agencies, toast);
+  const getCurrentGameWeek = useCallback(() => {
       const unlockedWeeks = (Object.values(weeks) as WeekModule[]).filter(w => !w.locked).map(w => parseInt(w.id));
       return unlockedWeeks.length > 0 ? Math.max(...unlockedWeeks) : 1;
-  };
-
-  // 2. LOGIC HOOKS
-  const finance = useFinanceLogic(agencies, toast);
+  }, [weeks]);
+  
   const mechanics = useGameMechanics(agencies, toast, getCurrentGameWeek);
 
-  // Sync Role with Auth
+  // 0. SYNC CONFIG
   useEffect(() => {
-    if (userData) {
-      if (userData.role === 'admin') setRole('admin');
-      else setRole('student');
-    }
-  }, [userData]);
+    const unsub = onSnapshot(doc(db, "config", "game_state"), (snap) => {
+        if (snap.exists()) setGameConfig(snap.data() as GameConfig);
+        else setDoc(doc(db, "config", "game_state"), DEFAULT_CONFIG);
+    });
+    return unsub;
+  }, []);
 
-  // AUTO MODE SCHEDULER
+  // 1. AUTO-PILOT SCHEDULER
   useEffect(() => {
-      if (!isAutoMode) return;
-      const checkSchedule = () => {
-          const now = new Date();
-          const today = now.toISOString().split('T')[0];
-          console.log(`Auto Check: ${today}`);
-      };
-      const interval = setInterval(checkSchedule, 60000); 
-      return () => clearInterval(interval);
-  }, [isAutoMode, weeks]);
+    if (!gameConfig.autoPilot || role !== 'admin') return;
 
-  // --- GENERIC ACTIONS (CRUD) ---
-  
+    const checkAutomation = async () => {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon, 5=Fri
+        const hour = now.getHours();
+        
+        // Calculer l'identifiant de semaine unique (Année-SemaineISO)
+        const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+        const weekKey = `${now.getFullYear()}-${weekNo}`;
+
+        // LUNDI : FINANCE (Salaires/Loyers)
+        if (day === 1 && gameConfig.lastFinanceRun !== weekKey) {
+            console.log(`[AUTO-PILOT] Déclenchement Finance Lundi : ${weekKey}`);
+            await finance.processFinance('ALL' as any);
+            await updateGameConfig({ lastFinanceRun: weekKey });
+            toast('info', 'IA : Traitement financier hebdomadaire effectué (Salaires).');
+        }
+
+        // VENDREDI SOIR (dès 18h) : PERFORMANCE (Bilan)
+        if (day === 5 && hour >= 18 && gameConfig.lastPerformanceRun !== weekKey) {
+            console.log(`[AUTO-PILOT] Déclenchement Performance Vendredi : ${weekKey}`);
+            await mechanics.processPerformance('ALL' as any);
+            await updateGameConfig({ lastPerformanceRun: weekKey });
+            toast('info', 'IA : Bilan de performance de fin de semaine effectué.');
+        }
+    };
+
+    const interval = setInterval(checkAutomation, 60000); // Vérifier toutes les minutes
+    checkAutomation(); // Check direct au login
+    return () => clearInterval(interval);
+  }, [gameConfig, role, finance, mechanics]);
+
+  // --- ACTIONS ---
+  const updateGameConfig = async (newConfig: Partial<GameConfig>) => {
+      try {
+          const ref = doc(db, "config", "game_state");
+          await updateDoc(ref, newConfig);
+      } catch (e) {
+          toast('error', "Erreur config globale");
+      }
+  };
+
   const updateAgenciesList = async (newAgencies: Agency[]) => {
       try {
         const batch = writeBatch(db);
@@ -117,48 +153,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             batch.set(ref, a, { merge: true });
         });
         await batch.commit();
-      } catch(e) {
-         console.error(e);
-         toast('error', 'Erreur mise à jour multiple');
-      }
+      } catch(e) { console.error(e); toast('error', 'Erreur mise à jour multiple'); }
   };
 
   const deleteAgency = async (agencyId: string) => {
       try {
           const agencyToDelete = agencies.find(a => a.id === agencyId);
           if (!agencyToDelete) return;
-
           const batch = writeBatch(db);
-
           if (agencyToDelete.members && agencyToDelete.members.length > 0) {
-              const unassignedRef = doc(db, "agencies", "unassigned");
               const unassignedAgency = agencies.find(a => a.id === 'unassigned');
               if (unassignedAgency) {
                   const updatedMembers = [...(unassignedAgency.members || []), ...agencyToDelete.members];
-                  batch.update(unassignedRef, { members: updatedMembers });
+                  batch.update(doc(db, "agencies", "unassigned"), { members: updatedMembers });
               }
           }
-
-          const agencyRef = doc(db, "agencies", agencyId);
-          batch.delete(agencyRef);
-
+          batch.delete(doc(db, "agencies", agencyId));
           await batch.commit();
-          toast('success', `Agence supprimée. Membres transférés au vivier.`);
-      } catch (e) {
-          console.error(e);
-          toast('error', "Erreur lors de la suppression");
-      }
+          toast('success', `Agence supprimée.`);
+      } catch (e) { toast('error', "Erreur suppression"); }
   };
 
   const updateWeek = async (weekId: string, updatedWeek: WeekModule) => {
     try {
-        const weekRef = doc(db, "weeks", weekId);
-        await updateDoc(weekRef, { ...updatedWeek });
+        await updateDoc(doc(db, "weeks", weekId), { ...updatedWeek });
         toast('success', `Semaine ${weekId} mise à jour`);
-    } catch (e) {
-        console.error(e);
-        toast('error', 'Erreur maj semaine');
-    }
+    } catch (e) { toast('error', 'Erreur maj semaine'); }
   };
 
   const addResource = async (resource: WikiResource) => {
@@ -171,25 +191,20 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast('success', "Ressource supprimée");
   };
 
-  const selectAgency = (id: string | null) => setSelectedAgencyId(id);
-  const toggleAutoMode = () => setIsAutoMode(!isAutoMode);
-
   const resetGame = async () => {
-      try { await seedDatabase(); } catch (e) { console.error(e); }
+      try { await seedDatabase(); await updateGameConfig(DEFAULT_CONFIG); } catch (e) { console.error(e); }
   };
-
-  const tradeScoreForCash = async (studentId: string, scoreAmount: number) => { /* Impl future */ };
 
   return (
     <GameContext.Provider value={{
-      agencies, weeks, resources, role, selectedAgencyId, isAutoMode,
-      setRole, selectAgency, toggleAutoMode, updateAgency: mechanics.updateAgency, updateAgenciesList, deleteAgency, updateWeek,
+      agencies, weeks, resources, gameConfig, role, selectedAgencyId,
+      setRole, selectAgency, updateAgency: mechanics.updateAgency, updateAgenciesList, deleteAgency, updateWeek, updateGameConfig,
       addResource, deleteResource, shuffleConstraints: mechanics.shuffleConstraints, 
       processFinance: finance.processFinance, 
       processPerformance: mechanics.processPerformance, 
       resetGame,
       transferFunds: finance.transferFunds, 
-      tradeScoreForCash, 
+      tradeScoreForCash: async () => {}, 
       injectCapital: finance.injectCapital, 
       requestScorePurchase: finance.requestScorePurchase, 
       handleTransactionRequest: finance.handleTransactionRequest,

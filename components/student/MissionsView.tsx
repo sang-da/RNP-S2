@@ -1,8 +1,8 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType, Deliverable } from '../../types';
 import { Crown, Compass, Mic, Eye } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
+import { useGame } from '../../contexts/GameContext';
 import { CYCLE_AWARDS } from '../../constants';
 
 // SUB-COMPONENTS
@@ -20,9 +20,28 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
+  const { gameConfig } = useGame(); // Utilisation du cycle global
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [activeWeek, setActiveWeek] = useState<string>("1"); 
+  // LOGIQUE DE FILTRE PAR CYCLE (Paramétré par le prof côté Admin)
+  const visibleWeeks = useMemo(() => {
+      // FIX: Cast Object.values to WeekModule[] to resolve 'unknown' type errors during filtering and sorting
+      return (Object.values(agency.progress) as WeekModule[])
+          .filter((w: WeekModule) => w.cycleId === gameConfig.currentCycle)
+          .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+  }, [agency.progress, gameConfig.currentCycle]);
+
+  // État de la semaine active (par défaut la première du cycle)
+  const [activeWeek, setActiveWeek] = useState<string>(""); 
+
+  useEffect(() => {
+    if (visibleWeeks.length > 0 && !activeWeek) {
+        setActiveWeek(visibleWeeks[0].id);
+    } else if (visibleWeeks.length > 0 && !visibleWeeks.find(w => w.id === activeWeek)) {
+        setActiveWeek(visibleWeeks[0].id); // Reset si le cycle change
+    }
+  }, [visibleWeeks, activeWeek]);
+
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
   
   // MODAL STATES
@@ -44,17 +63,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       setNamingForm({ name: agency.name || "", tagline: agency.tagline || "" });
   }, [agency]);
 
-  const CYCLE_MAPPING: Record<CycleType, string[]> = {
-      [CycleType.MARQUE_BRIEF]: ['1', '2', '3'],
-      [CycleType.NARRATION_IA]: ['4', '5', '6'],
-      [CycleType.LOOKDEV]: ['7', '8', '9'],
-      [CycleType.PACKAGING]: ['10', '11', '12']
-  };
-  const visibleWeeks = Object.values(agency.progress).filter((w: WeekModule) => (CYCLE_MAPPING[agency.currentCycle] || []).includes(w.id));
-  const currentWeekData = agency.progress[activeWeek] || visibleWeeks[0];
+  const currentWeekData = agency.progress[activeWeek];
 
   const handleFileClick = (deliverableId: string) => {
-    const deliverable = currentWeekData.deliverables.find(d => d.id === deliverableId);
+    const deliverable = currentWeekData?.deliverables.find(d => d.id === deliverableId);
     if (!deliverable) return;
     const type = deliverable.type || 'FILE';
     if (type === 'FORM_CHARTER') { setIsCharterModalOpen(true); return; }
@@ -84,68 +96,37 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     }
 
     await handleFileUpload(file, targetDeliverableId, activeWeek, selfAssessment, nominatedMvp);
-    
-    // Reset state
     setTargetDeliverableId(null);
     if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
 
   const handleSubmitCharter = () => {
-      const updatedAgency = {
-          ...agency,
-          projectDef: { ...agency.projectDef, ...charterForm, isLocked: false }
-      };
+      const updatedAgency = { ...agency, projectDef: { ...agency.projectDef, ...charterForm, isLocked: false } };
       onUpdateAgency(updatedAgency);
       setIsCharterModalOpen(false);
       toast('success', "Charte projet mise à jour.");
   };
 
   const handleSubmitNaming = () => {
-      const namingDeliverable = currentWeekData.deliverables.find(d => d.type === 'FORM_NAMING');
+      const namingDeliverable = currentWeekData?.deliverables.find(d => d.type === 'FORM_NAMING');
       if (!namingDeliverable) { setIsNamingModalOpen(false); return; }
 
-      const autoGrade: 'A' | 'B' | 'C' | 'REJECTED' = 'B';
       const autoBonusVE = 4;
-
       const updatedDeliverable: Deliverable = {
           ...namingDeliverable,
           status: 'validated',
           feedback: "Validation Automatique : Nom d'agence enregistré (Standard B).",
           submissionDate: new Date().toISOString(),
-          grading: {
-              quality: autoGrade,
-              daysLate: 0,
-              constraintBroken: false,
-              finalDelta: autoBonusVE
-          }
+          grading: { quality: 'B', daysLate: 0, constraintBroken: false, finalDelta: autoBonusVE }
       };
 
-      const updatedWeek = {
-          ...currentWeekData,
-          deliverables: currentWeekData.deliverables.map(d => d.id === namingDeliverable.id ? updatedDeliverable : d)
-      };
+      const updatedWeek = { ...currentWeekData, deliverables: currentWeekData.deliverables.map(d => d.id === namingDeliverable.id ? updatedDeliverable : d) };
+      const newEvent: GameEvent = { id: `evt-naming-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'VE_DELTA', label: 'Baptême Studio', deltaVE: autoBonusVE, description: `Changement de nom officiel : ${namingForm.name}. (+${autoBonusVE} VE Auto)` };
 
-      const newEvent: GameEvent = {
-          id: `evt-naming-${Date.now()}`,
-          date: new Date().toISOString().split('T')[0],
-          type: 'VE_DELTA',
-          label: 'Baptême Studio',
-          deltaVE: autoBonusVE,
-          description: `Changement de nom officiel : ${namingForm.name}. (+${autoBonusVE} VE Auto)`
-      };
-
-      const updatedAgency = {
-          ...agency,
-          name: namingForm.name,
-          tagline: namingForm.tagline,
-          ve_current: agency.ve_current + autoBonusVE,
-          eventLog: [...agency.eventLog, newEvent],
-          progress: { ...agency.progress, [activeWeek]: updatedWeek }
-      };
-
+      const updatedAgency = { ...agency, name: namingForm.name, tagline: namingForm.tagline, ve_current: agency.ve_current + autoBonusVE, eventLog: [...agency.eventLog, newEvent], progress: { ...agency.progress, [activeWeek]: updatedWeek } };
       onUpdateAgency(updatedAgency);
       setIsNamingModalOpen(false);
-      toast('success', `Agence renommée : ${namingForm.name} (+${autoBonusVE} VE)`);
+      toast('success', `Agence renommée : ${namingForm.name}`);
   };
 
   return (
@@ -162,7 +143,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
         {currentWeekData ? (
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm">
-            <h3 className="text-2xl font-display font-bold text-slate-900 mb-6">{currentWeekData.title}</h3>
+            <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{currentWeekData.title}</h3>
+            <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest">Cycle {gameConfig.currentCycle} en cours</p>
             <div className="space-y-6">
                 {currentWeekData.deliverables.map((deliverable) => {
                     const dynDeadline = getDynamicDeadline(currentWeekData, agency.classId as string);
@@ -178,7 +160,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                 })}
             </div>
         </div>
-        ) : ( <div className="p-8 text-center text-slate-400">Sélectionnez une semaine.</div> )}
+        ) : ( <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed">Aucune semaine active pour ce cycle.</div> )}
 
         <CharterModal isOpen={isCharterModalOpen} onClose={() => setIsCharterModalOpen(false)} onSubmit={handleSubmitCharter} form={charterForm} setForm={setCharterForm} />
         <NamingModal isOpen={isNamingModalOpen} onClose={() => setIsNamingModalOpen(false)} onSubmit={handleSubmitNaming} form={namingForm} setForm={setNamingForm} />
