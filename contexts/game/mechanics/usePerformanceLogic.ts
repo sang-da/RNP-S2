@@ -1,18 +1,19 @@
-
 import { writeBatch, doc, db } from '../../../services/firebase';
 import { Agency, GameEvent } from '../../../types';
 import { calculateVECap, GAME_RULES } from '../../../constants';
 
 export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
 
-  const processPerformance = async (targetClass: 'A' | 'B') => {
+  const processPerformance = async (targetClass: 'A' | 'B' | 'ALL') => {
       const today = new Date().toISOString().split('T')[0];
       try {
         const batch = writeBatch(db);
         let processedCount = 0;
 
         agencies.forEach(agency => {
-            if (agency.id === 'unassigned' || agency.classId !== targetClass) return;
+            if (agency.id === 'unassigned') return;
+            if (targetClass !== 'ALL' && agency.classId !== targetClass) return;
+            
             processedCount++;
             
             let logEvents: GameEvent[] = [];
@@ -22,11 +23,7 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
 
-                // ----------------------------------------------------
-                // LOGIQUE SOLOPRENEUR (Survie & Performance Agence)
-                // ----------------------------------------------------
                 if (isSoloMode) {
-                    // A. Performance Agence (VE)
                     if (agency.ve_current >= 60) {
                         scoreDelta += 2; newStreak++;
                     } else if (agency.ve_current >= 40) {
@@ -35,16 +32,10 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                         scoreDelta -= 2; newStreak = 0;
                     }
 
-                    // B. Ratio de Survie (Épargne) - NOUVEAU
-                    // Si le budget permet de tenir 3 semaines de loyer (3 * 500 = 1500)
-                    // ET que l'étudiant a un wallet décent (>500)
                     if (agency.budget_real >= 1500 && (member.wallet || 0) >= 500) {
-                        scoreDelta += 2; // Bonus Gestionnaire
+                        scoreDelta += 2; 
                     }
                 } 
-                // ----------------------------------------------------
-                // LOGIQUE STANDARD (Peer Review)
-                // ----------------------------------------------------
                 else {
                     const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
                     if (reviews.length > 0) {
@@ -56,7 +47,6 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                     }
                 }
 
-                // C. Bonus Streak (Consistance)
                 if (newStreak >= 3) { 
                     scoreDelta += 10; 
                     newStreak = 0; 
@@ -65,7 +55,6 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                 return { ...member, individualScore: Math.max(0, Math.min(100, member.individualScore + scoreDelta)), streak: newStreak };
             });
 
-            // Ajustement VE basé sur le Budget (Dette ou Richesse)
             let veAdjustment = 0;
             const budget = agency.budget_real;
             if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
@@ -90,7 +79,7 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
 
         if (processedCount > 0) {
             await batch.commit();
-            toast('success', `Performance Classe ${targetClass}: Terminée.`);
+            toast('success', `Bilan ${targetClass}: ${processedCount} agences mises à jour.`);
         }
       } catch(e) { console.error(e); toast('error', "Erreur Performance"); }
   };

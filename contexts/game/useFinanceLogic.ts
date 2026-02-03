@@ -1,23 +1,24 @@
-
 import { writeBatch, doc, updateDoc, db } from '../../services/firebase';
 import { Agency, GameEvent, TransactionRequest } from '../../types';
 import { GAME_RULES } from '../../constants';
 
 export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
 
-  const processFinance = async (targetClass: 'A' | 'B') => {
+  const processFinance = async (targetClass: 'A' | 'B' | 'ALL') => {
       const today = new Date().toISOString().split('T')[0];
       try {
         const batch = writeBatch(db);
         let processedCount = 0;
 
         agencies.forEach(agency => {
-            if (agency.id === 'unassigned' || agency.classId !== targetClass) return;
+            if (agency.id === 'unassigned') return;
+            // Support pour 'ALL' ou match de classe spécifique
+            if (targetClass !== 'ALL' && agency.classId !== targetClass) return;
+            
             processedCount++;
 
             let currentBudget = agency.budget_real;
             let logEvents: GameEvent[] = [];
-            // SAFETY: Ensure members array exists
             let agencyMembers = [...(agency.members || [])];
 
             // 1. REVENUES
@@ -99,9 +100,11 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
 
         if (processedCount > 0) {
             await batch.commit();
-            toast('success', `Finance Classe ${targetClass}: Traitement Terminé.`);
+            toast('success', `Finance ${targetClass}: Traitement de ${processedCount} agences terminé.`);
+        } else {
+            toast('info', "Aucune agence à traiter pour ce filtre.");
         }
-      } catch(e) { console.error(e); toast('error', "Erreur Finance"); }
+      } catch(e) { console.error(e); toast('error', "Erreur technique Finance"); }
   };
 
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => { 
@@ -119,7 +122,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
 
       const batch = writeBatch(db);
 
-      // Debit source (PAS DE BONUS KARMA)
       const updatedSourceMembers = sourceAgency.members.map(m => 
           m.id === sourceId 
           ? { ...m, wallet: (m.wallet || 0) - amount } 
@@ -127,7 +129,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       );
       batch.update(doc(db, "agencies", sourceAgency.id), { members: updatedSourceMembers });
 
-      // Credit target
       const updatedTargetMembers = targetAgency.members.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
       batch.update(doc(db, "agencies", targetAgency.id), { members: updatedTargetMembers });
 
@@ -148,7 +149,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       const netInjection = amount - tax;
 
       const batch = writeBatch(db);
-      // PAS DE BONUS KARMA
       const updatedMembers = agency.members.map(m => 
           m.id === studentId 
           ? { ...m, wallet: (m.wallet || 0) - amount } 

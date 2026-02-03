@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable, GameConfig } from '../types';
 import { useUI } from './UIContext';
@@ -85,16 +84,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const mechanics = useGameMechanics(agencies, toast, getCurrentGameWeek);
 
-  // 0. SYNC CONFIG (AVEC INITIALISATION ROBUSTE)
+  // 0. SYNC CONFIG (Correction : .exists est une propriété en compat v8)
   useEffect(() => {
     const configRef = doc(db, "config", "game_state");
     const unsub = onSnapshot(configRef, (snap) => {
-        if (snap.exists()) {
+        // En mode compat/v8, snap.exists est une propriété booléenne
+        const exists = (typeof snap.exists === 'function') ? snap.exists() : snap.exists;
+        
+        if (exists) {
             setGameConfig(snap.data() as GameConfig);
         } else {
             // Création initiale si le doc n'existe pas du tout
             setDoc(configRef, DEFAULT_CONFIG).catch(e => console.error("Init config failed", e));
         }
+    }, (err) => {
+        console.warn("Config sync error (check rules):", err);
     });
     return unsub;
   }, []);
@@ -138,7 +142,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const ref = doc(db, "config", "game_state");
           // FIX: Utiliser setDoc avec merge: true au lieu de updateDoc pour éviter "Erreur config globale" si le doc est manquant
           await setDoc(ref, newConfig, { merge: true });
+          toast('success', "Configuration mise à jour");
       } catch (e) {
+          console.error("Update config failed:", e);
           toast('error', "Échec de la mise à jour de la config globale");
       }
   };
@@ -198,26 +204,4 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <GameContext.Provider value={{
       agencies, weeks, resources, gameConfig, role, selectedAgencyId,
-      setRole, selectAgency, updateAgency: mechanics.updateAgency, updateAgenciesList, deleteAgency, updateWeek, updateGameConfig,
-      addResource, deleteResource, shuffleConstraints: mechanics.shuffleConstraints, 
-      processFinance: finance.processFinance, 
-      processPerformance: mechanics.processPerformance, 
-      resetGame,
-      transferFunds: finance.transferFunds, 
-      tradeScoreForCash: async () => {}, 
-      injectCapital: finance.injectCapital, 
-      requestScorePurchase: finance.requestScorePurchase, 
-      handleTransactionRequest: finance.handleTransactionRequest,
-      submitMercatoVote: mechanics.submitMercatoVote, 
-      triggerBlackOp: mechanics.triggerBlackOp,
-      performBlackOp: mechanics.performBlackOp, 
-      proposeMerger: mechanics.proposeMerger, 
-      finalizeMerger: mechanics.finalizeMerger, 
-      getCurrentGameWeek,
-      sendChallenge: mechanics.sendChallenge, 
-      submitChallengeVote: mechanics.submitChallengeVote
-    }}>
-      {children}
-    </GameContext.Provider>
-  );
-};
+      setRole, selectAgency, updateAgency: mechanics.updateAgency,
