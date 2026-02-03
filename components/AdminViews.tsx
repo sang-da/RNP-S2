@@ -1,15 +1,16 @@
 
 import React from 'react';
 import { Agency } from '../types';
-import { Eye, Users, MonitorPlay, ArrowRight } from 'lucide-react';
+import { Eye, Users, MonitorPlay, ArrowRight, Terminal } from 'lucide-react';
 
 interface AdminViewsProps {
   agencies: Agency[];
   onSimulateAgency: (agencyId: string) => void;
   onSimulateWaitingRoom: () => void;
+  onSimulateBackdoor: () => void;
 }
 
-export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgency, onSimulateWaitingRoom }) => {
+export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgency, onSimulateWaitingRoom, onSimulateBackdoor }) => {
   return (
     <div className="animate-in fade-in duration-500 pb-20">
         <div className="mb-8">
@@ -21,6 +22,29 @@ export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgen
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* BACKDOOR CARD (NEW) */}
+            <div 
+                onClick={onSimulateBackdoor}
+                className="bg-slate-900 p-6 rounded-2xl border border-emerald-500/30 hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)] transition-all cursor-pointer group flex flex-col relative overflow-hidden"
+            >
+                <div className="absolute top-0 right-0 p-4 opacity-5 text-emerald-500">
+                    <Terminal size={100} />
+                </div>
+                <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                        <Terminal size={24} className="text-emerald-500 group-hover:scale-110 transition-transform"/>
+                    </div>
+                    <span className="bg-emerald-500 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest animate-pulse">22-04</span>
+                </div>
+                <div>
+                    <h3 className="font-bold text-lg text-white">The Backdoor</h3>
+                    <p className="text-sm text-slate-400 mb-4">Accès isolé au marché noir (Audit, Leaks, Doxxing).</p>
+                </div>
+                <div className="mt-auto flex items-center gap-2 text-emerald-500 font-bold text-sm group-hover:translate-x-1 transition-transform">
+                    Ouvrir la faille <ArrowRight size={16}/>
+                </div>
+            </div>
+
             {/* WAITING ROOM CARD */}
             <div 
                 onClick={onSimulateWaitingRoom}
@@ -43,7 +67,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgen
                 <div 
                     key={agency.id}
                     onClick={() => onSimulateAgency(agency.id)}
-                    className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-emerald-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col relative overflow-hidden"
+                    className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col relative overflow-hidden"
                 >
                     <div className={`absolute top-0 left-0 h-full w-1 ${agency.classId === 'A' ? 'bg-blue-400' : 'bg-purple-400'}`}></div>
                     
@@ -60,8 +84,8 @@ export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgen
                         <h3 className="font-bold text-lg text-slate-900 truncate">{agency.name}</h3>
                         <p className="text-sm text-slate-500 mb-4">{agency.members.length} membres</p>
                         
-                        <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm group-hover:underline decoration-emerald-600 underline-offset-4">
-                            <Eye size={16}/> Voir en tant qu'étudiant
+                        <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm group-hover:translate-x-1 transition-transform">
+                            <Eye size={16}/> Simuler le Studio <ArrowRight size={16}/>
                         </div>
                     </div>
                 </div>

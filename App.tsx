@@ -18,10 +18,11 @@ import { AdminAnalytics } from './components/AdminAnalytics';
 import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
+import { TheBackdoor } from './components/student/TheBackdoor'; // IMPORT
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Terminal } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
@@ -42,7 +43,7 @@ const GameContainer: React.FC = () => {
 
   const [adminView, setAdminView] = useState<AdminViewType>('OVERVIEW');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY'>('NONE');
+  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR'>('NONE');
   const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
 
   // Redirection initiale pour les superviseurs
@@ -85,17 +86,37 @@ const GameContainer: React.FC = () => {
       const isReadOnly = userData.role === 'supervisor';
 
       if (simulationMode !== 'NONE') {
+          const exitSimulation = () => { setSimulationMode('NONE'); setSimulatedAgencyId(null); };
+
           return (
               <div className="flex flex-col min-h-screen bg-slate-50">
                   <div className="bg-red-600 text-white px-4 py-3 shadow-md z-[100] flex justify-between items-center sticky top-0">
-                      <div className="flex items-center gap-2"><EyeOff size={20}/><span className="font-bold text-sm uppercase tracking-wide">Mode Simulation Étudiant</span></div>
-                      <button onClick={() => { setSimulationMode('NONE'); setSimulatedAgencyId(null); }} className="bg-white text-red-600 hover:bg-red-50 px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm">Quitter</button>
+                      <div className="flex items-center gap-2">
+                        <EyeOff size={20}/>
+                        <span className="font-bold text-sm uppercase tracking-wide">
+                            {simulationMode === 'BACKDOOR' ? 'Aperçu Isolé : The Backdoor (22-04)' : 'Mode Simulation Étudiant'}
+                        </span>
+                      </div>
+                      <button onClick={exitSimulation} className="bg-white text-red-600 hover:bg-red-50 px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm">Quitter</button>
                   </div>
                   <div className="flex-1 relative">
-                    {simulationMode === 'WAITING' ? <WaitingScreen /> : simulatedAgencyId && (
+                    {simulationMode === 'WAITING' && <WaitingScreen />}
+                    
+                    {simulationMode === 'AGENCY' && simulatedAgencyId && (
                         <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
                             <StudentAgencyView agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} allAgencies={agencies} onUpdateAgency={updateAgency} />
                         </Layout>
+                    )}
+
+                    {simulationMode === 'BACKDOOR' && (
+                        <div className="bg-black min-h-screen">
+                             <TheBackdoor 
+                                agency={agencies.find(a => a.id !== 'unassigned') || agencies[0]} 
+                                allAgencies={agencies} 
+                                currentUser={agencies.find(a => a.id !== 'unassigned')?.members[0] || agencies[0].members[0]} 
+                                onClose={exitSimulation} 
+                             />
+                        </div>
                     )}
                   </div>
               </div>
@@ -138,7 +159,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
-                    {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} />}
+                    {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} />}
                     {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
 
                     {/* Vues réservées Admin Principal */}
