@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Flame, Activity, Layers, CalendarDays, Zap } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
@@ -39,21 +38,21 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({ selectedClass, set
                         {/* Status Card (Visual Feedback) */}
                         <div className="hidden lg:flex items-center gap-2 bg-indigo-900 text-white px-4 py-1.5 rounded-xl border border-indigo-700 shadow-sm animate-in fade-in slide-in-from-left-2">
                             <Zap size={14} className="text-yellow-400 animate-pulse"/>
-                            <span className="text-[11px] font-black uppercase tracking-tight">S{gameConfig.currentWeek} - Cycle {gameConfig.currentCycle}</span>
+                            <span className="text-[11px] font-black uppercase tracking-tight">S{gameConfig.currentWeek || 1} - Cycle {gameConfig.currentCycle || 1}</span>
                         </div>
 
                         {/* Cycle Switcher */}
                         <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner">
                             <Layers size={16} className="text-slate-400 ml-2"/>
                             <select 
-                                value={gameConfig.currentCycle}
+                                value={String(gameConfig.currentCycle || 1)}
                                 onChange={handleCycleChange}
-                                className="bg-white border-none rounded-lg text-xs font-black text-indigo-600 px-3 py-1 outline-none focus:ring-0 shadow-sm"
+                                className="bg-white border-none rounded-lg text-xs font-black text-indigo-600 px-3 py-1 outline-none focus:ring-0 shadow-sm cursor-pointer hover:bg-slate-50"
                             >
-                                <option value={1}>Cycle 1</option>
-                                <option value={2}>Cycle 2</option>
-                                <option value={3}>Cycle 3</option>
-                                <option value={4}>Cycle 4</option>
+                                <option value="1">Cycle 1</option>
+                                <option value="2">Cycle 2</option>
+                                <option value="3">Cycle 3</option>
+                                <option value="4">Cycle 4</option>
                             </select>
                         </div>
 
@@ -61,12 +60,12 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({ selectedClass, set
                         <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner">
                             <CalendarDays size={16} className="text-slate-400 ml-2"/>
                             <select 
-                                value={gameConfig.currentWeek}
+                                value={String(gameConfig.currentWeek || 1)}
                                 onChange={handleWeekChange}
-                                className="bg-white border-none rounded-lg text-xs font-black text-emerald-600 px-3 py-1 outline-none focus:ring-0 shadow-sm"
+                                className="bg-white border-none rounded-lg text-xs font-black text-emerald-600 px-3 py-1 outline-none focus:ring-0 shadow-sm cursor-pointer hover:bg-slate-50"
                             >
                                 {[...Array(12)].map((_, i) => (
-                                    <option key={i+1} value={i+1}>Semaine {i+1}</option>
+                                    <option key={i+1} value={String(i+1)}>Semaine {i+1}</option>
                                 ))}
                             </select>
                         </div>

@@ -35,13 +35,13 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
 
     // Récupérer la configuration de scoring de la semaine (ou défaut)
     const scoringConfig: WeekScoringConfig = useMemo(() => {
-        if (!agency) return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10 };
+        if (!agency) return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
         const weekData = agency.progress[item.weekId];
         if (weekData && weekData.scoring) {
             return weekData.scoring;
         }
         // Fallback default
-        return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10 };
+        return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
     }, [agency, item.weekId]);
 
     // --- AUTO-FILL LOGIC ---

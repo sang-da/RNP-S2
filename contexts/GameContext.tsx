@@ -88,17 +88,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const configRef = doc(db, "config", "game_state");
     const unsub = onSnapshot(configRef, (snap) => {
-        // En mode compat/v8, snap.exists est une propriété booléenne
         const exists = (typeof snap.exists === 'function') ? snap.exists() : snap.exists;
         
         if (exists) {
-            setGameConfig(snap.data() as GameConfig);
+            // MERGE avec DEFAULT_CONFIG pour éviter les valeurs undefined si le doc est partiel
+            setGameConfig({ ...DEFAULT_CONFIG, ...snap.data() });
         } else {
             // Création initiale si le doc n'existe pas du tout
-            setDoc(configRef, DEFAULT_CONFIG).catch(e => console.error("Init config failed", e));
+            setDoc(configRef, DEFAULT_CONFIG, { merge: true })
+                .then(() => console.log("Config initiale créée"))
+                .catch(e => console.error("Init config failed - check permissions", e));
         }
     }, (err) => {
         console.warn("Config sync error (check rules):", err);
+        // Fallback local en cas d'erreur de droits/réseau pour ne pas bloquer l'UI
+        setGameConfig(DEFAULT_CONFIG);
     });
     return unsub;
   }, []);
@@ -140,12 +144,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateGameConfig = async (newConfig: Partial<GameConfig>) => {
       try {
           const ref = doc(db, "config", "game_state");
-          // FIX: Utiliser setDoc avec merge: true au lieu de updateDoc pour éviter "Erreur config globale" si le doc est manquant
+          // Utiliser setDoc avec merge: true pour robustesse
           await setDoc(ref, newConfig, { merge: true });
           toast('success', "Configuration mise à jour");
-      } catch (e) {
+      } catch (e: any) {
           console.error("Update config failed:", e);
-          toast('error', "Échec de la mise à jour de la config globale");
+          toast('error', `Échec config: ${e.message || 'Erreur inconnue'}`);
       }
   };
 
@@ -205,3 +209,26 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <GameContext.Provider value={{
       agencies, weeks, resources, gameConfig, role, selectedAgencyId,
       setRole, selectAgency, updateAgency: mechanics.updateAgency,
+      updateAgenciesList, deleteAgency, updateWeek, updateGameConfig,
+      addResource, deleteResource, resetGame,
+      shuffleConstraints: mechanics.shuffleConstraints,
+      processFinance: finance.processFinance,
+      processPerformance: mechanics.processPerformance,
+      transferFunds: finance.transferFunds,
+      injectCapital: finance.injectCapital,
+      requestScorePurchase: finance.requestScorePurchase,
+      handleTransactionRequest: finance.handleTransactionRequest,
+      tradeScoreForCash: async () => {}, // Placeholder not used
+      submitMercatoVote: mechanics.submitMercatoVote,
+      performBlackOp: mechanics.performBlackOp,
+      triggerBlackOp: mechanics.triggerBlackOp,
+      proposeMerger: mechanics.proposeMerger,
+      finalizeMerger: mechanics.finalizeMerger,
+      sendChallenge: mechanics.sendChallenge,
+      submitChallengeVote: mechanics.submitChallengeVote,
+      getCurrentGameWeek
+    }}>
+      {children}
+    </GameContext.Provider>
+  );
+};
