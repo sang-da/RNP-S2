@@ -1,13 +1,10 @@
-import React, { useMemo, useState } from 'react';
+
+import React, { useState } from 'react';
 import { Agency, Student } from '../../types';
-import { TrendingUp, Skull, Zap, Eye, Landmark, Wallet, History, BarChart2, AlertCircle } from 'lucide-react';
-import { MASCOTS, GAME_RULES } from '../../constants';
-import { useGame } from '../../contexts/GameContext';
-import { useUI } from '../../contexts/UIContext';
-import { Modal } from '../Modal';
+import { History, BarChart2, Wallet, Lock } from 'lucide-react';
+import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
-import { MarketGraph } from '../MarketGraph';
 
 interface MarketOverviewProps {
   agency: Agency;
@@ -16,10 +13,9 @@ interface MarketOverviewProps {
 }
 
 export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies, currentUser }) => {
-  const { transferFunds, injectCapital, requestScorePurchase } = useGame();
-  
   // MOBILE TABS
   const [activeTab, setActiveTab] = useState<'GRAPH' | 'WALLET' | 'HISTORY'>('GRAPH');
+  const isUnassigned = agency.id === 'unassigned';
 
   return (
     <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
@@ -44,7 +40,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                 <div className={`${activeTab !== 'GRAPH' && 'hidden lg:block'}`}>
                     <MarketGraph 
                         agencies={allAgencies}
-                        highlightAgencyId={agency.id}
+                        highlightAgencyId={isUnassigned ? undefined : agency.id}
                         showBlackOpsButton={false} 
                     />
                 </div>
@@ -55,9 +51,10 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                             student={currentUser} 
                             agency={agency} 
                             allStudents={allAgencies.flatMap(a => a.members)}
-                            onTransfer={transferFunds}
-                            onInjectCapital={injectCapital}
-                            onRequestScore={requestScorePurchase}
+                            onTransfer={() => {}} // Read-only props handled inside if needed, or pass dummy
+                            onInjectCapital={() => {}}
+                            onRequestScore={() => {}}
+                            // Dans WalletView, on gère l'affichage réduit si unassigned
                         />
                     ) : (
                         <div className="p-8 text-center text-slate-400 bg-white rounded-3xl border border-slate-200">
@@ -73,7 +70,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                     <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4 text-sm uppercase tracking-wide sticky top-0 bg-white z-10 py-2 border-b border-slate-50">
                         <History size={18} className="text-slate-400"/> Journal des Opérations
                     </h3>
-                    <HistoryView agency={agency} />
+                    {isUnassigned ? (
+                        <div className="text-center py-8 text-slate-400 text-xs italic">
+                            <Lock size={32} className="mx-auto mb-2 opacity-20"/>
+                            Rejoignez une agence pour accéder à son journal financier.
+                        </div>
+                    ) : (
+                        <HistoryView agency={agency} />
+                    )}
                 </div>
             </div>
 

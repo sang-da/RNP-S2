@@ -42,7 +42,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const { currentUser } = useAuth();
   const { getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote } = useGame();
   
-  const [activeTab, setActiveTab] = useState<TabType>('MARKET');
+  // Si l'étudiant est "unassigned", on démarre sur RECRUITMENT, sinon MARKET
+  const [activeTab, setActiveTab] = useState<TabType>(agency.id === 'unassigned' ? 'RECRUITMENT' : 'MARKET');
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showBackdoor, setShowBackdoor] = useState(false);
@@ -124,10 +125,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
         {/* MAIN CONTENT AREA */}
         <div className="flex-1 mb-24 md:mb-8">
-            {activeTab === 'MARKET' && agency.id !== 'unassigned' && <MarketOverview agency={agency} allAgencies={allAgencies} currentUser={myMemberProfile} />}
+            {/* Market désormais accessible à tous (pour voir le graphe) */}
+            {activeTab === 'MARKET' && <MarketOverview agency={agency} allAgencies={allAgencies} currentUser={myMemberProfile} />}
+            
             {activeTab === 'MISSIONS' && agency.id !== 'unassigned' && <MissionsView agency={agency} onUpdateAgency={onUpdateAgency} />}
             {activeTab === 'TEAM' && agency.id !== 'unassigned' && <TeamView agency={agency} onUpdateAgency={onUpdateAgency} />}
-            {(activeTab === 'RECRUITMENT' || agency.id === 'unassigned') && (
+            
+            {/* Mercato accessible à tous (pour recruter ou postuler) */}
+            {activeTab === 'RECRUITMENT' && (
               <MercatoView 
                 agency={agency} 
                 allAgencies={allAgencies} 
@@ -135,6 +140,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                 onUpdateAgencies={updateAgenciesList} 
               />
             )}
+            
             {activeTab === 'RESOURCES' && <WikiView agency={agency} />}
             {activeTab === 'HELP' && <FAQView />}
         </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { WeekModule, Deliverable } from '../types';
-import { Calendar, Layers, TrendingUp, Save, X } from 'lucide-react';
+import { Calendar, Layers, TrendingUp, Save, X, Eye, EyeOff, CheckSquare } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
 import { doc, writeBatch, db } from '../services/firebase';
@@ -37,6 +37,8 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
       return grouped;
   }, [weeksData]);
 
+  const allWeeksList = useMemo(() => (Object.values(weeksData) as WeekModule[]).sort((a, b) => parseInt(a.id) - parseInt(b.id)), [weeksData]);
+
   // Forms State
   const [scheduleForm, setScheduleForm] = useState<{
       classA: { date: string, slot: string },
@@ -62,17 +64,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
       if (readOnly) return;
       const newStatus = !week.isVisible;
       const updatedWeek = { ...week, isVisible: newStatus };
-      
-      // Update global definition
       onUpdateWeek(week.id, updatedWeek);
-      
-      // Optional: Sync visibility to all agencies? 
-      // Actually, agencies copy the week structure, but usually UI reads from the global definition for visibility/locks.
-      // However, to be safe and clean, we might want to update agencies too if they have a local copy.
-      // For now, let's assume UI checks global `weeks` context for visibility or `agency.progress` has it.
-      // In `useGameSync`, weeks are synced globally. `StudentAgencyView` should check `weeks` from context or `agency.progress` if synced.
-      // Let's rely on `onUpdateWeek` which updates the `weeks` collection.
-      
       toast('info', `Semaine ${week.id} ${newStatus ? 'Visible' : 'Cachée'}`);
   };
 
@@ -137,7 +129,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                   type: contentForm.type,
                   deliverables: mergedDeliverables,
                   scoring: contentForm.scoring,
-                  isVisible: contentForm.isVisible // Sync visibility too
+                  isVisible: contentForm.isVisible 
               };
 
               const ref = doc(db, "agencies", agency.id);
@@ -170,6 +162,30 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                      <p className="text-[10px] font-bold text-amber-800 uppercase">Astuce Économique</p>
                      <p className="text-xs text-amber-700">Baissez les points des cycles 2 et 3 si la classe est trop riche.</p>
                  </div>
+            </div>
+        </div>
+
+        {/* --- CHECKLIST VISIBILITÉ RAPIDE --- */}
+        <div className="mb-10 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <CheckSquare size={16}/> Contrôle Rapide de Visibilité
+            </h3>
+            <div className="flex gap-2">
+                {allWeeksList.map(week => (
+                    <button 
+                        key={week.id} 
+                        onClick={() => handleToggleVisibility(week)}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all min-w-[70px] ${
+                            week.isVisible 
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                            : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-slate-300'
+                        }`}
+                    >
+                        <span className="text-[10px] font-black uppercase">SEM {week.id}</span>
+                        {week.isVisible ? <Eye size={16}/> : <EyeOff size={16}/>}
+                        <span className="text-[9px] font-bold">{week.isVisible ? 'VISIBLE' : 'CACHÉE'}</span>
+                    </button>
+                ))}
             </div>
         </div>
 
