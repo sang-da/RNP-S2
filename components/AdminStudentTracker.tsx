@@ -1,28 +1,52 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, Student, GameEvent, Deliverable, PeerReview } from '../types';
-import { User, Wallet, History, FileText, AlertTriangle, MessageCircle, Building2, TrendingUp, Trophy, ArrowRight, ArrowLeft, Star, Gavel, Crown, BarChart2, PieChart, Activity } from 'lucide-react';
+import { User, Wallet, History, FileText, AlertTriangle, MessageCircle, Building2, TrendingUp, Trophy, ArrowRight, ArrowLeft, Star, Gavel, Crown, BarChart2, PieChart, Activity, Users, Settings, Save } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
+import { doc, updateDoc, db } from '../services/firebase';
+import { useUI } from '../contexts/UIContext';
 
 interface AdminStudentTrackerProps {
     agencies: Agency[];
 }
 
 export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agencies }) => {
+    const { toast } = useUI();
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+    const [isEditing, setIsEditing] = useState(false);
 
     // --- 1. LISTE GLOBALE DES ÉTUDIANTS ---
     const allStudents = useMemo(() => {
-        const list: (Student & { currentAgencyName: string })[] = [];
+        const list: (Student & { currentAgencyName: string, currentAgencyId: string })[] = [];
         agencies.forEach(a => {
-            a.members.forEach(m => list.push({ ...m, currentAgencyName: a.name }));
+            a.members.forEach(m => list.push({ ...m, currentAgencyName: a.name, currentAgencyId: a.id }));
         });
         return list.sort((a,b) => a.name.localeCompare(b.name));
     }, [agencies]);
 
+    // --- 2. ANALYTICS MACRO (MATRICE PROMO) ---
+    const globalStats = useMemo(() => {
+        if (allStudents.length === 0) return null;
+        
+        const totalStudents = allStudents.length;
+        const totalScore = allStudents.reduce((acc, s) => acc + s.individualScore, 0);
+        const avgScore = (totalScore / totalStudents).toFixed(1);
+        
+        const totalWealth = allStudents.reduce((acc, s) => acc + (s.wallet || 0), 0);
+        const avgWealth = Math.round(totalWealth / totalStudents);
+
+        const countA = allStudents.filter(s => s.classId === 'A').length;
+        const countB = allStudents.filter(s => s.classId === 'B').length;
+
+        // Top Performers
+        const top3 = [...allStudents].sort((a,b) => b.individualScore - a.individualScore).slice(0, 3);
+
+        return { totalStudents, avgScore, avgWealth, countA, countB, top3 };
+    }, [allStudents]);
+
     const targetStudent = allStudents.find(s => s.id === selectedStudentId);
 
-    // --- 2. RECONSTRUCTION DE L'HISTORIQUE (TIMELINE) ---
+    // --- 3. RECONSTRUCTION DE L'HISTORIQUE (TIMELINE) ---
     const studentTimeline = useMemo(() => {
         if (!targetStudent) return [];
 
@@ -34,38 +58,29 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
             deliverables: Deliverable[];
         }> = {};
 
-        // On scanne TOUTES les agences pour retrouver des traces de l'étudiant
         agencies.forEach(agency => {
-            // A. Récupérer les Reviews (Actives + Archivées)
             const allReviews = [...(agency.peerReviews || []), ...(agency.reviewHistory || [])];
-
             allReviews.forEach(r => {
-                // Si l'étudiant est concerné (Cible ou Reviewer)
                 if (r.targetId === targetStudent.id || r.reviewerId === targetStudent.id) {
                     if (!timelineMap[r.weekId]) {
                         timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agency.name, reviewsReceived: [], reviewsGiven: [], deliverables: [] };
                     }
-                    // Important : Si on trouve une review dans cette agence, c'est qu'il y était cette semaine-là
                     timelineMap[r.weekId].agencyName = agency.name;
-
                     if (r.targetId === targetStudent.id) timelineMap[r.weekId].reviewsReceived.push(r);
                     if (r.reviewerId === targetStudent.id) timelineMap[r.weekId].reviewsGiven.push(r);
                 }
             });
         });
 
-        // Convertir en tableau trié
         return Object.values(timelineMap).sort((a, b) => parseInt(b.weekId) - parseInt(a.weekId));
     }, [targetStudent, agencies]);
 
-    // --- 3. ANALYSE COMPORTEMENTALE (SOFT SKILLS) ---
+    // --- 4. ANALYSE COMPORTEMENTALE (SOFT SKILLS) ---
     const behaviorStats = useMemo(() => {
         if (!studentTimeline.length) return { avgGiven: 0, avgReceived: 0, severity: 'Neutre', radarData: [] };
 
         let totalGiven = 0, countGiven = 0;
         let totalReceived = 0, countReceived = 0;
-        
-        // Radar Data Accumulators
         let sumAtt = 0, sumQual = 0, sumInv = 0;
 
         studentTimeline.forEach(week => {
@@ -99,27 +114,21 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         return { avgGiven, avgReceived, severity, countGiven, countReceived, radarData };
     }, [studentTimeline]);
 
-    // --- 4. PORTFOLIO & ANALYTICS PRODUCTION ---
+    // --- 5. PORTFOLIO & ANALYTICS PRODUCTION ---
     const { portfolio, chartData, gradeDistribution } = useMemo(() => {
         if (!targetStudent) return { portfolio: [], chartData: [], gradeDistribution: [] };
         const works: any[] = [];
-        const performanceByWeek: Record<string, number> = {}; // weekId -> score VE total
+        const performanceByWeek: Record<string, number> = {}; 
         const gradesCount = { A: 0, B: 0, C: 0, REJ: 0 };
 
-        // On parcourt les agences actuelles et passées
         agencies.forEach(a => {
             Object.values(a.progress).forEach(week => {
                 week.deliverables.forEach(d => {
                     const isMvp = d.grading?.mvpId === targetStudent.id;
-                    // Si MVP ou si membre actuel de l'agence (Approximation pour l'historique de prod)
-                    // Pour être précis sur l'historique, on vérifie si l'étudiant était dans cette agence via la timeline
                     const wasInAgencyThisWeek = studentTimeline.find(t => t.weekId === week.id)?.agencyName === a.name;
                     
-                    // On inclut le travail si validé ET (soit MVP, soit faisait partie de l'agence à ce moment)
                     if ((d.status === 'validated' || d.status === 'rejected') && (isMvp || wasInAgencyThisWeek || a.members.some(m => m.id === targetStudent.id))) {
-                        
                         const scoreLabel = d.grading?.quality || (d.status === 'rejected' ? 'REJECTED' : '?');
-                        
                         works.push({
                             week: week.id,
                             name: d.name,
@@ -130,28 +139,23 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                             finalDelta: d.grading?.finalDelta || 0
                         });
 
-                        // Chart Data Accumulation
                         if (!performanceByWeek[week.id]) performanceByWeek[week.id] = 0;
-                        // On attribue une valeur numérique arbitraire pour le graph de qualité
                         let numericScore = 0;
                         if (scoreLabel === 'A') { numericScore = 10; gradesCount.A++; }
                         else if (scoreLabel === 'B') { numericScore = 6; gradesCount.B++; }
                         else if (scoreLabel === 'C') { numericScore = 2; gradesCount.C++; }
                         else { numericScore = 0; gradesCount.REJ++; }
                         
-                        // On prend la moyenne si plusieurs rendus la même semaine, ou le max ? Prenons la somme capée.
                         performanceByWeek[week.id] = Math.max(performanceByWeek[week.id], numericScore);
                     }
                 });
             });
         });
 
-        // Format Chart Data
         const chartData = Object.entries(performanceByWeek)
             .map(([week, score]) => ({ week: `S${week}`, score }))
             .sort((a,b) => parseInt(a.week.slice(1)) - parseInt(b.week.slice(1)));
 
-        // Format Grade Distribution
         const gradeData = [
             { name: 'A', value: gradesCount.A, color: '#10b981' },
             { name: 'B', value: gradesCount.B, color: '#f59e0b' },
@@ -166,6 +170,24 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         };
     }, [targetStudent, agencies, studentTimeline]);
 
+    // --- ACTION : CORRECTION CLASSE ---
+    const handleSwitchClass = async () => {
+        if (!targetStudent) return;
+        const newClass = targetStudent.classId === 'A' ? 'B' : 'A';
+        const agency = agencies.find(a => a.id === targetStudent.currentAgencyId);
+        
+        if (agency) {
+            try {
+                const updatedMembers = agency.members.map(m => m.id === targetStudent.id ? { ...m, classId: newClass } : m);
+                await updateDoc(doc(db, "agencies", agency.id), { members: updatedMembers });
+                toast('success', `Classe corrigée : ${targetStudent.name} est maintenant en Classe ${newClass}.`);
+                setIsEditing(false);
+            } catch (e) {
+                toast('error', "Erreur lors de la mise à jour.");
+            }
+        }
+    };
+
     return (
         <div className="animate-in fade-in pb-20">
             <div className="mb-8">
@@ -176,31 +198,93 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                 <p className="text-slate-500 text-sm mt-1">Analyse 360° : Comportement, Production et Trajectoire.</p>
             </div>
 
+            {/* --- MATRICE GLOBALE (PROMO) --- */}
+            {globalStats && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
+                    <div className="space-y-1 border-r border-slate-700 pr-4">
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Users size={14}/> Effectif Total</div>
+                        <div className="text-3xl font-black">{globalStats.totalStudents} <span className="text-sm font-medium opacity-50">étudiants</span></div>
+                        <div className="text-xs text-slate-400">Classe A: {globalStats.countA} | Classe B: {globalStats.countB}</div>
+                    </div>
+                    <div className="space-y-1 border-r border-slate-700 px-4">
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Activity size={14}/> Niveau Moyen</div>
+                        <div className="text-3xl font-black text-emerald-400">{globalStats.avgScore} <span className="text-sm font-medium opacity-50">/ 100</span></div>
+                        <div className="text-xs text-slate-400">Score de performance global</div>
+                    </div>
+                    <div className="space-y-1 border-r border-slate-700 px-4">
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Wallet size={14}/> Richesse Moy.</div>
+                        <div className="text-3xl font-black text-yellow-400">{globalStats.avgWealth} <span className="text-sm font-medium opacity-50">PiXi</span></div>
+                        <div className="text-xs text-slate-400">Pouvoir d'achat moyen</div>
+                    </div>
+                    <div className="space-y-1 pl-4">
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Trophy size={14}/> Top 3 Actuel</div>
+                        <div className="text-sm font-bold space-y-1 mt-2">
+                            {globalStats.top3.map((s, i) => (
+                                <div key={s.id} className="flex justify-between w-full">
+                                    <span className="truncate max-w-[100px]">{i+1}. {s.name}</span>
+                                    <span className="text-emerald-400">{s.individualScore}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* SELECTOR */}
-            <div className="mb-8 max-w-md">
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Rechercher un étudiant</label>
+            <div className="mb-8 p-1 bg-slate-200 rounded-2xl flex items-center gap-4 max-w-2xl shadow-inner">
+                <div className="px-4 font-bold text-slate-500 uppercase text-xs">Rechercher :</div>
                 <select 
-                    className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                    className="flex-1 p-3 rounded-xl border-none font-bold bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none cursor-pointer hover:bg-slate-50 transition-colors text-slate-900"
                     onChange={(e) => setSelectedStudentId(e.target.value)}
                     value={selectedStudentId}
                 >
-                    <option value="">-- Sélectionner dans la promo --</option>
+                    <option value="">-- Sélectionner un dossier --</option>
                     {allStudents.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} (Actuellement : {s.currentAgencyName})</option>
+                        <option key={s.id} value={s.id}>{s.name} (Classe {s.classId}) - {s.currentAgencyName}</option>
                     ))}
                 </select>
             </div>
 
             {targetStudent ? (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
                     
                     {/* ID CARD */}
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start">
+                    <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
+                        
                         <div className="flex flex-col items-center">
                             <img src={targetStudent.avatarUrl} className="w-24 h-24 rounded-full border-4 border-slate-100 shadow-md bg-slate-50" />
                             <div className="mt-2 text-center">
                                 <h3 className="text-2xl font-bold text-slate-900">{targetStudent.name}</h3>
-                                <span className="inline-block bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-500 mt-1">{targetStudent.role}</span>
+                                <div className="flex items-center justify-center gap-2 mt-1">
+                                    <span className="inline-block bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-500">{targetStudent.role}</span>
+                                    
+                                    {/* CLASSE EDITABLE */}
+                                    <div className="relative group">
+                                        <button 
+                                            onClick={() => setIsEditing(!isEditing)}
+                                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
+                                                targetStudent.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-purple-50 text-purple-600 border-purple-200'
+                                            }`}
+                                        >
+                                            CLASSE {targetStudent.classId}
+                                            <Settings size={10} className="opacity-50 group-hover:opacity-100"/>
+                                        </button>
+                                        
+                                        {isEditing && (
+                                            <div className="absolute top-full left-0 mt-2 bg-white p-2 rounded-xl shadow-xl border border-slate-200 z-10 w-48">
+                                                <p className="text-[10px] text-slate-400 font-bold mb-2 uppercase text-center">Corriger la Classe</p>
+                                                <button 
+                                                    onClick={handleSwitchClass}
+                                                    className="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <Save size={12}/>
+                                                    Passer en Classe {targetStudent.classId === 'A' ? 'B' : 'A'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
