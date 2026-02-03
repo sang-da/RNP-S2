@@ -1,19 +1,16 @@
 
 import React, { useState, useMemo } from 'react';
-import { Agency, Student, GameEvent, Deliverable, PeerReview } from '../types';
-import { User, Wallet, History, FileText, AlertTriangle, MessageCircle, Building2, TrendingUp, Trophy, ArrowRight, ArrowLeft, Star, Gavel, Crown, BarChart2, PieChart, Activity, Users, Settings, Save } from 'lucide-react';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
-import { doc, updateDoc, db } from '../services/firebase';
-import { useUI } from '../contexts/UIContext';
+import { Agency, Student, Deliverable, PeerReview } from '../types';
+import { User } from 'lucide-react';
+import { TrackerStats } from './admin/tracker/TrackerStats';
+import { StudentProfile } from './admin/tracker/StudentProfile';
 
 interface AdminStudentTrackerProps {
     agencies: Agency[];
 }
 
 export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agencies }) => {
-    const { toast } = useUI();
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
-    const [isEditing, setIsEditing] = useState(false);
 
     // --- 1. LISTE GLOBALE DES ÉTUDIANTS ---
     const allStudents = useMemo(() => {
@@ -27,43 +24,31 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
     // --- 2. ANALYTICS MACRO (MATRICE PROMO) ---
     const globalStats = useMemo(() => {
         if (allStudents.length === 0) return null;
-        
         const totalStudents = allStudents.length;
         const totalScore = allStudents.reduce((acc, s) => acc + s.individualScore, 0);
         const avgScore = (totalScore / totalStudents).toFixed(1);
-        
         const totalWealth = allStudents.reduce((acc, s) => acc + (s.wallet || 0), 0);
         const avgWealth = Math.round(totalWealth / totalStudents);
-
         const countA = allStudents.filter(s => s.classId === 'A').length;
         const countB = allStudents.filter(s => s.classId === 'B').length;
-
-        // Top Performers
         const top3 = [...allStudents].sort((a,b) => b.individualScore - a.individualScore).slice(0, 3);
-
         return { totalStudents, avgScore, avgWealth, countA, countB, top3 };
     }, [allStudents]);
 
     const targetStudent = allStudents.find(s => s.id === selectedStudentId);
+    const targetAgency = agencies.find(a => a.id === targetStudent?.currentAgencyId);
 
     // --- 3. RECONSTRUCTION DE L'HISTORIQUE (TIMELINE) ---
     const studentTimeline = useMemo(() => {
         if (!targetStudent) return [];
-
-        const timelineMap: Record<string, {
-            weekId: string;
-            agencyName: string;
-            reviewsReceived: PeerReview[];
-            reviewsGiven: PeerReview[];
-            deliverables: Deliverable[];
-        }> = {};
+        const timelineMap: Record<string, { weekId: string; agencyName: string; reviewsReceived: PeerReview[]; reviewsGiven: PeerReview[]; }> = {};
 
         agencies.forEach(agency => {
             const allReviews = [...(agency.peerReviews || []), ...(agency.reviewHistory || [])];
             allReviews.forEach(r => {
                 if (r.targetId === targetStudent.id || r.reviewerId === targetStudent.id) {
                     if (!timelineMap[r.weekId]) {
-                        timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agency.name, reviewsReceived: [], reviewsGiven: [], deliverables: [] };
+                        timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agency.name, reviewsReceived: [], reviewsGiven: [] };
                     }
                     timelineMap[r.weekId].agencyName = agency.name;
                     if (r.targetId === targetStudent.id) timelineMap[r.weekId].reviewsReceived.push(r);
@@ -71,23 +56,17 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                 }
             });
         });
-
         return Object.values(timelineMap).sort((a, b) => parseInt(b.weekId) - parseInt(a.weekId));
     }, [targetStudent, agencies]);
 
     // --- 4. ANALYSE COMPORTEMENTALE (SOFT SKILLS) ---
     const behaviorStats = useMemo(() => {
-        if (!studentTimeline.length) return { avgGiven: 0, avgReceived: 0, severity: 'Neutre', radarData: [] };
-
-        let totalGiven = 0, countGiven = 0;
-        let totalReceived = 0, countReceived = 0;
+        if (!studentTimeline.length) return { avgGiven: 0, avgReceived: 0, radarData: [] };
+        let countReceived = 0;
         let sumAtt = 0, sumQual = 0, sumInv = 0;
+        let totalReceived = 0;
 
         studentTimeline.forEach(week => {
-            week.reviewsGiven.forEach(r => {
-                totalGiven += (r.ratings.attendance + r.ratings.quality + r.ratings.involvement) / 3;
-                countGiven++;
-            });
             week.reviewsReceived.forEach(r => {
                 const avg = (r.ratings.attendance + r.ratings.quality + r.ratings.involvement) / 3;
                 totalReceived += avg;
@@ -98,20 +77,14 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
             });
         });
 
-        const avgGiven = countGiven ? (totalGiven / countGiven) : 0;
         const avgReceived = countReceived ? (totalReceived / countReceived) : 0;
-
-        let severity = "Juste";
-        if (avgGiven > 4.5) severity = "Bienveillant / Complaisant";
-        if (avgGiven < 2.5) severity = "Sévère / Critique";
-
         const radarData = countReceived > 0 ? [
             { subject: 'Assiduité', A: parseFloat((sumAtt / countReceived).toFixed(2)), fullMark: 5 },
             { subject: 'Qualité', A: parseFloat((sumQual / countReceived).toFixed(2)), fullMark: 5 },
             { subject: 'Implication', A: parseFloat((sumInv / countReceived).toFixed(2)), fullMark: 5 },
         ] : [];
 
-        return { avgGiven, avgReceived, severity, countGiven, countReceived, radarData };
+        return { avgReceived, radarData };
     }, [studentTimeline]);
 
     // --- 5. PORTFOLIO & ANALYTICS PRODUCTION ---
@@ -122,8 +95,8 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         const gradesCount = { A: 0, B: 0, C: 0, REJ: 0 };
 
         agencies.forEach(a => {
-            Object.values(a.progress).forEach(week => {
-                week.deliverables.forEach(d => {
+            Object.values(a.progress).forEach((week: any) => {
+                week.deliverables.forEach((d: Deliverable) => {
                     const isMvp = d.grading?.mvpId === targetStudent.id;
                     const wasInAgencyThisWeek = studentTimeline.find(t => t.weekId === week.id)?.agencyName === a.name;
                     
@@ -170,24 +143,6 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         };
     }, [targetStudent, agencies, studentTimeline]);
 
-    // --- ACTION : CORRECTION CLASSE ---
-    const handleSwitchClass = async () => {
-        if (!targetStudent) return;
-        const newClass = targetStudent.classId === 'A' ? 'B' : 'A';
-        const agency = agencies.find(a => a.id === targetStudent.currentAgencyId);
-        
-        if (agency) {
-            try {
-                const updatedMembers = agency.members.map(m => m.id === targetStudent.id ? { ...m, classId: newClass } : m);
-                await updateDoc(doc(db, "agencies", agency.id), { members: updatedMembers });
-                toast('success', `Classe corrigée : ${targetStudent.name} est maintenant en Classe ${newClass}.`);
-                setIsEditing(false);
-            } catch (e) {
-                toast('error', "Erreur lors de la mise à jour.");
-            }
-        }
-    };
-
     return (
         <div className="animate-in fade-in pb-20">
             <div className="mb-8">
@@ -198,37 +153,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                 <p className="text-slate-500 text-sm mt-1">Analyse 360° : Comportement, Production et Trajectoire.</p>
             </div>
 
-            {/* --- MATRICE GLOBALE (PROMO) --- */}
-            {globalStats && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
-                    <div className="space-y-1 border-r border-slate-700 pr-4">
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Users size={14}/> Effectif Total</div>
-                        <div className="text-3xl font-black">{globalStats.totalStudents} <span className="text-sm font-medium opacity-50">étudiants</span></div>
-                        <div className="text-xs text-slate-400">Classe A: {globalStats.countA} | Classe B: {globalStats.countB}</div>
-                    </div>
-                    <div className="space-y-1 border-r border-slate-700 px-4">
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Activity size={14}/> Niveau Moyen</div>
-                        <div className="text-3xl font-black text-emerald-400">{globalStats.avgScore} <span className="text-sm font-medium opacity-50">/ 100</span></div>
-                        <div className="text-xs text-slate-400">Score de performance global</div>
-                    </div>
-                    <div className="space-y-1 border-r border-slate-700 px-4">
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Wallet size={14}/> Richesse Moy.</div>
-                        <div className="text-3xl font-black text-yellow-400">{globalStats.avgWealth} <span className="text-sm font-medium opacity-50">PiXi</span></div>
-                        <div className="text-xs text-slate-400">Pouvoir d'achat moyen</div>
-                    </div>
-                    <div className="space-y-1 pl-4">
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest"><Trophy size={14}/> Top 3 Actuel</div>
-                        <div className="text-sm font-bold space-y-1 mt-2">
-                            {globalStats.top3.map((s, i) => (
-                                <div key={s.id} className="flex justify-between w-full">
-                                    <span className="truncate max-w-[100px]">{i+1}. {s.name}</span>
-                                    <span className="text-emerald-400">{s.individualScore}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+            <TrackerStats globalStats={globalStats} />
 
             {/* SELECTOR */}
             <div className="mb-8 p-1 bg-slate-200 rounded-2xl flex items-center gap-4 max-w-2xl shadow-inner">
@@ -245,228 +170,16 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                 </select>
             </div>
 
-            {targetStudent ? (
-                <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
-                    
-                    {/* ID CARD */}
-                    <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
-                        
-                        <div className="flex flex-col items-center">
-                            <img src={targetStudent.avatarUrl} className="w-24 h-24 rounded-full border-4 border-slate-100 shadow-md bg-slate-50" />
-                            <div className="mt-2 text-center">
-                                <h3 className="text-2xl font-bold text-slate-900">{targetStudent.name}</h3>
-                                <div className="flex items-center justify-center gap-2 mt-1">
-                                    <span className="inline-block bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-500">{targetStudent.role}</span>
-                                    
-                                    {/* CLASSE EDITABLE */}
-                                    <div className="relative group">
-                                        <button 
-                                            onClick={() => setIsEditing(!isEditing)}
-                                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
-                                                targetStudent.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-purple-50 text-purple-600 border-purple-200'
-                                            }`}
-                                        >
-                                            CLASSE {targetStudent.classId}
-                                            <Settings size={10} className="opacity-50 group-hover:opacity-100"/>
-                                        </button>
-                                        
-                                        {isEditing && (
-                                            <div className="absolute top-full left-0 mt-2 bg-white p-2 rounded-xl shadow-xl border border-slate-200 z-10 w-48">
-                                                <p className="text-[10px] text-slate-400 font-bold mb-2 uppercase text-center">Corriger la Classe</p>
-                                                <button 
-                                                    onClick={handleSwitchClass}
-                                                    className="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <Save size={12}/>
-                                                    Passer en Classe {targetStudent.classId === 'A' ? 'B' : 'A'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                            <StatBox icon={<TrendingUp/>} label="Score Actuel" value={targetStudent.individualScore} sub="/100" color="bg-indigo-50 text-indigo-600"/>
-                            <StatBox icon={<Wallet/>} label="Fortune Perso" value={targetStudent.wallet} sub="PiXi" color="bg-emerald-50 text-emerald-600"/>
-                            <StatBox icon={<Building2/>} label="Agence Actuelle" value={targetStudent.currentAgencyName} sub="" color="bg-blue-50 text-blue-600"/>
-                            <StatBox icon={<Star/>} label="Moy. Reçue" value={behaviorStats.avgReceived.toFixed(1)} sub="/5.0" color="bg-yellow-50 text-yellow-600"/>
-                        </div>
-                    </div>
-
-                    {/* --- SECTION ANALYTIQUE (MATRICES) --- */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        
-                        {/* 1. RADAR CHART (SOFT SKILLS) */}
-                        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-                            <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
-                                <Activity size={18} className="text-emerald-500"/> Matrice RH (Soft Skills)
-                            </h4>
-                            <div className="flex-1 min-h-[250px] relative">
-                                {behaviorStats.radarData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={behaviorStats.radarData}>
-                                            <PolarGrid stroke="#e2e8f0" />
-                                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
-                                            <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} />
-                                            <Radar name="Soft Skills" dataKey="A" stroke="#10b981" fill="#10b981" fillOpacity={0.4} />
-                                            <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} />
-                                        </RadarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">Données insuffisantes</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 2. LINE CHART (PROGRESSION) */}
-                        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-                            <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
-                                <TrendingUp size={18} className="text-indigo-500"/> Constance Production
-                            </h4>
-                            <div className="flex-1 min-h-[250px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                        <XAxis dataKey="week" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} domain={[0, 12]} />
-                                        <Tooltip contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}} />
-                                        <Line type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={3} dot={{r:4}} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* 3. BAR CHART (DISTRIBUTION) */}
-                        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-                            <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
-                                <BarChart2 size={18} className="text-amber-500"/> Répartition Notes
-                            </h4>
-                            <div className="flex-1 min-h-[250px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={gradeDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
-                                        <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px'}} />
-                                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                            {gradeDistribution.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        
-                        {/* COL 1: TIMELINE DE CARRIÈRE */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-6"><History size={20}/> Parcours Hebdomadaire</h4>
-                                
-                                {studentTimeline.length === 0 ? (
-                                    <p className="text-slate-400 italic text-center py-8">Aucune donnée historique trouvée.</p>
-                                ) : (
-                                    <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
-                                        {studentTimeline.map((step, idx) => {
-                                            const avgReceived = step.reviewsReceived.length ? (step.reviewsReceived.reduce((a,b) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / step.reviewsReceived.length) : 0;
-                                            const avgGiven = step.reviewsGiven.length ? (step.reviewsGiven.reduce((a,b) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / step.reviewsGiven.length) : 0;
-
-                                            return (
-                                                <div key={step.weekId} className="relative pl-12">
-                                                    <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-slate-50 border-4 border-white shadow-sm flex items-center justify-center font-bold text-xs text-slate-500 z-10">
-                                                        S{step.weekId}
-                                                    </div>
-                                                    
-                                                    <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-all">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <div>
-                                                                <h5 className="font-bold text-slate-900">{step.agencyName}</h5>
-                                                                <p className="text-xs text-slate-500">Membre actif</p>
-                                                            </div>
-                                                            {avgReceived > 0 && (
-                                                                <div className={`px-2 py-1 rounded text-xs font-bold ${avgReceived < 2.5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                                    Note RH : {avgReceived.toFixed(1)}/5
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* FEEDBACKS RECUS */}
-                                                        {step.reviewsReceived.length > 0 && (
-                                                            <div className="mt-3 space-y-2">
-                                                                <p className="text-[10px] font-bold uppercase text-slate-400">Feedbacks Reçus</p>
-                                                                {step.reviewsReceived.map(r => (
-                                                                    <div key={r.id} className="text-xs bg-white p-2 rounded border border-slate-100 italic text-slate-600">
-                                                                        <span className="font-bold not-italic text-indigo-600 mr-1">{r.reviewerName}:</span> 
-                                                                        "{r.comment}"
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-
-                                                        {/* STATS DONNÉES */}
-                                                        <div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-2 text-[10px] text-slate-400">
-                                                            <ArrowRight size={12}/>
-                                                            A émis {step.reviewsGiven.length} évaluation(s) cette semaine (Moy: {avgGiven.toFixed(1)}/5).
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* COL 2: PORTFOLIO & BADGES */}
-                        <div className="space-y-6">
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><Trophy size={20}/> Badges & Réussites</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {(targetStudent.badges || []).length > 0 ? targetStudent.badges?.map(b => (
-                                        <div key={b.id} className="px-3 py-1 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-full text-xs font-bold flex items-center gap-1" title={b.description}>
-                                            <Trophy size={12}/> {b.label}
-                                        </div>
-                                    )) : <p className="text-xs text-slate-400 italic">Aucun badge.</p>}
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><FileText size={20}/> Historique des Rendus</h4>
-                                {portfolio.length === 0 ? (
-                                    <p className="text-center text-slate-400 italic text-xs py-4">Aucun rendu majeur.</p>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {portfolio.map((work, i) => (
-                                            <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                <div className="flex justify-between items-start">
-                                                    <span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 rounded">S{work.week}</span>
-                                                    <div className="flex gap-1">
-                                                        {work.isMvp && <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 rounded flex items-center gap-1"><Crown size={10}/> MVP</span>}
-                                                        <span className={`text-[9px] font-bold px-1.5 rounded ${work.score === 'A' ? 'bg-emerald-100 text-emerald-700' : work.score === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{work.score}</span>
-                                                    </div>
-                                                </div>
-                                                <p className="font-bold text-sm text-slate-900 mt-1 truncate">{work.name}</p>
-                                                <div className="flex justify-between items-center mt-2">
-                                                    <span className="text-[10px] text-slate-400 truncate max-w-[100px]">{work.agency}</span>
-                                                    {work.file && (
-                                                        <a href={work.file} target="_blank" className="text-[10px] font-bold text-indigo-600 hover:underline">Voir</a>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+            {targetStudent && targetAgency ? (
+                <StudentProfile 
+                    student={targetStudent}
+                    agency={targetAgency}
+                    timeline={studentTimeline}
+                    behaviorStats={behaviorStats}
+                    portfolio={portfolio}
+                    chartData={chartData}
+                    gradeDistribution={gradeDistribution}
+                />
             ) : (
                 <div className="text-center py-20 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300">
                     <User size={48} className="mx-auto text-slate-300 mb-4"/>
@@ -476,17 +189,3 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         </div>
     );
 };
-
-const StatBox = ({ icon, label, value, sub, color }: any) => (
-    <div className={`p-4 rounded-2xl flex flex-col justify-between ${color.split(' ')[0]} bg-opacity-20`}>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${color} bg-opacity-20`}>{icon}</div>
-        <div>
-            <p className="text-[10px] font-bold uppercase opacity-60">{label}</p>
-            <p className={`text-xl font-black ${color.split(' ')[1]}`}>{value} <span className="text-xs opacity-70">{sub}</span></p>
-        </div>
-    </div>
-);
-
-const CheckIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-);
