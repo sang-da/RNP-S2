@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { TrendingUp, Eye, AlertCircle, MessageCircle, Users, X, ChevronRight } from 'lucide-react';
+import { TrendingUp, Eye, AlertCircle, MessageCircle, Users, X, ChevronRight, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS } from '../constants';
 
@@ -27,7 +27,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     const [isMascotHovered, setIsMascotHovered] = useState(false);
     const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     
-    // Si une prop highlight est passée (mon agence), on l'utilise par défaut
+    // Initialisation : On sélectionne par défaut l'agence de l'utilisateur
     useEffect(() => {
         if (highlightAgencyId) setLocalSelectedId(highlightAgencyId);
     }, [highlightAgencyId]);
@@ -41,6 +41,10 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     const focusedAgency = useMemo(() => 
         validAgencies.find(a => a.id === localSelectedId)
     , [validAgencies, localSelectedId]);
+
+    // Détection du contexte (Mon agence vs Concurrent)
+    const isCompetitor = highlightAgencyId && localSelectedId && localSelectedId !== highlightAgencyId;
+    const isMyAgency = highlightAgencyId && localSelectedId === highlightAgencyId;
 
     const comparisonData = useMemo(() => {
       if (validAgencies.length === 0) return [];
@@ -87,9 +91,15 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
         return MASCOTS.MARKET_STABLE;
     };
 
-    const mascotMessage = isLanding 
-        ? "Cliquez sur une courbe pour voir qui bosse !" 
-        : focusedAgency ? `Le studio ${focusedAgency.name} semble solide... ou pas.` : "Le marché est volatile !";
+    const getMascotMessage = () => {
+        if (isLanding) return "Cliquez sur une courbe pour analyser les stats !";
+        if (isMyAgency) return "C'est nous ! Gardons le cap.";
+        if (isCompetitor) return `Espionnage de ${focusedAgency?.name}... Intéressant.`;
+        if (focusedAgency) return `Analyse : ${focusedAgency.name}`;
+        return "Cliquez sur une ligne pour voir les détails.";
+    };
+
+    const mascotMessage = getMascotMessage();
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
@@ -110,6 +120,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                   );
                 })}
               </div>
+              <p className="text-[9px] text-slate-500 mt-2 italic text-center">Cliquez sur une ligne pour sélectionner</p>
             </div>
           );
         }
@@ -145,27 +156,23 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
 
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 shrink-0 z-20">
-                    <h3 className={`font-bold text-slate-900 flex items-center gap-2 ${isLanding ? 'text-2xl font-display' : 'text-base md:text-lg'}`}>
-                        <TrendingUp className="text-yellow-500" size={isLanding ? 28 : 20} /> {title}
-                    </h3>
+                    <div>
+                        <h3 className={`font-bold text-slate-900 flex items-center gap-2 ${isLanding ? 'text-2xl font-display' : 'text-base md:text-lg'}`}>
+                            <TrendingUp className="text-yellow-500" size={isLanding ? 28 : 20} /> {title}
+                        </h3>
+                        {!isLanding && <p className="text-[10px] text-slate-400 font-medium ml-1">👆 Cliquez sur les courbes pour comparer</p>}
+                    </div>
                     
                     <div className="flex gap-2">
                         {localSelectedId && (
                             <button 
-                                onClick={() => setLocalSelectedId(null)}
-                                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 uppercase"
+                                onClick={() => setLocalSelectedId(highlightAgencyId || null)}
+                                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 uppercase bg-slate-100 px-2 py-1 rounded-lg"
                             >
-                                <X size={14}/> Reset
+                                <X size={12}/> Reset
                             </button>
                         )}
-                        {showBlackOpsButton && onToggleBlackOps && (
-                            <button 
-                                onClick={onToggleBlackOps}
-                                className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-900/20"
-                            >
-                                <Eye size={14}/> Intel
-                            </button>
-                        )}
+                        {/* BLACK OPS BUTTON REMOVED FROM HERE */}
                     </div>
                 </div>
                 
@@ -176,13 +183,6 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                             <LineChart 
                                 data={comparisonData} 
                                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                                onClick={(data) => {
-                                    // Détection du clic sur une zone (activeLabel ou payload)
-                                    if (data && data.activePayload && data.activePayload[0]) {
-                                        // On ne change pas l'agence ici car le clic est sur l'axe X, 
-                                        // la sélection précise se fait sur la ligne elle-même.
-                                    }
-                                }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                                 <XAxis 
@@ -218,10 +218,10 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                                             type="monotone" 
                                             dataKey={a.name} 
                                             stroke={isFocused ? '#6366f1' : color} 
-                                            strokeWidth={isFocused ? 5 : (isLanding ? 3 : 2)}
+                                            strokeWidth={isFocused ? 4 : (isLanding ? 3 : 2)}
                                             strokeOpacity={localSelectedId ? (isFocused ? 1 : 0.15) : 0.6} 
                                             dot={isFocused}
-                                            activeDot={{ r: 8, strokeWidth: 0 }}
+                                            activeDot={{ r: 6, strokeWidth: 0, cursor: 'pointer' }}
                                             isAnimationActive={true}
                                             connectNulls={true}
                                             style={{ cursor: 'pointer' }}
@@ -242,9 +242,9 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
 
             {/* INFO PANEL: MEMBERS OF SELECTED AGENCY */}
             {focusedAgency && (
-                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg animate-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row items-center gap-6">
+                <div className={`rounded-3xl border p-5 shadow-lg animate-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row items-center gap-6 ${isCompetitor ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
                     <div className="flex items-center gap-4 shrink-0">
-                         <div className="w-16 h-16 rounded-2xl bg-slate-50 border-2 border-indigo-100 p-1 flex items-center justify-center overflow-hidden">
+                         <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-100 p-1 flex items-center justify-center overflow-hidden shadow-sm">
                              {focusedAgency.logoUrl ? (
                                  <img src={focusedAgency.logoUrl} className="w-full h-full object-contain" />
                              ) : (
@@ -252,7 +252,12 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                              )}
                          </div>
                          <div>
-                             <h4 className="text-xl font-display font-bold text-slate-900">{focusedAgency.name}</h4>
+                             <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-xl font-display font-bold text-slate-900">{focusedAgency.name}</h4>
+                                {isCompetitor && <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200">Concurrent</span>}
+                                {isMyAgency && <span className="text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">Mon Studio</span>}
+                             </div>
+                             
                              <div className="flex items-center gap-2">
                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                                      focusedAgency.status === 'stable' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
@@ -264,16 +269,17 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                          </div>
                     </div>
 
-                    <div className="h-px w-full md:h-12 md:w-px bg-slate-100"></div>
+                    <div className="h-px w-full md:h-12 md:w-px bg-slate-200/50"></div>
 
                     <div className="flex-1">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <Users size={12}/> Effectif de l'agence
+                            {isCompetitor ? <Search size={12}/> : <ShieldCheck size={12}/>} 
+                            {isCompetitor ? 'Composition de l\'équipe adverse' : 'Effectif de mon agence'}
                         </p>
                         <div className="flex flex-wrap gap-3">
                             {focusedAgency.members.map(m => (
-                                <div key={m.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl group hover:border-indigo-300 transition-colors">
-                                    <img src={m.avatarUrl} className="w-6 h-6 rounded-full border border-white shadow-sm" alt={m.name} />
+                                <div key={m.id} className="flex items-center gap-2 bg-white border border-slate-100 px-3 py-1.5 rounded-xl shadow-sm">
+                                    <img src={m.avatarUrl} className="w-6 h-6 rounded-full border border-slate-100 shadow-sm" alt={m.name} />
                                     <div className="flex flex-col">
                                         <span className="text-xs font-bold text-slate-700 leading-tight">{m.name}</span>
                                         <span className="text-[9px] text-slate-400 font-medium">{m.role}</span>
@@ -283,12 +289,12 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                         </div>
                     </div>
 
-                    <button 
-                        onClick={() => setLocalSelectedId(null)}
-                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                    >
-                        <X size={20}/>
-                    </button>
+                    {isCompetitor && (
+                        <div className="hidden md:flex flex-col items-end gap-1 opacity-50">
+                            <ShieldAlert size={24} className="text-amber-400"/>
+                            <span className="text-[9px] uppercase font-bold text-amber-600">Cible Potentielle</span>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

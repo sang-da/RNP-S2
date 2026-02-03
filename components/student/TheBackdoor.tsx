@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
-import { TrendingUp, Eye, Vote, FileX, Skull, ShoppingBag, Clock } from 'lucide-react';
+import { TrendingUp, Eye, Vote, FileX, Skull, ShoppingBag, Clock, Zap } from 'lucide-react';
 
 interface TheBackdoorProps {
     agency: Agency;
@@ -41,6 +41,14 @@ const ALL_ITEMS = [
         price: 500, 
         icon: FileX, 
         desc: "Efface rétroactivement un retard noté sur un livrable. Risque de détection: 20%.",
+        requiresTarget: false 
+    },
+    { 
+        id: 'LEAK', 
+        label: 'Fuite Industrielle', 
+        price: 300, 
+        icon: Zap, 
+        desc: "Obtenir un indice sur le prochain brief avant tout le monde (Notif Admin).",
         requiresTarget: false 
     },
     { 
@@ -127,8 +135,8 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
             if (!targetId) { addToTerminal("ERREUR: Cible manquante."); return; }
             payload = { targetId };
         } 
-        else if (selectedItem === 'DOXXING') {
-            payload = {}; // Self agency check
+        else if (selectedItem === 'DOXXING' || selectedItem === 'LEAK') {
+            payload = {}; // Self action
         }
         else if (selectedItem === 'FAKE_CERT') {
             // Find a late deliverable
@@ -177,6 +185,8 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                 setDoxxResult("Aucune mauvaise note (< 3/5) détectée cette semaine.");
                 addToTerminal("Rien à signaler.");
             }
+        } else if (opType === 'LEAK') {
+            addToTerminal("INFO RÉCUPÉRÉE : Surveillez vos notifications système.");
         }
     };
 

@@ -1,4 +1,3 @@
-
 import { writeBatch, doc, updateDoc, db } from '../../../services/firebase';
 import { Agency, MergerRequest, ChallengeRequest, Deliverable, Bet } from '../../../types';
 import { GAME_RULES } from '../../../constants';
@@ -12,7 +11,7 @@ export const useOperationsLogic = (
   const performBlackOp = async (
       studentId: string, 
       agencyId: string, 
-      opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE', 
+      opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE' | 'LEAK', 
       payload: any
   ) => {
       const studentAgency = agencies.find(a => a.id === agencyId);
@@ -33,6 +32,7 @@ export const useOperationsLogic = (
           case 'FAKE_CERT': costPixi = 500; costKarma = 20; break; 
           case 'BUY_VOTE': costPixi = 200; costKarma = 15; break;
           case 'AUDIT_HOSTILE': costPixi = 500; costKarma = 10; break;
+          case 'LEAK': costPixi = 300; costKarma = 5; break;
       }
 
       if ((student.wallet || 0) < costPixi) {
@@ -56,7 +56,8 @@ export const useOperationsLogic = (
           batch.update(agencyRef, { members: updatedMembers });
           toast('success', "Ordre de Vente à Découvert placé.");
 
-      } else if (opType === 'DOXXING') {
+      } else if (opType === 'DOXXING' || opType === 'LEAK') {
+          // Actions immédiates sans impact DB complexe (Géré coté UI ou Notif)
           batch.update(agencyRef, { members: updatedMembers });
       } else if (opType === 'FAKE_CERT') {
           const weekId = payload.weekId;

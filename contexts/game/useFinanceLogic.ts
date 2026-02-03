@@ -20,6 +20,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
             let currentBudget = agency.budget_real;
             let logEvents: GameEvent[] = [];
             let agencyMembers = [...(agency.members || [])];
+            let totalVeBonusFromTalent = 0;
 
             // 1. REVENUES
             const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
@@ -33,7 +34,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 type: 'REVENUE', 
                 label: 'Recettes', 
                 deltaBudgetReal: totalRevenue, 
-                description: `Facturation client (VE: ${agency.ve_current}).` 
+                description: `Facturation client (VE: ${agency.ve_current.toFixed(1)}).` 
             });
 
             // 2. RENT & SOLIDARITY CLAUSE
@@ -64,23 +65,50 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 }));
             }
 
-            // 3. SALARIES
+            // 3. SALARIES & TALENT DIVIDENDS (VE CONVERSION)
             let actualDisbursed = 0;
+            const SCORE_THRESHOLD_FOR_VE = 80;
+            const VE_CONVERSION_RATE = 10; // 10 points over 80 = 1 VE
+
             if (currentBudget >= 0) {
                 agencyMembers = agencyMembers.map(member => {
                     const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
+                    
+                    // Cap Salary at 800 (Score 80)
                     const pay = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+                    
+                    // Calculate Surplus Score for VE Conversion
+                    if (member.individualScore > SCORE_THRESHOLD_FOR_VE) {
+                        const surplus = member.individualScore - SCORE_THRESHOLD_FOR_VE;
+                        const veGain = surplus / VE_CONVERSION_RATE;
+                        totalVeBonusFromTalent += veGain;
+                    }
+
                     actualDisbursed += pay;
                     return { ...member, wallet: (member.wallet || 0) + pay };
                 });
                 
                 currentBudget -= actualDisbursed;
-                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés.` });
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés (Plafonnés à ${GAME_RULES.SALARY_CAP_FOR_STUDENT}).` });
             } else {
                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Pas de salaire.` });
             }
 
-            // 4. COST OF LIVING
+            // 4. APPLY TALENT VE BONUS
+            let finalVe = agency.ve_current;
+            if (totalVeBonusFromTalent > 0) {
+                finalVe += totalVeBonusFromTalent;
+                logEvents.push({
+                    id: `fin-talent-${Date.now()}-${agency.id}`,
+                    date: today,
+                    type: 'VE_DELTA',
+                    label: 'Dividende Talents',
+                    deltaVE: parseFloat(totalVeBonusFromTalent.toFixed(2)),
+                    description: `Conversion des scores > 80 en VE (${totalVeBonusFromTalent.toFixed(2)} pts).`
+                });
+            }
+
+            // 5. COST OF LIVING
             agencyMembers = agencyMembers.map(member => {
                 let newWallet = (member.wallet || 0) - GAME_RULES.COST_OF_LIVING;
                 let newScore = member.individualScore;
@@ -93,6 +121,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 budget_real: currentBudget,
+                ve_current: finalVe,
                 members: agencyMembers,
                 eventLog: [...agency.eventLog, ...logEvents]
             });
