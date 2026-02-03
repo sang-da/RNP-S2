@@ -226,6 +226,7 @@ export interface Agency {
   logoUrl?: string;
   members: Student[];
   peerReviews: PeerReview[];
+  reviewHistory?: PeerReview[]; // Archives des reviews passées
   classId: 'A' | 'B' | 'ALL'; 
   ve_current: number; 
   veCapOverride?: number; 

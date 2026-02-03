@@ -18,13 +18,18 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     const [filterWeek, setFilterWeek] = useState<string>('ALL');
     const [filterAgencyId, setFilterAgencyId] = useState<string>('ALL');
 
-    // 1. APLATISSEMENT DES DONNÉES (Extraire les reviews nichées dans chaque agence)
+    // 1. APLATISSEMENT DES DONNÉES (Active + Archives)
     const allReviews = useMemo(() => {
         const reviews: (PeerReview & { agencyName: string, classId: string, agencyId: string })[] = [];
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
-            const agencyReviews = agency.peerReviews || [];
-            agencyReviews.forEach(review => {
+            
+            // On combine les reviews actives (cette semaine) ET l'historique archivé
+            const activeReviews = agency.peerReviews || [];
+            const archivedReviews = agency.reviewHistory || [];
+            const combinedReviews = [...activeReviews, ...archivedReviews];
+
+            combinedReviews.forEach(review => {
                 reviews.push({
                     ...review,
                     agencyId: agency.id,

@@ -38,13 +38,16 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
         });
     }, [activeAgencies]);
 
-    // 2. RADAR DATA: SOFT SKILLS (From Peer Reviews)
+    // 2. RADAR DATA: SOFT SKILLS (From Peer Reviews AND History)
     const radarData = useMemo(() => {
         let totalAttendance = 0, totalQuality = 0, totalInvolvement = 0;
         let count = 0;
 
         activeAgencies.forEach(a => {
-            a.peerReviews.forEach(r => {
+            // Combiner reviews actives et archivées pour une moyenne globale
+            const allReviews = [...(a.peerReviews || []), ...(a.reviewHistory || [])];
+            
+            allReviews.forEach(r => {
                 totalAttendance += r.ratings.attendance;
                 totalQuality += r.ratings.quality;
                 totalInvolvement += r.ratings.involvement;
@@ -183,7 +186,7 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
                     <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
                         <Users size={20} className="text-emerald-500"/> Radar RH (Moyenne Promo)
                     </h3>
-                    <p className="text-xs text-slate-500 mb-4">Basé sur les évaluations hebdomadaires entre pairs.</p>
+                    <p className="text-xs text-slate-500 mb-4">Basé sur les évaluations hebdomadaires entre pairs (historique complet).</p>
                     
                     <div className="flex-1 min-h-[300px]">
                         {radarData.length > 0 ? (

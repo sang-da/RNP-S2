@@ -88,15 +88,16 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         return works.sort((a,b) => parseInt(b.week) - parseInt(a.week));
     }, [targetStudent, agencies]);
 
-    // 4. NOTES RH (Radar Data)
+    // 4. NOTES RH (Radar Data) - INCLUT HISTORIQUE MAINTENANT
     const reviewsReceived = useMemo(() => {
         if (!targetStudent) return [];
         const revs: PeerReview[] = [];
         agencies.forEach(a => {
-            revs.push(...a.peerReviews.filter(r => r.targetId === targetStudent.id));
+            const allReviews = [...(a.peerReviews || []), ...(a.reviewHistory || [])];
+            revs.push(...allReviews.filter(r => r.targetId === targetStudent.id));
         });
         return revs;
-    }, [targetStudent]);
+    }, [targetStudent, agencies]);
 
     return (
         <div className="animate-in fade-in pb-20">

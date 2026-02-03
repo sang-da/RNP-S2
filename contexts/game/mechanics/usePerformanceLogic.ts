@@ -1,3 +1,4 @@
+
 import { writeBatch, doc, db } from '../../../services/firebase';
 import { Agency, GameEvent } from '../../../types';
 import { calculateVECap, GAME_RULES } from '../../../constants';
@@ -67,11 +68,17 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
             const veCap = calculateVECap(agency);
             const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
 
+            // --- ARCHIVAGE DES REVIEWS ---
+            // Au lieu de les perdre, on les ajoute à l'historique
+            const previousHistory = agency.reviewHistory || [];
+            const newArchive = [...previousHistory, ...agency.peerReviews];
+
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 members: updatedMembers,
                 ve_current: finalVE,
-                peerReviews: [], 
+                peerReviews: [], // On vide la semaine active
+                reviewHistory: newArchive, // On sauvegarde tout dans l'archive
                 eventLog: [...agency.eventLog, ...logEvents],
                 status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'
             });
