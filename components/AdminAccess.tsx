@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Database, UserX, Shield, XCircle, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock } from 'lucide-react';
-import { collection, query, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db } from '../services/firebase';
+import { Search, Database, UserX, Shield, XCircle, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock, LifeBuoy } from 'lucide-react';
+import { collection, query, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db, getDoc } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 
 // SUB-COMPONENTS
@@ -83,6 +83,17 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       return slots.sort((a,b) => a.student.name.localeCompare(b.student.name));
   }, [agencies]);
 
+  // 4. DÉTECTION DES ORPHELINS (Ghost Students)
+  // Utilisateurs avec rôle 'student' mais introuvables dans aucune agence (ni vivier, ni studio)
+  const orphanedUsers = useMemo(() => {
+      return allUsers.filter(u => {
+          if (u.role !== 'student') return false;
+          // Est-ce qu'on le trouve dans une agence ?
+          const foundInAgency = agencies.some(a => a.members.some(m => m.id === u.uid));
+          return !foundInAgency;
+      });
+  }, [allUsers, agencies]);
+
   // --- HELPERS D'AFFICHAGE ---
   const isOnline = (lastLogin: any) => {
       if (!lastLogin) return false;
@@ -101,6 +112,57 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   const onlineCount = allUsers.filter(u => isOnline(u.lastLogin)).length;
 
   // --- ACTIONS ---
+  const handleRescueOrphan = async (user: UserProfile) => {
+      if(readOnly) return;
+      
+      const confirmed = await confirm({
+          title: "Repêchage d'Urgence",
+          message: `L'étudiant ${user.displayName} a disparu des radars (Bug de transfert).\n\nCette action va forcer sa réintégration dans le "Vivier / Chômage" pour le rendre de nouveau disponible.`,
+          confirmText: "Réintégrer au Vivier"
+      });
+
+      if (!confirmed) return;
+
+      try {
+          const batch = writeBatch(db);
+          const unassignedAgency = agencies.find(a => a.id === 'unassigned');
+          
+          if (!unassignedAgency) {
+              toast('error', "Agence 'unassigned' introuvable !");
+              return;
+          }
+
+          // Création d'un profil étudiant frais basé sur le UserProfile
+          const studentProfile: Student = {
+              id: user.uid,
+              name: user.displayName,
+              role: 'En attente',
+              avatarUrl: user.photoURL,
+              individualScore: 50, // Valeur par défaut de sécurité
+              wallet: 0,
+              classId: 'A', // Valeur par défaut, à corriger manuellement si besoin
+              connectionStatus: 'offline'
+          };
+
+          // Mise à jour de l'agence Vivier
+          const updatedUnassignedMembers = [...unassignedAgency.members, studentProfile];
+          batch.update(doc(db, "agencies", "unassigned"), { members: updatedUnassignedMembers });
+
+          // Mise à jour du User pour pointer vers Vivier
+          batch.update(doc(db, "users", user.uid), { 
+              agencyId: 'unassigned',
+              linkedStudentId: user.uid,
+              studentProfileName: user.displayName
+          });
+
+          await batch.commit();
+          toast('success', `${user.displayName} a été repêché dans le Vivier.`);
+      } catch (e) {
+          console.error(e);
+          toast('error', "Échec du repêchage.");
+      }
+  };
+
   const handleFullResetAccount = async (uid: string, displayName: string) => {
       if(readOnly) return;
       if (await confirm({ 
@@ -200,6 +262,38 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
             duplicates={duplicates.length}
             online={onlineCount}
         />
+
+        {/* SECTION CRITIQUE : ORPHELINS (GHOSTS) */}
+        {orphanedUsers.length > 0 && (
+            <div className="mb-8 bg-red-600 text-white rounded-3xl p-6 shadow-xl animate-pulse">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <LifeBuoy size={24} className="text-yellow-400"/> 
+                    ALERTE : Étudiants Disparus ({orphanedUsers.length})
+                </h3>
+                <p className="text-sm text-red-100 mb-4">
+                    Ces comptes ont le statut "Étudiant" mais ne sont physiquement dans aucune agence (suite à un bug de transfert). Ils sont invisibles.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {orphanedUsers.map(u => (
+                        <div key={u.uid} className="bg-white/10 p-3 rounded-xl border border-white/20 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <img src={u.photoURL} className="w-10 h-10 rounded-full bg-slate-900" />
+                                <div>
+                                    <p className="font-bold">{u.displayName}</p>
+                                    <p className="text-xs opacity-70">{u.email}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => handleRescueOrphan(u)}
+                                className="px-4 py-2 bg-white text-red-600 font-bold text-xs rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                            >
+                                Repêcher (Vivier)
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
 
         <DuplicateAlerts duplicates={duplicates} onReset={handleFullResetAccount} />
 

@@ -60,8 +60,12 @@ export const CONSTRAINTS_POOL = {
 export const getAgencyPerformanceMultiplier = (agency: Agency): number => {
     if (!agency.members || agency.members.length === 0) return 1;
     
-    const totalScore = agency.members.reduce((acc, m) => acc + m.individualScore, 0);
-    const avgScore = totalScore / agency.members.length;
+    // Filtrage robuste pour éviter les crashs sur des membres "undefined"
+    const validMembers = agency.members.filter(m => m && typeof m.individualScore === 'number');
+    if (validMembers.length === 0) return 1;
+
+    const totalScore = validMembers.reduce((acc, m) => acc + m.individualScore, 0);
+    const avgScore = totalScore / validMembers.length;
     
     // Formule : 1 + ((Moyenne - 50) / 100)
     // Ex: Moyenne 80 -> 1 + (30/100) = 1.3x
@@ -81,11 +85,17 @@ export const calculateVECap = (agency: Agency): number => {
         return agency.veCapOverride;
     }
 
-    const memberCount = agency.members.length;
+    // 2. Comptage Robuste
+    // On s'assure de ne pas compter des "slots" vides ou des objets mal formés
+    const validMembers = agency.members ? agency.members.filter(m => m && m.id) : [];
+    const memberCount = validMembers.length;
 
-    // 2. Détection Agence Fondatrice (Legacy S1) ou Agence créée manuellement très tôt
-    // L'ID 'agency_' correspond au seed initial.
+    // 3. Détection Agence Fondatrice (Legacy S1) ou Agence créée manuellement très tôt
     const isFoundingAgency = agency.id.startsWith('agency_');
+
+    if (memberCount >= 4) return GAME_RULES.VE_CAP_4_PLUS_MEMBERS; // 100
+    
+    if (memberCount >= 2) return GAME_RULES.VE_CAP_2_3_MEMBERS; // 80 (Couvre 2 et 3)
 
     if (memberCount === 1) {
         // Si c'est un fondateur historique, pas de plafond "Solo" (100).
@@ -93,7 +103,6 @@ export const calculateVECap = (agency: Agency): number => {
         return isFoundingAgency ? 100 : GAME_RULES.VE_CAP_1_MEMBER;
     }
     
-    if (memberCount <= 3) return GAME_RULES.VE_CAP_2_3_MEMBERS;
-    
-    return GAME_RULES.VE_CAP_4_PLUS_MEMBERS;
+    // Fallback si 0 membres
+    return GAME_RULES.VE_CAP_1_MEMBER;
 };
