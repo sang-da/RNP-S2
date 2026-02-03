@@ -1,9 +1,10 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { Agency, Student } from '../types';
-import { TrendingUp, Eye, AlertCircle, MessageCircle, Users, X, ChevronRight, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Agency } from '../types';
+import { TrendingUp, MessageCircle, AlertCircle, X, Search, ShieldCheck, ShieldAlert, Users } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS } from '../constants';
+import { useMarketData } from '../hooks/useMarketData';
 
 interface MarketGraphProps {
     agencies: Agency[];
@@ -18,8 +19,6 @@ interface MarketGraphProps {
 export const MarketGraph: React.FC<MarketGraphProps> = ({ 
     agencies, 
     highlightAgencyId, 
-    onToggleBlackOps, 
-    showBlackOpsButton = false, 
     title = "Marché (VE)",
     height = "350px",
     isLanding = false
@@ -27,16 +26,13 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     const [isMascotHovered, setIsMascotHovered] = useState(false);
     const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     
+    // Utilisation du Hook Dédié
+    const { validAgencies, chartData } = useMarketData(agencies, highlightAgencyId);
+
     // Initialisation : On sélectionne par défaut l'agence de l'utilisateur
     useEffect(() => {
         if (highlightAgencyId) setLocalSelectedId(highlightAgencyId);
     }, [highlightAgencyId]);
-
-    // --- DATA PREPARATION ---
-    const validAgencies = useMemo(() => {
-        if (!agencies || !Array.isArray(agencies)) return [];
-        return agencies.filter(a => a.id !== 'unassigned');
-    }, [agencies]);
 
     const focusedAgency = useMemo(() => 
         validAgencies.find(a => a.id === localSelectedId)
@@ -45,42 +41,6 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     // Détection du contexte (Mon agence vs Concurrent)
     const isCompetitor = highlightAgencyId && localSelectedId && localSelectedId !== highlightAgencyId;
     const isMyAgency = highlightAgencyId && localSelectedId === highlightAgencyId;
-
-    const comparisonData = useMemo(() => {
-      if (validAgencies.length === 0) return [];
-
-      let allDates = Array.from(new Set(
-          validAgencies.flatMap(a => a.eventLog.map(e => e.date))
-      )).sort((a: any, b: any) => new Date(a).getTime() - new Date(b).getTime());
-
-      if (allDates.length === 0) {
-          allDates = [new Date().toISOString().split('T')[0]];
-      }
-
-      const STARTING_VE = 0;
-
-      const points = allDates.map((dateStr: string) => {
-          const point: any = { 
-              name: new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-              date: dateStr
-          };
-
-          validAgencies.forEach(a => {
-              const veAtDate = a.eventLog
-                  .filter(e => e.date <= dateStr)
-                  .reduce((sum, e) => sum + (e.deltaVE || 0), STARTING_VE); 
-              
-              point[a.name] = Math.max(0, veAtDate);
-          });
-
-          return point;
-      });
-
-      const startPoint: any = { name: 'Départ' };
-      validAgencies.forEach(a => startPoint[a.name] = STARTING_VE);
-
-      return [startPoint, ...points];
-    }, [validAgencies]);
 
     const getMascot = () => {
         if (isLanding) return MASCOTS.MARKET_RICH;
@@ -133,7 +93,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 h-full">
             <div className={`bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-visible flex flex-col h-full animate-in fade-in zoom-in duration-500 ${isLanding ? 'p-6 md:p-10' : 'p-4 md:p-6'}`}>
                 
                 {/* Mascot Decoration */}
@@ -172,16 +132,15 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
                                 <X size={12}/> Reset
                             </button>
                         )}
-                        {/* BLACK OPS BUTTON REMOVED FROM HERE */}
                     </div>
                 </div>
                 
                 {/* Chart Container */}
-                <div className="w-full z-20 pr-2" style={{ height }}>
-                    {validAgencies.length > 0 ? (
+                <div className="w-full z-20 pr-2 flex-1" style={{ minHeight: height }}>
+                    {validAgencies.length > 0 && chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart 
-                                data={comparisonData} 
+                                data={chartData} 
                                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -241,7 +200,7 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
             </div>
 
             {/* INFO PANEL: MEMBERS OF SELECTED AGENCY */}
-            {focusedAgency && (
+            {focusedAgency && !isLanding && (
                 <div className={`rounded-3xl border p-5 shadow-lg animate-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row items-center gap-6 ${isCompetitor ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
                     <div className="flex items-center gap-4 shrink-0">
                          <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-100 p-1 flex items-center justify-center overflow-hidden shadow-sm">

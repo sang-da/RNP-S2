@@ -15,6 +15,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 1,
     title: "Lancement & Définition",
     type: "FUN/CHILL",
+    isVisible: true,
     objectives: ["Définir le problème local", "Identifier la cible", "Choisir le lieu", "Nommer l'agence"],
     deliverables: [
       { id: "d_report_1", name: "Compte Rendu Hebdo", description: "Résumé des activités, décisions et roadmap.", status: 'pending' },
@@ -32,6 +33,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 1,
     title: "Recherche & Storyboard",
     type: "THÉORIE",
+    isVisible: true,
     objectives: ["Storyboard avant/après", "Plan d'images", "Moodboard"],
     deliverables: [
       { id: "d_report_2", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -47,6 +49,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 1,
     title: "Production Base & Scènes",
     type: "TECHNIQUE",
+    isVisible: false,
     objectives: ["Set-up projet", "Blocages lumière", "Rendu test"],
     deliverables: [
       { id: "d_report_3", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -62,6 +65,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 2,
     title: "IA Vidéo & Parallax",
     type: "FUN/CHILL",
+    isVisible: false,
     objectives: ["Séquence IA 10-15s", "Documentation éthique"],
     deliverables: [
       { id: "d_report_4", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -70,13 +74,14 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     locked: true,
     status: 'pending',
     schedule: { classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-03', slot: 'MATIN' } },
-    scoring: { ...DEFAULT_SCORING, pointsA: 8, expectedTargetVE: 8 } // Exemple d'ajustement : Cycle plus difficile
+    scoring: { ...DEFAULT_SCORING, pointsA: 8, expectedTargetVE: 8 }
   },
   "5": {
     id: "5",
     cycleId: 2,
     title: "Caméras Avancées & Lumière",
     type: "THÉORIE",
+    isVisible: false,
     objectives: ["Trajectoires cohérentes", "DOF animé", "Maîtrise Key/Fill/Rim"],
     deliverables: [
       { id: "d_report_5", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -92,6 +97,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 2,
     title: "Milestone PoC (45s)",
     type: "TECHNIQUE",
+    isVisible: false,
     objectives: ["Livrer version agence lisible", "QA Sheet"],
     deliverables: [
       { id: "d_report_6", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -100,13 +106,14 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     locked: true,
     status: 'pending',
     schedule: { classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-17', slot: 'MATIN' } },
-    scoring: { ...DEFAULT_SCORING, expectedTargetVE: 20 } // Gros enjeu
+    scoring: { ...DEFAULT_SCORING, expectedTargetVE: 20 }
   },
   "7": {
     id: "7",
     cycleId: 3,
     title: "Itérations Massives",
     type: "FUN/CHILL",
+    isVisible: false,
     objectives: ["Explorer variantes (Lumière/Matière)", "A/B Testing", "Documentation variantes"],
     deliverables: [
       { id: "d_report_7", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -122,6 +129,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 3,
     title: "Direction & Sélection",
     type: "THÉORIE",
+    isVisible: false,
     objectives: ["Fixer la DA finale", "Critères de sélection", "Cohérence Marque"],
     deliverables: [
       { id: "d_report_8", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -137,6 +145,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 3,
     title: "Poster & Portfolio",
     type: "TECHNIQUE",
+    isVisible: false,
     objectives: ["Packaging Pro", "Lisibilité A1", "Portfolio 6-10 pages"],
     deliverables: [
       { id: "d_report_9", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -153,6 +162,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 4,
     title: "Automation & Packaging",
     type: "FUN/CHILL",
+    isVisible: false,
     objectives: ["Accélérer Shotlist", "Normalisation dossiers", "Scripts répétitifs"],
     deliverables: [
       { id: "d_report_10", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -168,6 +178,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 4,
     title: "Conformité Export",
     type: "THÉORIE",
+    isVisible: false,
     objectives: ["Certification formats (H.264, LUFS)", "Stress Tests", "Checklist Conformité"],
     deliverables: [
       { id: "d_report_11", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
@@ -183,6 +194,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
     cycleId: 4,
     title: "JURY FINAL",
     type: "JURY",
+    isVisible: false,
     objectives: ["Défendre la démarche", "Démontrer cohérence marque", "Soutenance Orale"],
     deliverables: [
       { id: "d_report_12", name: "Compte Rendu Final", description: "Bilan global du semestre.", status: 'pending' },

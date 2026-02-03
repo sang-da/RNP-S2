@@ -22,19 +22,26 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
-  const { gameConfig } = useGame(); 
+  const { gameConfig, weeks: globalWeeks } = useGame(); // Utiliser la config globale des semaines pour la visibilité
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // NAVIGATION DES CYCLES (Accessible à tous maintenant)
+  // NAVIGATION DES CYCLES
   const [selectedCycle, setSelectedCycle] = useState<number>(gameConfig.currentCycle || 1);
 
-  // LOGIQUE DE FILTRE PAR CYCLE
+  // LOGIQUE DE FILTRE PAR CYCLE ET VISIBILITÉ
   const visibleWeeks = useMemo(() => {
+      // On combine les données de l'agence (pour les rendus) et la config globale (pour isVisible)
       const allWeeks = Object.values(agency.progress) as WeekModule[];
+      
       return allWeeks
-          .filter((w: WeekModule) => w.cycleId === selectedCycle)
+          .filter((w: WeekModule) => {
+              // Vérifier la visibilité dans la config globale si disponible
+              const globalConf = globalWeeks[w.id];
+              const isVisible = globalConf ? (globalConf.isVisible !== false) : true; // Par défaut visible si pas défini
+              return w.cycleId === selectedCycle && isVisible;
+          })
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
-  }, [agency.progress, selectedCycle]);
+  }, [agency.progress, selectedCycle, globalWeeks]);
 
   // État de la semaine active
   const [activeWeek, setActiveWeek] = useState<string>(""); 
@@ -163,28 +170,32 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
         {/* WEEK SELECTOR */}
         <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar snap-x">
-             {visibleWeeks.map((week: WeekModule) => {
-                const isLive = week.id === gameConfig.currentWeek.toString();
-                return (
-                    <button 
-                        key={week.id} 
-                        onClick={() => setActiveWeek(week.id)} 
-                        className={`snap-center flex-shrink-0 px-5 py-3 rounded-2xl border-2 transition-all flex flex-col items-center relative min-w-[100px] ${
-                            activeWeek === week.id 
-                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
-                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                        }`}
-                    >
-                        {isLive && (
-                            <div className="absolute -top-2 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
-                                <Zap size={8} className="fill-white"/> LIVE
-                            </div>
-                        )}
-                        <span className="font-display font-bold text-lg">SEM {week.id}</span>
-                        {isLive && <span className="text-[8px] font-black opacity-60 uppercase">En cours</span>}
-                    </button>
-                );
-             })}
+             {visibleWeeks.length === 0 ? (
+                 <div className="text-sm text-slate-400 italic px-4 py-2">Aucune semaine disponible pour ce cycle.</div>
+             ) : (
+                 visibleWeeks.map((week: WeekModule) => {
+                    const isLive = week.id === gameConfig.currentWeek.toString();
+                    return (
+                        <button 
+                            key={week.id} 
+                            onClick={() => setActiveWeek(week.id)} 
+                            className={`snap-center flex-shrink-0 px-5 py-3 rounded-2xl border-2 transition-all flex flex-col items-center relative min-w-[100px] ${
+                                activeWeek === week.id 
+                                ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
+                                : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                            }`}
+                        >
+                            {isLive && (
+                                <div className="absolute -top-2 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                                    <Zap size={8} className="fill-white"/> LIVE
+                                </div>
+                            )}
+                            <span className="font-display font-bold text-lg">SEM {week.id}</span>
+                            {isLive && <span className="text-[8px] font-black opacity-60 uppercase">En cours</span>}
+                        </button>
+                    );
+                 })
+             )}
         </div>
 
         {currentWeekData ? (
@@ -214,12 +225,11 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                 })}
             </div>
         </div>
-        ) : ( 
+        ) : visibleWeeks.length > 0 && ( 
             <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed flex flex-col items-center gap-4">
                 <Layers size={48} className="opacity-20"/>
                 <div>
-                    <p className="font-bold">Aucune semaine visible pour le Cycle {selectedCycle}.</p>
-                    <p className="text-xs mt-1">Le contenu de ce cycle n'est pas encore configuré ou accessible.</p>
+                    <p className="font-bold">Sélectionnez une semaine.</p>
                 </div>
             </div> 
         )}

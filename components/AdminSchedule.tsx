@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { WeekModule, Deliverable } from '../types';
-import { Calendar, CheckSquare, GraduationCap, Target, Clock, Edit2, Save, X, Layers, TrendingUp, ChevronRight } from 'lucide-react';
+import { Calendar, Layers, TrendingUp, Save, X } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
 import { doc, writeBatch, db } from '../services/firebase';
@@ -9,6 +9,7 @@ import { doc, writeBatch, db } from '../services/firebase';
 // Sub-components
 import { PlanningForm } from './admin/schedule/PlanningForm';
 import { ContentForm } from './admin/schedule/ContentForm';
+import { WeekCard } from './admin/schedule/WeekCard';
 
 interface AdminScheduleProps {
     weeksData: { [key: string]: WeekModule };
@@ -17,7 +18,7 @@ interface AdminScheduleProps {
 }
 
 export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdateWeek, readOnly }) => {
-  const { agencies } = useGame();
+  const { agencies, gameConfig } = useGame();
   const { confirm, toast } = useUI();
   
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
@@ -25,15 +26,13 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
   
   // Groupement des semaines par cycles de 3
   const cycles = useMemo(() => {
-      // FIX: Cast Object.values to WeekModule[] to fix 'unknown' type errors on line 28
       const allWeeks = (Object.values(weeksData) as WeekModule[]).sort((a, b) => parseInt(a.id) - parseInt(b.id));
       const grouped: { [key: number]: WeekModule[] } = { 1: [], 2: [], 3: [], 4: [] };
       
       allWeeks.forEach(w => {
-          // FIX: w is now inferred as WeekModule, fixing 'unknown' errors on lines 32, 33, 34
           const cycleId = Math.ceil(parseInt(w.id) / 3);
           if (cycleId <= 4) grouped[cycleId].push(w);
-          else grouped[4].push(w); // Semaine 13+ dans le dernier cycle
+          else grouped[4].push(w);
       });
       return grouped;
   }, [weeksData]);
@@ -46,16 +45,6 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
 
   const [contentForm, setContentForm] = useState<WeekModule | null>(null);
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-        case 'FUN/CHILL': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'THÉORIE': return 'bg-blue-100 text-blue-800 border-blue-200';
-        case 'TECHNIQUE': return 'bg-amber-100 text-amber-800 border-amber-200';
-        case 'JURY': return 'bg-red-100 text-red-800 border-red-200';
-        default: return 'bg-slate-100 text-slate-800 border-slate-200';
-    }
-  };
-
   const startEditing = (week: WeekModule, mode: 'PLANNING' | 'CONTENT') => {
       setEditingWeekId(week.id);
       setEditMode(mode);
@@ -67,6 +56,24 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
       } else {
           setContentForm(JSON.parse(JSON.stringify(week)));
       }
+  };
+
+  const handleToggleVisibility = async (week: WeekModule) => {
+      if (readOnly) return;
+      const newStatus = !week.isVisible;
+      const updatedWeek = { ...week, isVisible: newStatus };
+      
+      // Update global definition
+      onUpdateWeek(week.id, updatedWeek);
+      
+      // Optional: Sync visibility to all agencies? 
+      // Actually, agencies copy the week structure, but usually UI reads from the global definition for visibility/locks.
+      // However, to be safe and clean, we might want to update agencies too if they have a local copy.
+      // For now, let's assume UI checks global `weeks` context for visibility or `agency.progress` has it.
+      // In `useGameSync`, weeks are synced globally. `StudentAgencyView` should check `weeks` from context or `agency.progress` if synced.
+      // Let's rely on `onUpdateWeek` which updates the `weeks` collection.
+      
+      toast('info', `Semaine ${week.id} ${newStatus ? 'Visible' : 'Cachée'}`);
   };
 
   const saveSchedule = (weekId: string) => {
@@ -129,7 +136,8 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                   objectives: contentForm.objectives,
                   type: contentForm.type,
                   deliverables: mergedDeliverables,
-                  scoring: contentForm.scoring // On synchronise les paramètres de notation !
+                  scoring: contentForm.scoring,
+                  isVisible: contentForm.isVisible // Sync visibility too
               };
 
               const ref = doc(db, "agencies", agency.id);
@@ -177,7 +185,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                         </div>
                         <div className="h-px flex-1 bg-slate-200"></div>
                         <div className="text-right">
-                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Points Attendus (Total Cycle)</p>
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Points Attendus</p>
                              <p className="font-bold text-slate-900">
                                  {cycles[cycleNum].reduce((acc, w) => acc + (w.scoring?.expectedTargetVE || 0), 0)} VE
                              </p>
@@ -187,82 +195,49 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                     {/* Semaines du Cycle */}
                     <div className="relative border-l-4 border-slate-100 ml-6 md:ml-10 space-y-8 py-2">
                         {cycles[cycleNum].map((week) => (
-                            <div key={week.id} className="relative pl-8 md:pl-12">
-                                <div className={`absolute -left-[20px] top-0 w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-md border-4 border-white z-10 ${parseInt(week.id) % 2 === 0 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                                    {week.id}
-                                </div>
-
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 group hover:shadow-md transition-all">
-                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-50">
-                                         <div>
-                                             <div className="flex items-center gap-3">
-                                                <h3 className="text-xl font-bold text-slate-900">{week.title}</h3>
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getTypeColor(week.type)}`}>
-                                                    {week.type}
-                                                </span>
-                                             </div>
-                                             {week.scoring && (
-                                                 <div className="flex items-center gap-4 mt-2">
-                                                     <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                                                         <Target size={14} className="text-indigo-500"/> Objectif: <span className="font-bold text-slate-900">{week.scoring.expectedTargetVE} VE</span>
-                                                     </div>
-                                                     <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                                                         <TrendingUp size={14} className="text-emerald-500"/> Grade A: <span className="font-bold text-emerald-600">+{week.scoring.pointsA}</span>
-                                                     </div>
-                                                 </div>
-                                             )}
-                                         </div>
-                                         
-                                         {editingWeekId !== week.id ? (
-                                             !readOnly && (
-                                             <div className="flex gap-2">
-                                                 <button onClick={() => startEditing(week, 'PLANNING')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors" title="Planning"><Clock size={18}/></button>
-                                                 <button onClick={() => startEditing(week, 'CONTENT')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors">
-                                                     <Edit2 size={14}/> Paramétrer la Phase
-                                                 </button>
-                                             </div>
-                                             )
-                                         ) : (
-                                            <div className="flex gap-2">
-                                                <button onClick={() => { setEditingWeekId(null); setContentForm(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={20}/></button>
-                                                <button onClick={() => editMode === 'PLANNING' ? saveSchedule(week.id) : saveContentAndSync()} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg transition-transform active:scale-95">
-                                                    <Save size={18}/> Enregistrer
-                                                </button>
+                            <div key={week.id}>
+                                {editingWeekId === week.id ? (
+                                    <div className="relative pl-8 md:pl-12">
+                                        <div className="bg-white rounded-2xl border-2 border-indigo-500 shadow-xl p-6">
+                                            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                                                <h3 className="font-bold text-lg text-indigo-700">
+                                                    {editMode === 'PLANNING' ? `Planning Semaine ${week.id}` : `Contenu Semaine ${week.id}`}
+                                                </h3>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => { setEditingWeekId(null); setContentForm(null); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={20}/></button>
+                                                    <button onClick={() => editMode === 'PLANNING' ? saveSchedule(week.id) : saveContentAndSync()} className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg transition-transform active:scale-95">
+                                                        <Save size={18}/> Enregistrer
+                                                    </button>
+                                                </div>
                                             </div>
-                                         )}
-                                     </div>
 
-                                     {editingWeekId === week.id && editMode === 'CONTENT' && contentForm && (
-                                         <ContentForm 
-                                            contentForm={contentForm}
-                                            setContentForm={setContentForm}
-                                            addDeliverable={addDeliverable}
-                                            removeDeliverable={removeDeliverable}
-                                         />
-                                     )}
+                                            {editMode === 'CONTENT' && contentForm && (
+                                                <ContentForm 
+                                                    contentForm={contentForm}
+                                                    setContentForm={setContentForm}
+                                                    addDeliverable={addDeliverable}
+                                                    removeDeliverable={removeDeliverable}
+                                                />
+                                            )}
 
-                                     {editingWeekId === week.id && editMode === 'PLANNING' && (
-                                         <PlanningForm 
-                                            scheduleForm={scheduleForm}
-                                            setScheduleForm={setScheduleForm}
-                                         />
-                                     )}
-
-                                     {(!editingWeekId || editMode !== 'CONTENT') && (
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                         <div>
-                                             <h4 className="font-bold text-slate-400 mb-2 text-[10px] uppercase tracking-widest flex items-center gap-2">Missions ({week.deliverables.length})</h4>
-                                             <div className="space-y-2">
-                                                 {week.deliverables.map((del) => (
-                                                     <div key={del.id} className="text-sm text-slate-600 flex items-center gap-2">
-                                                         <ChevronRight size={14} className="text-slate-300"/> {del.name}
-                                                     </div>
-                                                 ))}
-                                             </div>
-                                         </div>
-                                     </div>
-                                     )}
-                                </div>
+                                            {editMode === 'PLANNING' && (
+                                                <PlanningForm 
+                                                    scheduleForm={scheduleForm}
+                                                    setScheduleForm={setScheduleForm}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <WeekCard 
+                                        week={week}
+                                        isActive={week.id === gameConfig.currentWeek.toString()}
+                                        onEditPlanning={() => startEditing(week, 'PLANNING')}
+                                        onEditContent={() => startEditing(week, 'CONTENT')}
+                                        onToggleVisibility={handleToggleVisibility}
+                                        readOnly={readOnly}
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>

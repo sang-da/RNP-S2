@@ -75,7 +75,8 @@ export interface WeekModule {
   type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
   objectives: string[];
   deliverables: Deliverable[];
-  locked: boolean;
+  locked: boolean; // Obsolète, remplacé par isVisible pour la logique d'affichage, mais gardé pour compatibilité
+  isVisible?: boolean; // NOUVEAU : Contrôle explicite de la visibilité étudiant
   status?: 'pending' | 'in_progress' | 'validated';
   schedule: {
       classA: ClassSession | null;
