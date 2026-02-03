@@ -35,14 +35,14 @@ export interface Deliverable {
   fileUrl?: string;
   deadline?: string; 
   selfAssessment?: 'A' | 'B' | 'C'; 
-  nominatedMvpId?: string | null; // Changé en nullable pour Firestore
+  nominatedMvpId?: string | null; 
   submissionDate?: string;
   grading?: {
     quality: 'A' | 'B' | 'C' | 'REJECTED';
     daysLate: number;
     constraintBroken: boolean;
     finalDelta: number;
-    mvpId?: string | null; // Changé en nullable
+    mvpId?: string | null;
   } | null;
 }
 
@@ -56,10 +56,12 @@ export interface WeekScoringConfig {
     pointsB: number;
     penaltyLatePerDay: number;
     penaltyConstraint: number;
+    expectedTargetVE: number; // Ce que l'étudiant est censé gagner (pour le prof)
 }
 
 export interface WeekModule {
   id: string;
+  cycleId: number; // 1, 2, 3 ou 4
   title: string;
   type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
   objectives: string[];
@@ -70,9 +72,10 @@ export interface WeekModule {
       classA: ClassSession | null;
       classB: ClassSession | null;
   };
-  scoring?: WeekScoringConfig; // Configuration optionnelle (fallback sur défaut si vide)
+  scoring?: WeekScoringConfig;
 }
 
+// ... (reste des interfaces inchangé)
 export interface StudentHistoryEntry {
     date: string;
     agencyId: string;
@@ -150,7 +153,7 @@ export interface MercatoRequest {
   studentName: string;
   requesterId?: string; 
   targetAgencyId: string; 
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED'; // Ajout de ACCEPTED
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   date: string;
   motivation?: string; 
   votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; 
@@ -216,40 +219,28 @@ export interface Agency {
   members: Student[];
   peerReviews: PeerReview[];
   classId: 'A' | 'B' | 'ALL'; 
-  
   ve_current: number; 
   veCapOverride?: number; 
   budget_real: number; 
   budget_valued: number; 
   weeklyTax: number; 
   weeklyRevenueModifier: number; 
-  
   status: 'stable' | 'fragile' | 'critique';
-  
   eventLog: GameEvent[]; 
-  
   currentCycle: CycleType;
-  
   projectDef: ProjectDefinition;
-  
   mercatoRequests: MercatoRequest[];
-  
   transactionRequests: TransactionRequest[];
-
   mergerRequests?: MergerRequest[];
-
   challenges?: ChallengeRequest[];
-
   constraints: {
     space: string;
     style: string;
     client: string;
   };
-  
   progress: {
     [weekId: string]: WeekModule;
   };
-
   branding: AgencyBranding;
   badges: Badge[];
 }

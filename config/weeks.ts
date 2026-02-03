@@ -5,12 +5,14 @@ const DEFAULT_SCORING = {
     pointsA: 10,
     pointsB: 4,
     penaltyLatePerDay: 5,
-    penaltyConstraint: 10
+    penaltyConstraint: 10,
+    expectedTargetVE: 10
 };
 
 export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   "1": {
     id: "1",
+    cycleId: 1,
     title: "Lancement & Définition",
     type: "FUN/CHILL",
     objectives: ["Définir le problème local", "Identifier la cible", "Choisir le lieu", "Nommer l'agence"],
@@ -18,16 +20,16 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
       { id: "d_report_1", name: "Compte Rendu Hebdo", description: "Résumé des activités, décisions et roadmap.", status: 'pending' },
       { id: "d_charter", name: "Charte de Projet", description: "Formulaire de définition du projet (Contexte, Problème, Cible, Lieu, Thème)", status: 'pending' },
       { id: "d_branding", name: "Nom du Studio", description: "Définition du nom officiel et de la tagline.", status: 'pending' },
-      { id: "d_logo", name: "Logo du Studio", description: "Image carrée (PNG/JPG). Sera utilisée comme avatar de l'agence.", status: 'pending' },
-      { id: "d2", name: "Feuille de route S1", description: "Planning prévisionnel des 4 prochaines semaines", status: 'pending' }
+      { id: "d_logo", name: "Logo du Studio", description: "Image carrée (PNG/JPG). Sera utilisée comme avatar de l'agence.", status: 'pending' }
     ],
     locked: false,
     status: 'pending',
     schedule: { classA: { date: '2026-01-07', slot: 'APRÈS-MIDI' }, classB: { date: '2026-01-06', slot: 'MATIN' } },
-    scoring: DEFAULT_SCORING
+    scoring: { ...DEFAULT_SCORING, expectedTargetVE: 15 }
   },
   "2": {
     id: "2",
+    cycleId: 1,
     title: "Recherche & Storyboard",
     type: "THÉORIE",
     objectives: ["Storyboard avant/après", "Plan d'images", "Moodboard"],
@@ -42,13 +44,13 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "3": {
     id: "3",
+    cycleId: 1,
     title: "Production Base & Scènes",
     type: "TECHNIQUE",
     objectives: ["Set-up projet", "Blocages lumière", "Rendu test"],
     deliverables: [
       { id: "d_report_3", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d4", name: "10 Rendus Bruts", description: "Preuve de concept visuelle", status: 'pending' },
-      { id: "d5", name: "Plan clé animé (Brouillon)", description: "Test animation caméra", status: 'pending' }
+      { id: "d4", name: "10 Rendus Bruts", description: "Preuve de concept visuelle", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -57,28 +59,28 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "4": {
     id: "4",
+    cycleId: 2,
     title: "IA Vidéo & Parallax",
     type: "FUN/CHILL",
     objectives: ["Séquence IA 10-15s", "Documentation éthique"],
     deliverables: [
       { id: "d_report_4", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d6", name: "Séquence IA Intégrée", description: "Vidéo générée/modifiée par IA", status: 'pending' },
-      { id: "d7", name: "Justification Écrite", description: "5-8 lignes sur l'usage IA", status: 'pending' }
+      { id: "d6", name: "Séquence IA Intégrée", description: "Vidéo générée/modifiée par IA", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
     schedule: { classA: { date: '2026-02-04', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-03', slot: 'MATIN' } },
-    scoring: DEFAULT_SCORING
+    scoring: { ...DEFAULT_SCORING, pointsA: 8, expectedTargetVE: 8 } // Exemple d'ajustement : Cycle plus difficile
   },
   "5": {
     id: "5",
+    cycleId: 2,
     title: "Caméras Avancées & Lumière",
     type: "THÉORIE",
     objectives: ["Trajectoires cohérentes", "DOF animé", "Maîtrise Key/Fill/Rim"],
     deliverables: [
       { id: "d_report_5", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d_s17_1", name: "2 Plans Avancés", description: "Rendus démontrant la maîtrise lumière/caméra", status: 'pending' },
-      { id: "d_s17_2", name: "Notes Techniques", description: "Explication des choix caméra/lumière (Shotlist)", status: 'pending' }
+      { id: "d_s17_1", name: "2 Plans Avancés", description: "Rendus démontrant la maîtrise lumière/caméra", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -87,28 +89,28 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "6": {
     id: "6",
+    cycleId: 2,
     title: "Milestone PoC (45s)",
     type: "TECHNIQUE",
     objectives: ["Livrer version agence lisible", "QA Sheet"],
     deliverables: [
       { id: "d_report_6", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d8", name: "PoC 45s", description: "Preuve de concept vidéo complète", status: 'pending' },
-      { id: "d9", name: "QA Sheet Signée", description: "Gate 1: Go/No-Go", status: 'pending' }
+      { id: "d8", name: "PoC 45s", description: "Preuve de concept vidéo complète", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
     schedule: { classA: { date: '2026-02-18', slot: 'APRÈS-MIDI' }, classB: { date: '2026-02-17', slot: 'MATIN' } },
-    scoring: DEFAULT_SCORING
+    scoring: { ...DEFAULT_SCORING, expectedTargetVE: 20 } // Gros enjeu
   },
   "7": {
     id: "7",
+    cycleId: 3,
     title: "Itérations Massives",
     type: "FUN/CHILL",
     objectives: ["Explorer variantes (Lumière/Matière)", "A/B Testing", "Documentation variantes"],
     deliverables: [
       { id: "d_report_7", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d_s19_1", name: "Contact Sheet (50 rendus)", description: "Planche contact des itérations exploratoires", status: 'pending' },
-      { id: "d_s19_2", name: "Rapport Progression", description: "Preuve d'avancement vers les 50 rendus", status: 'pending' }
+      { id: "d_s19_1", name: "Contact Sheet (50 rendus)", description: "Planche contact des itérations exploratoires", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -117,13 +119,13 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "8": {
     id: "8",
+    cycleId: 3,
     title: "Direction & Sélection",
     type: "THÉORIE",
     objectives: ["Fixer la DA finale", "Critères de sélection", "Cohérence Marque"],
     deliverables: [
       { id: "d_report_8", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d_s20_1", name: "5 Key Visuals (Retouchés)", description: "La sélection finale post-comité DA", status: 'pending' },
-      { id: "d_s20_2", name: "Note d'intention", description: "Justification des choix de sélection", status: 'pending' }
+      { id: "d_s20_1", name: "5 Key Visuals (Retouchés)", description: "La sélection finale post-comité DA", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -132,6 +134,7 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "9": {
     id: "9",
+    cycleId: 3,
     title: "Poster & Portfolio",
     type: "TECHNIQUE",
     objectives: ["Packaging Pro", "Lisibilité A1", "Portfolio 6-10 pages"],
@@ -147,13 +150,13 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "10": {
     id: "10",
+    cycleId: 4,
     title: "Automation & Packaging",
     type: "FUN/CHILL",
     objectives: ["Accélérer Shotlist", "Normalisation dossiers", "Scripts répétitifs"],
     deliverables: [
       { id: "d_report_10", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d_s22_1", name: "Package Normalisé", description: "Structure de dossiers conforme aux attentes", status: 'pending' },
-      { id: "d_s22_2", name: "Sources Propres", description: "Nettoyage des fichiers sources", status: 'pending' }
+      { id: "d_s22_1", name: "Package Normalisé", description: "Structure de dossiers conforme aux attentes", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -162,13 +165,13 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "11": {
     id: "11",
+    cycleId: 4,
     title: "Conformité Export",
     type: "THÉORIE",
     objectives: ["Certification formats (H.264, LUFS)", "Stress Tests", "Checklist Conformité"],
     deliverables: [
       { id: "d_report_11", name: "Compte Rendu Hebdo", description: "Résumé des activités et décisions.", status: 'pending' },
-      { id: "d_s23_1", name: "Release Candidate (Vidéo)", description: "Export quasi-final pour Gate 2 (Conformité OK)", status: 'pending' },
-      { id: "d_s23_2", name: "Checklist Conformité", description: "Document QA validé", status: 'pending' }
+      { id: "d_s23_1", name: "Release Candidate (Vidéo)", description: "Export quasi-final pour Gate 2 (Conformité OK)", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
@@ -177,17 +180,17 @@ export const INITIAL_WEEKS: { [key: string]: WeekModule } = {
   },
   "12": {
     id: "12",
+    cycleId: 4,
     title: "JURY FINAL",
     type: "JURY",
     objectives: ["Défendre la démarche", "Démontrer cohérence marque", "Soutenance Orale"],
     deliverables: [
       { id: "d_report_12", name: "Compte Rendu Final", description: "Bilan global du semestre.", status: 'pending' },
-      { id: "d_s24_1", name: "Vidéo Finale (45-60s)", description: "Le rendu définitif Avant/Après", status: 'pending' },
-      { id: "d_s24_2", name: "Pack Jury Complet", description: "Vidéo + 5 KV + Poster A1 + A3 Process + Portfolio", status: 'pending' }
+      { id: "d_s24_1", name: "Vidéo Finale (45-60s)", description: "Le rendu définitif Avant/Après", status: 'pending' }
     ],
     locked: true,
     status: 'pending',
     schedule: { classA: null, classB: null },
-    scoring: { ...DEFAULT_SCORING, pointsA: 30, pointsB: 15 } // Bonus Jury par défaut
+    scoring: { ...DEFAULT_SCORING, pointsA: 30, pointsB: 15, expectedTargetVE: 40 }
   }
 };
