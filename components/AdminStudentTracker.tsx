@@ -178,7 +178,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold">
-                                        <CheckIcon/> Dossier Vierge (Aucune note < 2.5)
+                                        <CheckIcon/> Dossier Vierge (Aucune note &lt; 2.5)
                                     </div>
                                 )}
                             </div>
