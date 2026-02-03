@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType, Deliverable } from '../../types';
-import { Crown, Compass, Mic, Eye } from 'lucide-react';
+import { Crown, Compass, Mic, Eye, Zap } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
 import { CYCLE_AWARDS } from '../../constants';
@@ -25,22 +26,27 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   
   // LOGIQUE DE FILTRE PAR CYCLE (Paramétré par le prof côté Admin)
   const visibleWeeks = useMemo(() => {
-      // FIX: Cast Object.values to WeekModule[] to resolve 'unknown' type errors during filtering and sorting
       return (Object.values(agency.progress) as WeekModule[])
           .filter((w: WeekModule) => w.cycleId === gameConfig.currentCycle)
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
   }, [agency.progress, gameConfig.currentCycle]);
 
-  // État de la semaine active (par défaut la première du cycle)
+  // État de la semaine active (par défaut la semaine globale pilotée par le prof, si elle est dans le cycle)
   const [activeWeek, setActiveWeek] = useState<string>(""); 
 
   useEffect(() => {
-    if (visibleWeeks.length > 0 && !activeWeek) {
+    // Si la semaine globale est dans la liste visible, on la sélectionne par défaut
+    const globalWeekStr = gameConfig.currentWeek.toString();
+    const isGlobalVisible = visibleWeeks.find(w => w.id === globalWeekStr);
+
+    if (isGlobalVisible && activeWeek === "") {
+        setActiveWeek(globalWeekStr);
+    } else if (visibleWeeks.length > 0 && activeWeek === "") {
         setActiveWeek(visibleWeeks[0].id);
     } else if (visibleWeeks.length > 0 && !visibleWeeks.find(w => w.id === activeWeek)) {
         setActiveWeek(visibleWeeks[0].id); // Reset si le cycle change
     }
-  }, [visibleWeeks, activeWeek]);
+  }, [visibleWeeks, activeWeek, gameConfig.currentWeek]);
 
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
   
@@ -134,17 +140,42 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelected} />
         
         <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar snap-x">
-             {visibleWeeks.map((week: WeekModule) => (
-                <button key={week.id} onClick={() => setActiveWeek(week.id)} className={`snap-center flex-shrink-0 px-5 py-3 rounded-2xl border-2 transition-all ${activeWeek === week.id ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
-                    <span className="font-display font-bold text-lg">SEM {week.id}</span>
-                </button>
-            ))}
+             {visibleWeeks.map((week: WeekModule) => {
+                const isLive = week.id === gameConfig.currentWeek.toString();
+                return (
+                    <button 
+                        key={week.id} 
+                        onClick={() => setActiveWeek(week.id)} 
+                        className={`snap-center flex-shrink-0 px-5 py-3 rounded-2xl border-2 transition-all flex flex-col items-center relative ${
+                            activeWeek === week.id 
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
+                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                        }`}
+                    >
+                        {isLive && (
+                            <div className="absolute -top-2 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                                <Zap size={8} className="fill-white"/> LIVE
+                            </div>
+                        )}
+                        <span className="font-display font-bold text-lg">SEM {week.id}</span>
+                        {isLive && <span className="text-[8px] font-black opacity-60 uppercase">En cours</span>}
+                    </button>
+                );
+             })}
         </div>
 
         {currentWeekData ? (
-        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm">
+        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden">
+            {currentWeekData.id === gameConfig.currentWeek.toString() && (
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <Zap size={120} />
+                </div>
+            )}
             <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{currentWeekData.title}</h3>
-            <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest">Cycle {gameConfig.currentCycle} en cours</p>
+            <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest flex items-center gap-2">
+                Cycle {gameConfig.currentCycle} en cours
+                {currentWeekData.id === gameConfig.currentWeek.toString() && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
+            </p>
             <div className="space-y-6">
                 {currentWeekData.deliverables.map((deliverable) => {
                     const dynDeadline = getDynamicDeadline(currentWeekData, agency.classId as string);

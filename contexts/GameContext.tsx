@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable, GameConfig } from '../types';
 import { useUI } from './UIContext';
@@ -62,6 +63,7 @@ export const useGame = () => {
 const DEFAULT_CONFIG: GameConfig = {
     id: 'global',
     currentCycle: 1,
+    currentWeek: 1,
     autoPilot: true,
     lastFinanceRun: null,
     lastPerformanceRun: null
@@ -69,69 +71,64 @@ const DEFAULT_CONFIG: GameConfig = {
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { toast } = useUI();
-  const { userData } = useAuth();
   
   const [role, setRole] = useState<'admin' | 'student'>('student');
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
-  
-  // FIX: Explicitly define selectAgency to satisfy the GameContext interface and use the state setter
-  const selectAgency = (id: string | null) => setSelectedAgencyId(id);
-
   const [gameConfig, setGameConfig] = useState<GameConfig>(DEFAULT_CONFIG);
 
   const { agencies, weeks, resources, seedDatabase } = useGameSync(toast);
   const finance = useFinanceLogic(agencies, toast);
+  
   const getCurrentGameWeek = useCallback(() => {
-      const unlockedWeeks = (Object.values(weeks) as WeekModule[]).filter(w => !w.locked).map(w => parseInt(w.id));
-      return unlockedWeeks.length > 0 ? Math.max(...unlockedWeeks) : 1;
-  }, [weeks]);
+      return gameConfig.currentWeek || 1;
+  }, [gameConfig.currentWeek]);
   
   const mechanics = useGameMechanics(agencies, toast, getCurrentGameWeek);
 
-  // 0. SYNC CONFIG
+  // 0. SYNC CONFIG (AVEC INITIALISATION ROBUSTE)
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "config", "game_state"), (snap) => {
-        if (snap.exists()) setGameConfig(snap.data() as GameConfig);
-        else setDoc(doc(db, "config", "game_state"), DEFAULT_CONFIG);
+    const configRef = doc(db, "config", "game_state");
+    const unsub = onSnapshot(configRef, (snap) => {
+        if (snap.exists()) {
+            setGameConfig(snap.data() as GameConfig);
+        } else {
+            // Création initiale si le doc n'existe pas du tout
+            setDoc(configRef, DEFAULT_CONFIG).catch(e => console.error("Init config failed", e));
+        }
     });
     return unsub;
   }, []);
 
-  // 1. AUTO-PILOT SCHEDULER
+  // 1. AUTO-PILOT SCHEDULER (Lundi Paye / Vendredi Bilan)
   useEffect(() => {
     if (!gameConfig.autoPilot || role !== 'admin') return;
 
     const checkAutomation = async () => {
         const now = new Date();
-        const day = now.getDay(); // 0=Sun, 1=Mon, 5=Fri
+        const day = now.getDay(); 
         const hour = now.getHours();
         
-        // Calculer l'identifiant de semaine unique (Année-SemaineISO)
         const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
         const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
         const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
         const weekKey = `${now.getFullYear()}-${weekNo}`;
 
-        // LUNDI : FINANCE (Salaires/Loyers)
         if (day === 1 && gameConfig.lastFinanceRun !== weekKey) {
-            console.log(`[AUTO-PILOT] Déclenchement Finance Lundi : ${weekKey}`);
             await finance.processFinance('ALL' as any);
             await updateGameConfig({ lastFinanceRun: weekKey });
-            toast('info', 'IA : Traitement financier hebdomadaire effectué (Salaires).');
+            toast('info', 'IA : Salaires hebdomadaires versés.');
         }
 
-        // VENDREDI SOIR (dès 18h) : PERFORMANCE (Bilan)
         if (day === 5 && hour >= 18 && gameConfig.lastPerformanceRun !== weekKey) {
-            console.log(`[AUTO-PILOT] Déclenchement Performance Vendredi : ${weekKey}`);
             await mechanics.processPerformance('ALL' as any);
             await updateGameConfig({ lastPerformanceRun: weekKey });
             toast('info', 'IA : Bilan de performance de fin de semaine effectué.');
         }
     };
 
-    const interval = setInterval(checkAutomation, 60000); // Vérifier toutes les minutes
-    checkAutomation(); // Check direct au login
+    const interval = setInterval(checkAutomation, 60000); 
+    checkAutomation(); 
     return () => clearInterval(interval);
   }, [gameConfig, role, finance, mechanics]);
 
@@ -139,11 +136,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateGameConfig = async (newConfig: Partial<GameConfig>) => {
       try {
           const ref = doc(db, "config", "game_state");
-          await updateDoc(ref, newConfig);
+          // FIX: Utiliser setDoc avec merge: true au lieu de updateDoc pour éviter "Erreur config globale" si le doc est manquant
+          await setDoc(ref, newConfig, { merge: true });
       } catch (e) {
-          toast('error', "Erreur config globale");
+          toast('error', "Échec de la mise à jour de la config globale");
       }
   };
+
+  const selectAgency = (id: string | null) => setSelectedAgencyId(id);
 
   const updateAgenciesList = async (newAgencies: Agency[]) => {
       try {
@@ -153,7 +153,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             batch.set(ref, a, { merge: true });
         });
         await batch.commit();
-      } catch(e) { console.error(e); toast('error', 'Erreur mise à jour multiple'); }
+      } catch(e) { toast('error', 'Erreur mise à jour multiple'); }
   };
 
   const deleteAgency = async (agencyId: string) => {
@@ -176,7 +176,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateWeek = async (weekId: string, updatedWeek: WeekModule) => {
     try {
-        await updateDoc(doc(db, "weeks", weekId), { ...updatedWeek });
+        await setDoc(doc(db, "weeks", weekId), { ...updatedWeek }, { merge: true });
         toast('success', `Semaine ${weekId} mise à jour`);
     } catch (e) { toast('error', 'Erreur maj semaine'); }
   };

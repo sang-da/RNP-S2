@@ -9,6 +9,7 @@ export enum CycleType {
 export interface GameConfig {
     id: string;
     currentCycle: number; // 1, 2, 3, 4
+    currentWeek: number;  // 1 à 12 (Contrôle manuel de la semaine active)
     autoPilot: boolean;
     lastFinanceRun: string | null; // Format "YYYY-WW" (Année-Semaine)
     lastPerformanceRun: string | null; // Format "YYYY-WW"

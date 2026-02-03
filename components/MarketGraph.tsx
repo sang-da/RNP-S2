@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { Agency } from '../types';
-import { TrendingUp, Eye, AlertCircle, MessageCircle } from 'lucide-react';
+
+import React, { useMemo, useState, useEffect } from 'react';
+import { Agency, Student } from '../types';
+import { TrendingUp, Eye, AlertCircle, MessageCircle, Users, X, ChevronRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { MASCOTS } from '../constants';
 
 interface MarketGraphProps {
     agencies: Agency[];
-    highlightAgencyId?: string;
+    highlightAgencyId?: string; // Prop optionnelle pour forcer le focus (ex: mon agence)
     onToggleBlackOps?: () => void;
     showBlackOpsButton?: boolean;
     title?: string;
@@ -24,36 +25,42 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     isLanding = false
 }) => {
     const [isMascotHovered, setIsMascotHovered] = useState(false);
+    const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
     
+    // Si une prop highlight est passée (mon agence), on l'utilise par défaut
+    useEffect(() => {
+        if (highlightAgencyId) setLocalSelectedId(highlightAgencyId);
+    }, [highlightAgencyId]);
+
     // --- DATA PREPARATION ---
     const validAgencies = useMemo(() => {
         if (!agencies || !Array.isArray(agencies)) return [];
         return agencies.filter(a => a.id !== 'unassigned');
     }, [agencies]);
 
+    const focusedAgency = useMemo(() => 
+        validAgencies.find(a => a.id === localSelectedId)
+    , [validAgencies, localSelectedId]);
+
     const comparisonData = useMemo(() => {
       if (validAgencies.length === 0) return [];
 
-      // 1. Récupération de toutes les dates uniques présentes dans les logs
       let allDates = Array.from(new Set(
           validAgencies.flatMap(a => a.eventLog.map(e => e.date))
       )).sort((a: any, b: any) => new Date(a).getTime() - new Date(b).getTime());
 
-      // Sécurité : Si aucune date (début de semestre), on met la date du jour
       if (allDates.length === 0) {
           allDates = [new Date().toISOString().split('T')[0]];
       }
 
       const STARTING_VE = 0;
 
-      // 2. Construction des points temporels
       const points = allDates.map((dateStr: string) => {
           const point: any = { 
               name: new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
               date: dateStr
           };
 
-          // Pour chaque agence, on calcule sa VE cumulée à cette date
           validAgencies.forEach(a => {
               const veAtDate = a.eventLog
                   .filter(e => e.date <= dateStr)
@@ -65,7 +72,6 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
           return point;
       });
 
-      // 3. Ajout d'un point de départ (J-1 ou S0) pour avoir une ligne qui part de 0
       const startPoint: any = { name: 'Départ' };
       validAgencies.forEach(a => startPoint[a.name] = STARTING_VE);
 
@@ -73,36 +79,33 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     }, [validAgencies]);
 
     const getMascot = () => {
-        if (isLanding) return MASCOTS.MARKET_RICH; // Mascotte riche/caméra pour la landing
-        if (highlightAgencyId) {
-            const agency = validAgencies.find(a => a.id === highlightAgencyId);
-            if (agency) {
-                if (agency.ve_current >= 60) return MASCOTS.MARKET_RICH;
-                if (agency.ve_current <= 30) return MASCOTS.MARKET_POOR;
-            }
+        if (isLanding) return MASCOTS.MARKET_RICH;
+        if (focusedAgency) {
+            if (focusedAgency.ve_current >= 60) return MASCOTS.MARKET_RICH;
+            if (focusedAgency.ve_current <= 30) return MASCOTS.MARKET_POOR;
         }
         return MASCOTS.MARKET_STABLE;
     };
 
     const mascotMessage = isLanding 
-        ? "Regardez-les grimper ! Qui dominera le S2 ?" 
-        : highlightAgencyId ? "Votre performance influence ma richesse..." : "Le marché est volatile !";
+        ? "Cliquez sur une courbe pour voir qui bosse !" 
+        : focusedAgency ? `Le studio ${focusedAgency.name} semble solide... ou pas.` : "Le marché est volatile !";
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
           return (
-            <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 text-xs z-50">
-              <p className="font-black text-slate-400 mb-2 uppercase tracking-widest">{label}</p>
+            <div className="bg-slate-900 text-white p-3 rounded-xl shadow-2xl border border-white/10 text-xs z-50">
+              <p className="font-black text-indigo-300 mb-2 uppercase tracking-widest">{label}</p>
               <div className="space-y-1">
                 {payload.map((p: any) => {
-                  const isHighlighted = highlightAgencyId ? (validAgencies.find(a => a.name === p.name)?.id === highlightAgencyId) : true;
+                  const isThisOne = validAgencies.find(a => a.name === p.name)?.id === localSelectedId;
                   return (
-                    <div key={p.name} className={`flex items-center justify-between gap-4 ${isHighlighted ? 'opacity-100' : 'opacity-50'}`}>
+                    <div key={p.name} className={`flex items-center justify-between gap-4 ${isThisOne ? 'opacity-100 scale-105' : 'opacity-50'}`}>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full" style={{backgroundColor: p.stroke}}></div>
-                        <span className={`font-bold ${isHighlighted ? 'text-slate-900' : 'text-slate-500'}`}>{p.name}</span>
+                        <span className={`font-bold ${isThisOne ? 'text-white' : 'text-slate-400'}`}>{p.name}</span>
                       </div>
-                      <span className="font-mono font-black" style={{ color: p.stroke }}>{p.value}</span>
+                      <span className="font-mono font-black" style={{ color: p.stroke }}>{p.value} VE</span>
                     </div>
                   );
                 })}
@@ -119,96 +122,175 @@ export const MarketGraph: React.FC<MarketGraphProps> = ({
     };
 
     return (
-        <div className={`bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-visible flex flex-col h-full animate-in fade-in zoom-in duration-500 ${isLanding ? 'p-6 md:p-10' : 'p-4 md:p-6'}`}>
-            
-            {/* Mascot Decoration - Interactive */}
-            <div 
-                className={`absolute z-30 transition-all duration-500 cursor-pointer group ${isLanding ? '-right-8 -bottom-10 w-40 md:w-52 md:-right-12 md:-bottom-12' : '-right-4 -bottom-6 w-24 md:w-32 opacity-90'}`}
-                onMouseEnter={() => setIsMascotHovered(true)}
-                onMouseLeave={() => setIsMascotHovered(false)}
-            >
-                {/* Speech Bubble */}
-                <div className={`absolute bottom-full right-0 mb-2 bg-slate-900 text-white text-xs font-bold p-3 rounded-t-xl rounded-bl-xl shadow-lg w-40 transform transition-all duration-300 origin-bottom-right ${isMascotHovered ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
-                    <MessageCircle size={12} className="inline mr-1 text-yellow-400"/>
-                    {mascotMessage}
+        <div className="space-y-4">
+            <div className={`bg-white rounded-[24px] md:rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-visible flex flex-col h-full animate-in fade-in zoom-in duration-500 ${isLanding ? 'p-6 md:p-10' : 'p-4 md:p-6'}`}>
+                
+                {/* Mascot Decoration */}
+                <div 
+                    className={`absolute z-30 transition-all duration-500 cursor-pointer group ${isLanding ? '-right-8 -bottom-10 w-40 md:w-52 md:-right-12 md:-bottom-12' : '-right-4 -bottom-6 w-24 md:w-32 opacity-90'}`}
+                    onMouseEnter={() => setIsMascotHovered(true)}
+                    onMouseLeave={() => setIsMascotHovered(false)}
+                >
+                    <div className={`absolute bottom-full right-0 mb-2 bg-slate-900 text-white text-xs font-bold p-3 rounded-t-xl rounded-bl-xl shadow-lg w-40 transform transition-all duration-300 origin-bottom-right ${isMascotHovered ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
+                        <MessageCircle size={12} className="inline mr-1 text-yellow-400"/>
+                        {mascotMessage}
+                    </div>
+                    
+                    <img 
+                        src={getMascot()} 
+                        alt="Mascot" 
+                        className={`drop-shadow-2xl transition-transform duration-300 ${isMascotHovered ? 'scale-110 rotate-3' : 'scale-100'}`}
+                    />
+                </div>
+
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6 shrink-0 z-20">
+                    <h3 className={`font-bold text-slate-900 flex items-center gap-2 ${isLanding ? 'text-2xl font-display' : 'text-base md:text-lg'}`}>
+                        <TrendingUp className="text-yellow-500" size={isLanding ? 28 : 20} /> {title}
+                    </h3>
+                    
+                    <div className="flex gap-2">
+                        {localSelectedId && (
+                            <button 
+                                onClick={() => setLocalSelectedId(null)}
+                                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 uppercase"
+                            >
+                                <X size={14}/> Reset
+                            </button>
+                        )}
+                        {showBlackOpsButton && onToggleBlackOps && (
+                            <button 
+                                onClick={onToggleBlackOps}
+                                className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-900/20"
+                            >
+                                <Eye size={14}/> Intel
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
-                <img 
-                    src={getMascot()} 
-                    alt="Mascot" 
-                    className={`drop-shadow-2xl transition-transform duration-300 ${isMascotHovered ? 'scale-110 rotate-3' : 'scale-100'}`}
-                />
-            </div>
-
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6 shrink-0 z-20">
-                <h3 className={`font-bold text-slate-900 flex items-center gap-2 ${isLanding ? 'text-2xl font-display' : 'text-base md:text-lg'}`}>
-                    <TrendingUp className="text-yellow-500" size={isLanding ? 28 : 20} /> {title}
-                </h3>
-                
-                <div className="flex gap-2">
-                    {showBlackOpsButton && onToggleBlackOps && (
-                        <button 
-                            onClick={onToggleBlackOps}
-                            className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-lg shadow-slate-900/20"
-                        >
-                            <Eye size={14}/> Intel
-                        </button>
+                {/* Chart Container */}
+                <div className="w-full z-20 pr-2" style={{ height }}>
+                    {validAgencies.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart 
+                                data={comparisonData} 
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                onClick={(data) => {
+                                    // Détection du clic sur une zone (activeLabel ou payload)
+                                    if (data && data.activePayload && data.activePayload[0]) {
+                                        // On ne change pas l'agence ici car le clic est sur l'axe X, 
+                                        // la sélection précise se fait sur la ligne elle-même.
+                                    }
+                                }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                <XAxis 
+                                    dataKey="name" 
+                                    stroke="#94a3b8" 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    dy={10} 
+                                />
+                                <YAxis 
+                                    stroke="#94a3b8" 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    domain={[0, 'auto']} 
+                                />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend 
+                                    iconType="circle" 
+                                    wrapperStyle={{ paddingTop: '20px', fontSize: '10px', paddingLeft: '10px', cursor: 'pointer' }} 
+                                    onClick={(data) => {
+                                        const agency = validAgencies.find(a => a.name === data.value);
+                                        if (agency) setLocalSelectedId(agency.id);
+                                    }}
+                                />
+                                {validAgencies.map((a, index) => {
+                                    const isFocused = a.id === localSelectedId;
+                                    const color = getColor(index);
+                                    return (
+                                        <Line 
+                                            key={a.id}
+                                            type="monotone" 
+                                            dataKey={a.name} 
+                                            stroke={isFocused ? '#6366f1' : color} 
+                                            strokeWidth={isFocused ? 5 : (isLanding ? 3 : 2)}
+                                            strokeOpacity={localSelectedId ? (isFocused ? 1 : 0.15) : 0.6} 
+                                            dot={isFocused}
+                                            activeDot={{ r: 8, strokeWidth: 0 }}
+                                            isAnimationActive={true}
+                                            connectNulls={true}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={() => setLocalSelectedId(a.id)}
+                                        />
+                                    )
+                                })}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                            <AlertCircle size={32} className="mb-2 opacity-50"/>
+                            <p className="text-sm font-bold">Données de marché indisponibles</p>
+                        </div>
                     )}
                 </div>
             </div>
-            
-            {/* Chart Container */}
-            <div className="w-full z-20 pr-2" style={{ height }}>
-                {validAgencies.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                            <XAxis 
-                                dataKey="name" 
-                                stroke="#94a3b8" 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false} 
-                                dy={10} 
-                            />
-                            <YAxis 
-                                stroke="#94a3b8" 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false} 
-                                domain={[0, 'auto']} 
-                            />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend 
-                                iconType="circle" 
-                                wrapperStyle={{ paddingTop: '20px', fontSize: '10px', paddingLeft: '10px' }} 
-                            />
-                            {validAgencies.map((a, index) => {
-                                const isMe = a.id === highlightAgencyId;
-                                return (
-                                    <Line 
-                                        key={a.id}
-                                        type="monotone" 
-                                        dataKey={a.name} 
-                                        stroke={isMe ? '#facc15' : getColor(index)} 
-                                        strokeWidth={isMe ? 4 : isLanding ? 3 : 2}
-                                        strokeOpacity={isMe ? 1 : highlightAgencyId ? 0.2 : 0.6} 
-                                        dot={false}
-                                        activeDot={{ r: 6 }}
-                                        isAnimationActive={true} 
-                                    />
-                                )
-                            })}
-                        </LineChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                        <AlertCircle size={32} className="mb-2 opacity-50"/>
-                        <p className="text-sm font-bold">Données de marché indisponibles</p>
+
+            {/* INFO PANEL: MEMBERS OF SELECTED AGENCY */}
+            {focusedAgency && (
+                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg animate-in slide-in-from-bottom-4 duration-500 flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex items-center gap-4 shrink-0">
+                         <div className="w-16 h-16 rounded-2xl bg-slate-50 border-2 border-indigo-100 p-1 flex items-center justify-center overflow-hidden">
+                             {focusedAgency.logoUrl ? (
+                                 <img src={focusedAgency.logoUrl} className="w-full h-full object-contain" />
+                             ) : (
+                                 <Users size={32} className="text-slate-300"/>
+                             )}
+                         </div>
+                         <div>
+                             <h4 className="text-xl font-display font-bold text-slate-900">{focusedAgency.name}</h4>
+                             <div className="flex items-center gap-2">
+                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                     focusedAgency.status === 'stable' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                 }`}>
+                                     {focusedAgency.status}
+                                 </span>
+                                 <span className="text-xs font-black text-indigo-600">{focusedAgency.ve_current} VE</span>
+                             </div>
+                         </div>
                     </div>
-                )}
-            </div>
-      </div>
+
+                    <div className="h-px w-full md:h-12 md:w-px bg-slate-100"></div>
+
+                    <div className="flex-1">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Users size={12}/> Effectif de l'agence
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            {focusedAgency.members.map(m => (
+                                <div key={m.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl group hover:border-indigo-300 transition-colors">
+                                    <img src={m.avatarUrl} className="w-6 h-6 rounded-full border border-white shadow-sm" alt={m.name} />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-700 leading-tight">{m.name}</span>
+                                        <span className="text-[9px] text-slate-400 font-medium">{m.role}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={() => setLocalSelectedId(null)}
+                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                    >
+                        <X size={20}/>
+                    </button>
+                </div>
+            )}
+        </div>
     );
 };
