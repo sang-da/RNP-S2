@@ -5,6 +5,7 @@ import { History, BarChart2, Wallet, Lock } from 'lucide-react';
 import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
+import { CycleObjective } from './dashboard/CycleObjective'; // NEW IMPORT
 
 interface MarketOverviewProps {
   agency: Agency;
@@ -20,6 +21,13 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
   return (
     <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
         
+        {/* NEW: CYCLE OBJECTIVE HEADER */}
+        {!isUnassigned && (
+            <div className="mb-6">
+                <CycleObjective agency={agency} />
+            </div>
+        )}
+
         {/* MOBILE TABS (SUB-SLIDER) */}
         <div className="md:hidden flex gap-2 bg-slate-200 p-1 rounded-xl mb-4 overflow-x-auto no-scrollbar">
             <button onClick={() => setActiveTab('GRAPH')} className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex items-center justify-center gap-2 ${activeTab === 'GRAPH' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
