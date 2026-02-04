@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Deliverable } from '../../../../types';
-import { Loader2, FileText, CheckCircle2, Upload, PenTool, Link, Image } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, Upload, PenTool, Link, Image, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface MissionActionsProps {
     deliverable: Deliverable;
@@ -35,46 +35,54 @@ export const MissionActions: React.FC<MissionActionsProps> = ({ deliverable, isU
         }
     };
 
+    // Logic to determine if action is needed
+    const canSubmit = deliverable.status === 'pending' || deliverable.status === 'rejected';
+    const isSubmitted = deliverable.status === 'submitted';
+    const isValidated = deliverable.status === 'validated';
+
     return (
-        <div className="flex items-center justify-end gap-4 mt-2 pt-3 border-t border-slate-200/50">
+        <div className="flex flex-col md:flex-row items-center justify-end gap-4 mt-2 pt-3 border-t border-slate-200/50">
             
-            {/* Secondary Action: Link (Text Only) */}
+            {/* LINK TO FILE (IF EXISTS) */}
             {deliverable.fileUrl && deliverable.fileUrl !== '#' && (
                 <a 
                     href={deliverable.fileUrl} 
                     target="_blank" 
                     rel="noreferrer" 
-                    className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1 mr-auto"
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 mr-auto"
                 >
-                    <FileText size={14} /> Voir le fichier rendu
+                    <FileText size={14} /> Voir le rendu actuel
                 </a>
             )}
 
-            {/* Primary Action: Button */}
-            {(deliverable.status === 'pending' || deliverable.status === 'rejected') ? (
+            {/* ACTION AREA */}
+            {canSubmit ? (
                 <button 
                     onClick={() => !isUploading && onAction(deliverable.id)}
                     disabled={isUploading}
-                    className={`px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm flex items-center gap-2 transition-all active:scale-95 ${
+                    className={`w-full md:w-auto px-6 py-3 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
                         ['FORM_CHARTER', 'FORM_NAMING', 'SPECIAL_LOGO', 'SPECIAL_BANNER'].includes(type) 
                         ? 'bg-slate-900 text-white hover:bg-slate-800' 
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200'
                     } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     {getActionIcon()}
                     {getButtonLabel()}
                 </button>
-            ) : (
-                <span className={`text-xs font-bold uppercase tracking-wider py-2 flex items-center gap-2 ${
-                    deliverable.status === 'validated' ? 'text-emerald-600' : 'text-slate-400'
-                }`}>
-                    {deliverable.status === 'submitted' ? (
-                        <><Loader2 size={14} className="animate-spin"/> En attente de correction...</>
-                    ) : (
-                        <span className="flex items-center gap-1"><CheckCircle2 size={14}/> Noté & Archivé</span>
-                    )}
-                </span>
-            )}
+            ) : isSubmitted ? (
+                <div className="w-full md:w-auto flex items-center justify-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                    <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                        <Loader2 size={14} className="animate-spin text-indigo-500"/>
+                        En attente de correction...
+                    </div>
+                    {/* OPTIONNEL : BOUTON DE RE-UPLOAD SI BESOIN */}
+                    {/* <button onClick={() => onAction(deliverable.id)} className="text-[10px] text-slate-400 underline hover:text-indigo-600">Modifier</button> */}
+                </div>
+            ) : isValidated ? (
+                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-wider bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
+                    <CheckCircle2 size={16}/> Validé & Archivé
+                </div>
+            ) : null}
         </div>
     );
 };

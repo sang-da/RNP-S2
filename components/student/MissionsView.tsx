@@ -1,13 +1,9 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, WeekModule, GameEvent, CycleType, Deliverable } from '../../types';
-import { Crown, Compass, Mic, Eye, Zap, Layers, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Layers, Zap } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { CYCLE_AWARDS } from '../../constants';
-
-// SUB-COMPONENTS
 import { MissionCard } from './missions/MissionCard';
 import { UploadModal } from './missions/UploadModal';
 import { CharterModal, NamingModal } from './missions/SpecialForms';
@@ -22,39 +18,32 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
-  const { gameConfig, weeks: globalWeeks } = useGame(); // Utiliser la config globale des semaines pour la visibilité
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { gameConfig, weeks: globalWeeks } = useGame();
   
   // NAVIGATION DES CYCLES
   const [selectedCycle, setSelectedCycle] = useState<number>(gameConfig.currentCycle || 1);
 
   // LOGIQUE DE FILTRE PAR CYCLE ET VISIBILITÉ
   const visibleWeeks = useMemo(() => {
-      // On combine les données de l'agence (pour les rendus) et la config globale (pour isVisible)
       const allWeeks = Object.values(agency.progress) as WeekModule[];
-      
       return allWeeks
           .filter((w: WeekModule) => {
-              // Vérifier la visibilité dans la config globale si disponible
               const globalConf = globalWeeks[w.id];
-              const isVisible = globalConf ? (globalConf.isVisible !== false) : true; // Par défaut visible si pas défini
+              const isVisible = globalConf ? (globalConf.isVisible !== false) : true;
               return w.cycleId === selectedCycle && isVisible;
           })
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
   }, [agency.progress, selectedCycle, globalWeeks]);
 
-  // État de la semaine active
   const [activeWeek, setActiveWeek] = useState<string>(""); 
 
   useEffect(() => {
-    // Si la semaine globale est dans la liste visible, on la sélectionne par défaut
     const globalWeekStr = gameConfig.currentWeek.toString();
     const isGlobalVisible = visibleWeeks.find(w => w.id === globalWeekStr);
 
     if (isGlobalVisible) {
         setActiveWeek(globalWeekStr);
     } else if (visibleWeeks.length > 0) {
-        // Sinon on prend la dernière semaine débloquée du cycle sélectionné
         setActiveWeek(visibleWeeks[visibleWeeks.length - 1].id);
     }
   }, [visibleWeeks, gameConfig.currentWeek, selectedCycle]);
@@ -88,6 +77,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     const type = deliverable.type || 'FILE';
     if (type === 'FORM_CHARTER') { setIsCharterModalOpen(true); return; }
     if (type === 'FORM_NAMING') { setIsNamingModalOpen(true); return; }
+    
+    // Reset Checklist
     setChecks({ naming: false, format: false, resolution: false, audio: false });
     setTargetDeliverableId(deliverableId);
     setSelfAssessment('B');
@@ -95,26 +86,17 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     setIsChecklistOpen(true);
   };
 
-  const handleChecklistSuccess = () => {
-      setIsChecklistOpen(false);
-      if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-          fileInputRef.current.click();
-      }
-  };
-
-  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !targetDeliverableId) { if (fileInputRef.current) fileInputRef.current.value = ''; return; }
+  const onFileSelected = async (file: File) => {
+    if (!file || !targetDeliverableId) return;
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast('error', `Fichier trop lourd.`);
+        toast('error', `Fichier trop lourd (${(file.size/1024/1024).toFixed(1)}Mo). Max 50Mo.`);
         return;
     }
 
+    setIsChecklistOpen(false); // Close modal before upload starts to show progress on card
     await handleFileUpload(file, targetDeliverableId, activeWeek, selfAssessment, nominatedMvp);
     setTargetDeliverableId(null);
-    if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
 
   const handleSubmitCharter = () => {
@@ -148,7 +130,6 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-        <input type="file" ref={fileInputRef} className="hidden" onChange={onFileSelected} />
         
         {/* CYCLE SELECTOR (TABS) */}
         <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
@@ -236,7 +217,20 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
         <CharterModal isOpen={isCharterModalOpen} onClose={() => setIsCharterModalOpen(false)} onSubmit={handleSubmitCharter} form={charterForm} setForm={setCharterForm} />
         <NamingModal isOpen={isNamingModalOpen} onClose={() => setIsNamingModalOpen(false)} onSubmit={handleSubmitNaming} form={namingForm} setForm={setNamingForm} />
-        <UploadModal isOpen={isChecklistOpen} onClose={() => setIsChecklistOpen(false)} onConfirm={handleChecklistSuccess} checks={checks} setChecks={setChecks} selfAssessment={selfAssessment} setSelfAssessment={setSelfAssessment} members={agency.members} nominatedMvp={nominatedMvp} setNominatedMvp={setNominatedMvp} />
+        
+        {/* NEW UPLOAD MODAL WITH DIRECT FILE HANDLING */}
+        <UploadModal 
+            isOpen={isChecklistOpen} 
+            onClose={() => setIsChecklistOpen(false)} 
+            onFileSelect={onFileSelected} 
+            checks={checks} 
+            setChecks={setChecks} 
+            selfAssessment={selfAssessment} 
+            setSelfAssessment={setSelfAssessment} 
+            members={agency.members} 
+            nominatedMvp={nominatedMvp} 
+            setNominatedMvp={setNominatedMvp} 
+        />
     </div>
   );
 };

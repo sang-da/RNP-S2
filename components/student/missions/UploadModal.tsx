@@ -1,13 +1,13 @@
 
 import React from 'react';
 import { Modal } from '../../Modal';
-import { Upload, CheckSquare, Target, User } from 'lucide-react';
+import { Upload, CheckSquare, Target, User, AlertCircle } from 'lucide-react';
 import { Student } from '../../../types';
 
 interface UploadModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onFileSelect: (file: File) => void;
     checks: { naming: boolean; format: boolean; resolution: boolean; audio: boolean; };
     setChecks: (checks: any) => void;
     selfAssessment: 'A' | 'B' | 'C';
@@ -17,16 +17,22 @@ interface UploadModalProps {
     setNominatedMvp: (id: string | null) => void;
 }
 
-export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onConfirm, checks, setChecks, selfAssessment, setSelfAssessment, members = [], nominatedMvp, setNominatedMvp }) => {
+export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onFileSelect, checks, setChecks, selfAssessment, setSelfAssessment, members = [], nominatedMvp, setNominatedMvp }) => {
     
     const toggleCheck = (key: keyof typeof checks) => {
         setChecks({ ...checks, [key]: !checks[key] });
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            onFileSelect(e.target.files[0]);
+        }
+    };
+
     const allChecked = Object.values(checks).every(Boolean);
     const isSolo = members.length <= 1;
-    // Si solo, pas besoin de MVP. Si équipe, MVP requis.
     const isMvpReady = isSolo || nominatedMvp !== null;
+    const canSubmit = allChecked && isMvpReady;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Dépôt & Lucidité">
@@ -77,17 +83,30 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onCon
                     <CheckItem label="Conformité Technique" sub="Pas de lien externe, fichier brut uniquement" checked={checks.audio} onChange={() => toggleCheck('audio')}/>
                 </div>
 
-                <button 
-                    onClick={onConfirm}
-                    disabled={!allChecked || !isMvpReady}
-                    className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                        allChecked && isMvpReady
-                        ? 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg' 
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
-                >
-                    {allChecked && isMvpReady ? <><Upload size={18}/> Confirmer le Dépôt</> : 'Validez la checklist et le Lead'}
-                </button>
+                {/* 4. SUBMISSION AREA */}
+                <div className="pt-2">
+                    <input 
+                        type="file" 
+                        id="submission-upload"
+                        className="hidden" 
+                        onChange={handleFileChange}
+                        disabled={!canSubmit}
+                    />
+                    <label 
+                        htmlFor="submission-upload"
+                        className={`w-full py-4 rounded-xl font-bold transition-all flex flex-col items-center justify-center gap-1 text-center border-2 border-dashed ${
+                            canSubmit
+                            ? 'bg-slate-900 text-white border-slate-900 hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer shadow-lg active:scale-95' 
+                            : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        }`}
+                    >
+                        <div className="flex items-center gap-2 text-sm">
+                            <Upload size={20} className={canSubmit ? "animate-bounce" : ""}/> 
+                            {canSubmit ? "SÉLECTIONNER LE FICHIER" : "Complétez la checklist pour débloquer"}
+                        </div>
+                        {canSubmit && <span className="text-[10px] opacity-70 font-normal">Max 50 Mo - PDF, MP4, JPG, PNG</span>}
+                    </label>
+                </div>
             </div>
         </Modal>
     );
