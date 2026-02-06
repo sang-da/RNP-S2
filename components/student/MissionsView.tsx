@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, WeekModule, GameEvent, Deliverable } from '../../types';
-import { Layers, Zap, Lock } from 'lucide-react';
+import { Layers, Zap, Lock, RefreshCw } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
 import { MissionCard } from './missions/MissionCard';
@@ -19,11 +19,9 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
+  // IMPORTANT : on récupère 'weeks' (Global Definition) du contexte
   const { gameConfig, weeks: globalWeeks } = useGame(); 
   
-  // FALLBACK INTELLIGENT : Si la synchro globale échoue, on utilise la copie locale de l'agence
-  const weeksSource = (globalWeeks && Object.keys(globalWeeks).length > 0) ? globalWeeks : agency.progress;
-
   // 1. DÉTERMINATION DU CYCLE ACTIF
   const [selectedCycle, setSelectedCycle] = useState<number>(1);
 
@@ -33,58 +31,68 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       }
   }, [gameConfig.currentCycle]);
 
-  // 2. CONSTRUCTION DE LA ROADMAP
+  // 2. CONSTRUCTION DE LA ROADMAP (Basée sur GLOBAL WEEKS)
+  // C'est ici la correction majeure : on ne regarde QUE la définition globale pour lister les semaines
   const cycleWeeks = useMemo(() => {
-      if (!weeksSource) return [];
-      const allWeeks = Object.values(weeksSource) as WeekModule[];
+      if (!globalWeeks) return [];
+      const allWeeks = Object.values(globalWeeks) as WeekModule[];
       
       return allWeeks
           .filter((w: WeekModule) => w.cycleId === selectedCycle)
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
-  }, [weeksSource, selectedCycle]);
+  }, [globalWeeks, selectedCycle]);
 
   // 3. SEMAINE ACTIVE
   const [activeWeekId, setActiveWeekId] = useState<string>(""); 
 
   useEffect(() => {
+    // Si la semaine active change (via admin), on met à jour l'onglet sélectionné
     const globalCurrentWeekStr = String(gameConfig.currentWeek);
     const isLiveInThisCycle = cycleWeeks.find(w => w.id === globalCurrentWeekStr);
 
     if (isLiveInThisCycle) {
         setActiveWeekId(globalCurrentWeekStr);
-    } else if (cycleWeeks.length > 0) {
+    } else if (cycleWeeks.length > 0 && !activeWeekId) {
+        // Sinon on prend la première du cycle
         setActiveWeekId(cycleWeeks[0].id);
     }
   }, [cycleWeeks, gameConfig.currentWeek]);
 
-  // 4. RÉCUPÉRATION DÉFINITION
-  const weekDef = weeksSource[activeWeekId];
+  // 4. RÉCUPÉRATION ET FUSION DES DONNÉES
+  // A. Définition Globale (Le "Patron" contrôlé par l'admin)
+  const globalWeekDef = globalWeeks[activeWeekId];
   
-  // On utilise isVisible comme seule source de vérité pour l'affichage
-  const isDisplayedWeekVisible = weekDef ? weekDef.isVisible : false;
+  // B. Données Locales (Ce que l'étudiant a fait)
+  const studentLocalData = agency.progress[activeWeekId];
 
-  // 5. FUSION DES DONNÉES
-  const studentWeekData = agency.progress[activeWeekId];
+  // C. Calcul de la Visibilité (Source de vérité : Global)
+  // Si globalWeekDef n'existe pas encore, on attend.
+  const isVisible = globalWeekDef ? globalWeekDef.isVisible : false;
 
+  // D. Fusion des livrables
   const mergedDeliverables = useMemo(() => {
-      if (!weekDef) return [];
+      if (!globalWeekDef) return [];
       
-      return weekDef.deliverables.map(adminDel => {
-          const studentDel = studentWeekData?.deliverables.find(d => d.id === adminDel.id);
+      // On itère sur les livrables définis par l'ADMIN
+      return globalWeekDef.deliverables.map(adminDel => {
+          // On cherche si l'étudiant a une version locale de ce livrable
+          const studentDel = studentLocalData?.deliverables.find(d => d.id === adminDel.id);
           
           return {
-              ...adminDel, 
-              deadline: adminDel.deadline,
+              ...adminDel, // On prend titre/desc de l'admin (au cas où ça change)
+              // On prend le statut/fichier de l'étudiant, sinon valeurs par défaut
               status: studentDel ? studentDel.status : 'pending',
               fileUrl: studentDel?.fileUrl,
               feedback: studentDel?.feedback,
               grading: studentDel?.grading,
               submissionDate: studentDel?.submissionDate,
               selfAssessment: studentDel?.selfAssessment,
-              nominatedMvpId: studentDel?.nominatedMvpId
+              nominatedMvpId: studentDel?.nominatedMvpId,
+              // Le deadline peut venir de l'admin
+              deadline: adminDel.deadline
           } as Deliverable;
       });
-  }, [weekDef, studentWeekData]);
+  }, [globalWeekDef, studentLocalData]);
 
   // --- LOGIQUE MODALES & UPLOAD ---
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
@@ -142,7 +150,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       if (!namingDeliverable) { setIsNamingModalOpen(false); return; }
 
       const autoBonusVE = 4;
-      const currentAgencyWeek = agency.progress[activeWeekId] || { ...weekDef, deliverables: mergedDeliverables };
+      // On s'assure d'avoir une structure locale pour la semaine
+      const currentAgencyWeek = agency.progress[activeWeekId] || { ...globalWeekDef, deliverables: mergedDeliverables };
       
       const updatedDeliverable: Deliverable = {
           ...namingDeliverable,
@@ -189,11 +198,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         {/* WEEK SELECTOR */}
         <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar snap-x">
              {cycleWeeks.length === 0 ? (
-                 <div className="text-sm text-slate-400 italic px-4 py-2">Aucune semaine disponible pour ce cycle.</div>
+                 <div className="text-sm text-slate-400 italic px-4 py-2 flex items-center gap-2">
+                    <RefreshCw size={14} className="animate-spin"/> Chargement du calendrier...
+                 </div>
              ) : (
                  cycleWeeks.map((week: WeekModule) => {
                     const isLive = String(week.id) === String(gameConfig.currentWeek);
-                    const isVisible = week.isVisible;
+                    // VISIBILITÉ BASÉE UNIQUEMENT SUR LA DEFINITION GLOBALE
+                    const weekIsVisible = week.isVisible; 
                     const isActive = activeWeekId === week.id;
 
                     return (
@@ -203,7 +215,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                             className={`snap-center flex-shrink-0 px-5 py-3 rounded-2xl border-2 transition-all flex flex-col items-center relative min-w-[100px] group ${
                                 isActive
                                 ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
-                                : isVisible 
+                                : weekIsVisible 
                                     ? 'bg-white border-slate-100 text-slate-500 hover:border-slate-200' 
                                     : 'bg-slate-50 border-slate-200 text-slate-400 opacity-70 hover:opacity-100'
                             }`}
@@ -213,14 +225,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                                     <Zap size={8} className="fill-white"/> LIVE
                                 </div>
                             )}
-                            {!isVisible && (
+                            {!weekIsVisible && (
                                 <div className="absolute top-2 right-2">
                                     <Lock size={10} className="text-slate-400"/>
                                 </div>
                             )}
                             <span className="font-display font-bold text-lg">SEM {week.id}</span>
                             <span className="text-[8px] font-black opacity-60 uppercase mt-0.5">
-                                {isVisible ? (isLive ? 'En cours' : 'Dispo') : 'Bientôt'}
+                                {weekIsVisible ? (isLive ? 'En cours' : 'Dispo') : 'Bientôt'}
                             </span>
                         </button>
                     );
@@ -228,23 +240,23 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
              )}
         </div>
 
-        {weekDef ? (
-            isDisplayedWeekVisible ? (
-                // SEMAINE VISIBLE
+        {globalWeekDef ? (
+            isVisible ? (
+                // CAS 1 : SEMAINE VISIBLE & OUVERTE
                 <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden">
-                    {String(weekDef.id) === String(gameConfig.currentWeek) && (
+                    {String(globalWeekDef.id) === String(gameConfig.currentWeek) && (
                         <div className="absolute top-0 right-0 p-4 opacity-5">
                             <Zap size={120} />
                         </div>
                     )}
-                    <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{weekDef.title}</h3>
+                    <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{globalWeekDef.title}</h3>
                     <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest flex items-center gap-2">
                         Cycle {selectedCycle} en cours
-                        {String(weekDef.id) === String(gameConfig.currentWeek) && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
+                        {String(globalWeekDef.id) === String(gameConfig.currentWeek) && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
                     </p>
                     <div className="space-y-6">
                         {mergedDeliverables.map((deliverable) => {
-                            const dynDeadline = getDynamicDeadline(weekDef, agency.classId as string);
+                            const dynDeadline = getDynamicDeadline(globalWeekDef, agency.classId as string);
                             const finalDeliverable = { ...deliverable, deadline: deliverable.deadline || dynDeadline };
                             return (
                                 <MissionCard 
@@ -258,8 +270,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     </div>
                 </div>
             ) : (
-                // SEMAINE VERROUILLÉE
-                <LockedMissionCard week={weekDef} />
+                // CAS 2 : SEMAINE VERROUILLÉE
+                <LockedMissionCard week={globalWeekDef} />
             )
         ) : cycleWeeks.length > 0 && ( 
             <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed flex flex-col items-center gap-4">
