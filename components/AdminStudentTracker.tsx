@@ -4,12 +4,14 @@ import { Agency, Student, Deliverable, PeerReview } from '../types';
 import { User } from 'lucide-react';
 import { TrackerStats } from './admin/tracker/TrackerStats';
 import { StudentProfile } from './admin/tracker/StudentProfile';
+import { useGame } from '../contexts/GameContext';
 
 interface AdminStudentTrackerProps {
     agencies: Agency[];
 }
 
 export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agencies }) => {
+    const { reviews: globalReviews } = useGame();
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
     // --- 1. LISTE GLOBALE DES ÉTUDIANTS ---
@@ -43,21 +45,28 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         if (!targetStudent) return [];
         const timelineMap: Record<string, { weekId: string; agencyName: string; reviewsReceived: PeerReview[]; reviewsGiven: PeerReview[]; }> = {};
 
-        agencies.forEach(agency => {
-            const allReviews = [...(agency.peerReviews || []), ...(agency.reviewHistory || [])];
-            allReviews.forEach(r => {
-                if (r.targetId === targetStudent.id || r.reviewerId === targetStudent.id) {
-                    if (!timelineMap[r.weekId]) {
-                        timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agency.name, reviewsReceived: [], reviewsGiven: [] };
-                    }
-                    timelineMap[r.weekId].agencyName = agency.name;
-                    if (r.targetId === targetStudent.id) timelineMap[r.weekId].reviewsReceived.push(r);
-                    if (r.reviewerId === targetStudent.id) timelineMap[r.weekId].reviewsGiven.push(r);
+        // On utilise les reviews globales
+        globalReviews.forEach(r => {
+            if (r.targetId === targetStudent.id || r.reviewerId === targetStudent.id) {
+                // Trouver l'agence de cette review
+                const reviewAgency = agencies.find(a => a.id === r.agencyId);
+                const agencyName = reviewAgency ? reviewAgency.name : 'Agence Inconnue';
+
+                if (!timelineMap[r.weekId]) {
+                    timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agencyName, reviewsReceived: [], reviewsGiven: [] };
                 }
-            });
+                
+                // On met à jour le nom de l'agence si nécessaire (la dernière review est souvent la bonne)
+                if (reviewAgency) timelineMap[r.weekId].agencyName = agencyName;
+
+                if (r.targetId === targetStudent.id) timelineMap[r.weekId].reviewsReceived.push(r);
+                if (r.reviewerId === targetStudent.id) timelineMap[r.weekId].reviewsGiven.push(r);
+            }
         });
+
+        // Add history from user profile/agency logs if needed? For now just reviews provide weekly context.
         return Object.values(timelineMap).sort((a, b) => parseInt(b.weekId) - parseInt(a.weekId));
-    }, [targetStudent, agencies]);
+    }, [targetStudent, agencies, globalReviews]);
 
     // --- 4. ANALYSE COMPORTEMENTALE (SOFT SKILLS) ---
     const behaviorStats = useMemo(() => {

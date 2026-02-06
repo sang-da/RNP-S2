@@ -3,12 +3,14 @@ import React, { useMemo, useState } from 'react';
 import { Agency, Student } from '../types';
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { TrendingUp, Users, Wallet, Trophy, AlertTriangle, Lightbulb, Activity, PieChart, Eye, EyeOff } from 'lucide-react';
+import { useGame } from '../contexts/GameContext';
 
 interface AdminAnalyticsProps {
     agencies: Agency[];
 }
 
 export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
+    const { reviews } = useGame();
     const [showKarma, setShowKarma] = useState(false);
     
     // --- DATA PROCESSING ---
@@ -43,16 +45,14 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
         let totalAttendance = 0, totalQuality = 0, totalInvolvement = 0;
         let count = 0;
 
-        activeAgencies.forEach(a => {
-            // Combiner reviews actives et archivées pour une moyenne globale
-            const allReviews = [...(a.peerReviews || []), ...(a.reviewHistory || [])];
-            
-            allReviews.forEach(r => {
-                totalAttendance += r.ratings.attendance;
-                totalQuality += r.ratings.quality;
-                totalInvolvement += r.ratings.involvement;
-                count++;
-            });
+        // Filter reviews to include only those related to active agencies (optional, but cleaner)
+        const relevantReviews = reviews.filter(r => activeAgencies.some(a => a.id === r.agencyId));
+
+        relevantReviews.forEach(r => {
+            totalAttendance += r.ratings.attendance;
+            totalQuality += r.ratings.quality;
+            totalInvolvement += r.ratings.involvement;
+            count++;
         });
 
         if (count === 0) return [];
@@ -62,7 +62,7 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
             { subject: 'Qualité', A: parseFloat((totalQuality / count).toFixed(2)), fullMark: 5 },
             { subject: 'Implication', A: parseFloat((totalInvolvement / count).toFixed(2)), fullMark: 5 },
         ];
-    }, [activeAgencies]);
+    }, [activeAgencies, reviews]);
 
     // 3. WEALTH DISTRIBUTION
     const wealthData = useMemo(() => {

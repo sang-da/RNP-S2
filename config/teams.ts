@@ -148,7 +148,6 @@ const generateMockAgencies = (): Agency[] => {
              { id: `e-${agencyId}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
           ],
           members: members,
-          peerReviews: [],
           currentCycle: CycleType.MARQUE_BRIEF,
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
@@ -181,7 +180,6 @@ const generateMockAgencies = (): Agency[] => {
              { id: `e-${agencyId}-1`, date: "2024-02-01", type: "INFO", label: "Création Agence", deltaVE: 0, description: "Ouverture du compte PiXi (0)." }
           ],
           members: members,
-          peerReviews: [],
           currentCycle: CycleType.MARQUE_BRIEF,
           projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: false },
           mercatoRequests: [],
@@ -227,7 +225,6 @@ const generateMockAgencies = (): Agency[] => {
       weeklyRevenueModifier: 0,
       eventLog: [],
       members: unemployedMembers, // Tous les restants
-      peerReviews: [],
       currentCycle: CycleType.MARQUE_BRIEF,
       projectDef: { problem: "", target: "", location: "", gesture: "", isLocked: true },
       mercatoRequests: [],

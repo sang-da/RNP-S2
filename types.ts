@@ -8,11 +8,11 @@ export enum CycleType {
 
 export interface GameConfig {
     id: string;
-    currentCycle: number; // 1, 2, 3, 4
-    currentWeek: number;  // 1 à 12 (Contrôle manuel de la semaine active)
+    currentCycle: number;
+    currentWeek: number;
     autoPilot: boolean;
-    lastFinanceRun: string | null; // Format "YYYY-WW" (Année-Semaine)
-    lastPerformanceRun: string | null; // Format "YYYY-WW"
+    lastFinanceRun: string | null;
+    lastPerformanceRun: string | null;
 }
 
 export interface PeerReview {
@@ -23,10 +23,11 @@ export interface PeerReview {
   reviewerName: string;
   targetId: string;
   targetName: string;
+  agencyId: string; // Ajouté pour faciliter le requêtage global
   ratings: {
-    attendance: number; // 1-5
-    quality: number; // 1-5
-    involvement: number; // 1-5
+    attendance: number;
+    quality: number;
+    involvement: number;
   };
   comment: string;
 }
@@ -75,14 +76,23 @@ export interface WeekModule {
   type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
   objectives: string[];
   deliverables: Deliverable[];
-  locked: boolean; // Obsolète, remplacé par isVisible pour la logique d'affichage, mais gardé pour compatibilité
-  isVisible?: boolean; // NOUVEAU : Contrôle explicite de la visibilité étudiant
+  isVisible: boolean; // SEULE SOURCE DE VÉRITÉ POUR L'AFFICHAGE
   status?: 'pending' | 'in_progress' | 'validated';
   schedule: {
       classA: ClassSession | null;
       classB: ClassSession | null;
   };
   scoring?: WeekScoringConfig;
+}
+
+// Nouvelle structure pour l'historique de carrière stockée dans 'users'
+export interface CareerStep {
+    weekId: string;
+    agencyId: string;
+    agencyName: string;
+    role: string;
+    scoreAtWeek: number;
+    walletAtWeek: number;
 }
 
 export interface StudentHistoryEntry {
@@ -126,6 +136,7 @@ export interface Student {
   classId: 'A' | 'B'; 
   connectionStatus?: 'online' | 'offline' | 'pending';
   history?: StudentHistoryEntry[]; 
+  careerPath?: CareerStep[]; // Nouveau : Historique hebdomadaire
   badges?: Badge[]; 
   streak?: number; 
   activeBets?: Bet[]; 
@@ -226,8 +237,8 @@ export interface Agency {
   tagline: string;
   logoUrl?: string;
   members: Student[];
-  peerReviews: PeerReview[];
-  reviewHistory?: PeerReview[]; // Archives des reviews passées
+  // peerReviews: PeerReview[]; // SUPPRIMÉ : DÉSORMAIS COLLECTION RACINE
+  // reviewHistory?: PeerReview[]; // SUPPRIMÉ : DÉSORMAIS COLLECTION RACINE
   classId: 'A' | 'B' | 'ALL'; 
   ve_current: number; 
   veCapOverride?: number; 

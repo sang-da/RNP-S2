@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
@@ -22,7 +23,7 @@ const generateAlias = (name: string) => {
 const ROTATION_DURATION = 72 * 60 * 60 * 1000; 
 
 export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, currentUser, onClose }) => {
-    const { performBlackOp } = useGame();
+    const { performBlackOp, reviews } = useGame();
     const { toast } = useUI();
     
     const [terminalOutput, setTerminalOutput] = useState<string[]>(["Initialisation protocole 22-04...", "Connexion sécurisée établie."]);
@@ -123,7 +124,9 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
 
         // UI FEEDBACK SPECIFIC
         if (opType === 'DOXXING') {
-            const badReviews = agency.peerReviews.filter(r => 
+            // Filter reviews for THIS agency only
+            const agencyReviews = reviews.filter(r => r.agencyId === agency.id);
+            const badReviews = agencyReviews.filter(r => 
                 ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3) < 3
             );
             if (badReviews.length > 0) {

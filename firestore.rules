@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -51,6 +52,13 @@ service cloud.firestore {
     match /resources/{resourceId} {
        allow read: if isAuthenticated();
        allow write: if isAdmin();
+    }
+    
+    // NOUVELLE COLLECTION : PEER REVIEWS
+    match /reviews/{reviewId} {
+       allow read: if isAuthenticated(); // Tout le monde peut lire pour les stats
+       allow create: if isAuthenticated(); // Les étudiants créent les reviews
+       allow update, delete: if isAdmin(); // Seul l'admin peut modifier/supprimer
     }
 
     match /{document=**} {

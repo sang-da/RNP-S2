@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Agency, MercatoRequest, CycleType, GameEvent } from '../types';
 import { ArrowRightLeft, UserPlus, Briefcase, Plus, AlertCircle, Check, X, Quote, Building2 } from 'lucide-react';
@@ -128,7 +129,6 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
                   wallet: (student.wallet || 0) - GAME_RULES.CREATION_COST_PIXI,
                   individualScore: Math.max(0, student.individualScore - GAME_RULES.CREATION_COST_SCORE)
               }], 
-              peerReviews: [], 
               eventLog: [{ id: `e-${newAgencyId}-1`, date: today, type: "INFO", label: "Ouverture Studio", deltaVE: 0, description: `Fondé par ${student.name}.` }],
               currentCycle: CycleType.MARQUE_BRIEF, 
               constraints: { space: "À définir", style: "À définir", client: "À définir" },
@@ -227,7 +227,6 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           weeklyTax: 0, 
           weeklyRevenueModifier: 0,
           members: initialMembers, 
-          peerReviews: [], 
           eventLog: [{ id: `e-${newAgencyId}-1`, date: new Date().toISOString().split('T')[0], type: "INFO", label: "Ouverture Studio", deltaVE: 0, description: "Ouverture administrative." }],
           currentCycle: CycleType.MARQUE_BRIEF, 
           constraints: { space: "À définir", style: "À définir", client: "À définir" },

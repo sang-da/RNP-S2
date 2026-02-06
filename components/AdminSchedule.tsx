@@ -24,7 +24,6 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<'PLANNING' | 'CONTENT'>('PLANNING');
   
-  // Groupement des semaines par cycles de 3
   const cycles = useMemo(() => {
       const allWeeks = (Object.values(weeksData) as WeekModule[]).sort((a, b) => parseInt(a.id) - parseInt(b.id));
       const grouped: { [key: number]: WeekModule[] } = { 1: [], 2: [], 3: [], 4: [] };
@@ -62,10 +61,24 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
 
   const handleToggleVisibility = async (week: WeekModule) => {
       if (readOnly) return;
-      const newStatus = !week.isVisible;
+      
+      const newStatus = !(week.isVisible === true);
       const updatedWeek = { ...week, isVisible: newStatus };
+      
+      // Update local context
       onUpdateWeek(week.id, updatedWeek);
-      toast('info', `Semaine ${week.id} ${newStatus ? 'Visible' : 'Cachée'}`);
+      
+      try {
+          const batch = writeBatch(db);
+          // Update GLOBAL config only (Source of Truth)
+          batch.update(doc(db, "weeks", week.id), { isVisible: newStatus });
+          
+          await batch.commit();
+          toast('success', `Semaine ${week.id} ${newStatus ? 'VISIBLE' : 'CACHÉE'}`);
+      } catch (e) {
+          toast('error', "Erreur de synchronisation Firestore.");
+          console.error(e);
+      }
   };
 
   const saveSchedule = (weekId: string) => {
@@ -114,9 +127,15 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
 
       try {
           const batch = writeBatch(db);
+          
+          // Update Global Definition
+          batch.set(doc(db, "weeks", contentForm.id), contentForm, { merge: true });
+
+          // Update Agencies Progress (Keep their files, update definitions)
           agencies.forEach(agency => {
               if (agency.id === 'unassigned') return;
               const existingWeek = agency.progress[contentForm.id];
+              
               const mergedDeliverables = contentForm.deliverables.map(tplDel => {
                   const existingDel = existingWeek?.deliverables.find(d => d.id === tplDel.id);
                   return existingDel ? { ...existingDel, name: tplDel.name, description: tplDel.description } : tplDel;
@@ -129,7 +148,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                   type: contentForm.type,
                   deliverables: mergedDeliverables,
                   scoring: contentForm.scoring,
-                  isVisible: contentForm.isVisible 
+                  isVisible: contentForm.isVisible // Propagate visibility settings
               };
 
               const ref = doc(db, "agencies", agency.id);
@@ -168,24 +187,28 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
         {/* --- CHECKLIST VISIBILITÉ RAPIDE --- */}
         <div className="mb-10 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                <CheckSquare size={16}/> Contrôle Rapide de Visibilité
+                <CheckSquare size={16}/> Contrôle Rapide de Visibilité (Admin)
             </h3>
             <div className="flex gap-2">
-                {allWeeksList.map(week => (
-                    <button 
-                        key={week.id} 
-                        onClick={() => handleToggleVisibility(week)}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all min-w-[70px] ${
-                            week.isVisible 
-                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                            : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-slate-300'
-                        }`}
-                    >
-                        <span className="text-[10px] font-black uppercase">SEM {week.id}</span>
-                        {week.isVisible ? <Eye size={16}/> : <EyeOff size={16}/>}
-                        <span className="text-[9px] font-bold">{week.isVisible ? 'VISIBLE' : 'CACHÉE'}</span>
-                    </button>
-                ))}
+                {allWeeksList.map(week => {
+                    const isLive = String(week.id) === String(gameConfig.currentWeek);
+                    
+                    return (
+                        <button 
+                            key={week.id} 
+                            onClick={() => handleToggleVisibility(week)}
+                            className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all min-w-[70px] ${
+                                week.isVisible 
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                                : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-slate-300'
+                            } ${isLive ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}
+                        >
+                            <span className="text-[10px] font-black uppercase">SEM {week.id}</span>
+                            {week.isVisible ? <Eye size={16}/> : <EyeOff size={16}/>}
+                            <span className="text-[9px] font-bold">{week.isVisible ? 'VISIBLE' : 'CACHÉE'}</span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
 
@@ -247,7 +270,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                                 ) : (
                                     <WeekCard 
                                         week={week}
-                                        isActive={week.id === gameConfig.currentWeek.toString()}
+                                        isActive={String(week.id) === String(gameConfig.currentWeek)}
                                         onEditPlanning={() => startEditing(week, 'PLANNING')}
                                         onEditContent={() => startEditing(week, 'CONTENT')}
                                         onToggleVisibility={handleToggleVisibility}

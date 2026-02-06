@@ -1,27 +1,25 @@
 
 import { doc, updateDoc, db } from '../../services/firebase';
-import { Agency } from '../../types';
+import { Agency, PeerReview } from '../../types';
 import { calculateVECap, CONSTRAINTS_POOL } from '../../constants';
 import { usePerformanceLogic } from './mechanics/usePerformanceLogic';
 import { useOperationsLogic } from './mechanics/useOperationsLogic';
 import { useVotingLogic } from './mechanics/useVotingLogic';
 import { sanitizeForFirestore } from '../../utils/firestore';
 
-export const useGameMechanics = (agencies: Agency[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
+// On reçoit maintenant 'reviews' dans le hook
+export const useGameMechanics = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
-  // --- SUB-HOOKS ---
-  const { processPerformance } = usePerformanceLogic(agencies, toast);
+  // On passe les reviews à la logique de performance
+  const { processPerformance } = usePerformanceLogic(agencies, reviews, toast, getCurrentGameWeek);
   const operations = useOperationsLogic(agencies, toast, getCurrentGameWeek);
   const { submitMercatoVote } = useVotingLogic(agencies, toast);
 
-  // --- CORE UTILS (CRUD) ---
   const updateAgency = async (updatedAgency: Agency) => {
     try {
         const veCap = calculateVECap(updatedAgency);
         const finalVE = Math.min(updatedAgency.ve_current, veCap);
         
-        // --- NETTOYAGE CRITIQUE ---
-        // On s'assure que l'objet est une "plain JS Object" et qu'il n'a pas de undefined
         const agencyRef = doc(db, "agencies", updatedAgency.id);
         const cleanPayload = sanitizeForFirestore({ ...updatedAgency, ve_current: finalVE });
         

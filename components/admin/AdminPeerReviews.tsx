@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Agency, PeerReview } from '../../types';
 import { HeartHandshake } from 'lucide-react';
+import { useGame } from '../../contexts/GameContext'; // USE GLOBAL REVIEWS
 
 // SUB-COMPONENTS
 import { ReviewFilters } from './peer-reviews/ReviewFilters';
@@ -17,34 +18,23 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     const [filterClass, setFilterClass] = useState<'ALL' | 'A' | 'B'>('ALL');
     const [filterWeek, setFilterWeek] = useState<string>('ALL');
     const [filterAgencyId, setFilterAgencyId] = useState<string>('ALL');
+    const { reviews: globalReviews } = useGame(); // GET GLOBAL REVIEWS
 
-    // 1. APLATISSEMENT DES DONNÉES (Active + Archives)
-    const allReviews = useMemo(() => {
-        const reviews: (PeerReview & { agencyName: string, classId: string, agencyId: string })[] = [];
-        agencies.forEach(agency => {
-            if (agency.id === 'unassigned') return;
-            
-            // On combine les reviews actives (cette semaine) ET l'historique archivé
-            const activeReviews = agency.peerReviews || [];
-            const archivedReviews = agency.reviewHistory || [];
-            const combinedReviews = [...activeReviews, ...archivedReviews];
-
-            combinedReviews.forEach(review => {
-                reviews.push({
-                    ...review,
-                    agencyId: agency.id,
-                    agencyName: agency.name,
-                    classId: agency.classId
-                });
-            });
-        });
-        // Trier par date décroissante
-        return reviews.sort((a, b) => b.date.localeCompare(a.date));
-    }, [agencies]);
+    // 1. ENRICHISSEMENT DES DONNÉES (Pour l'affichage)
+    const enrichedReviews = useMemo(() => {
+        return globalReviews.map(review => {
+            const agency = agencies.find(a => a.id === review.agencyId);
+            return {
+                ...review,
+                agencyName: agency?.name || 'Agence Inconnue',
+                classId: agency?.classId || '?'
+            };
+        }).sort((a, b) => b.date.localeCompare(a.date));
+    }, [globalReviews, agencies]);
 
     // 2. FILTRAGE COMPLET
     const filteredReviews = useMemo(() => {
-        return allReviews.filter(r => {
+        return enrichedReviews.filter(r => {
             const searchLower = searchTerm.toLowerCase();
             const matchesSearch = 
                 r.reviewerName.toLowerCase().includes(searchLower) ||
@@ -57,11 +47,11 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
 
             return matchesSearch && matchesClass && matchesWeek && matchesAgency;
         });
-    }, [allReviews, searchTerm, filterClass, filterWeek, filterAgencyId]);
+    }, [enrichedReviews, searchTerm, filterClass, filterWeek, filterAgencyId]);
 
     const availableWeeks = useMemo(() => 
-        Array.from(new Set(allReviews.map(r => r.weekId))).sort((a: any, b: any) => parseInt(a) - parseInt(b))
-    , [allReviews]);
+        Array.from(new Set(enrichedReviews.map(r => r.weekId))).sort((a: any, b: any) => parseInt(a) - parseInt(b))
+    , [enrichedReviews]);
 
     const resetFilters = () => {
         setSearchTerm('');
@@ -79,7 +69,10 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                         <div className="p-2 bg-rose-100 rounded-xl text-rose-600"><HeartHandshake size={32}/></div>
                         Bilans RH & Feedbacks
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Surveillez l'ambiance des studios et détectez les conflits internes.</p>
+                    <p className="text-slate-500 text-sm mt-1">
+                        Centralisation de toutes les évaluations. 
+                        <span className="font-bold text-slate-700 ml-1">{globalReviews.length} avis enregistrés.</span>
+                    </p>
                 </div>
             </div>
 

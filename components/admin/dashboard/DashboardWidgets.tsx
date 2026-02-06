@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { Agency, Deliverable, TransactionRequest } from '../../../types';
+import React, { useMemo } from 'react';
+import { Agency, Deliverable, TransactionRequest, PeerReview } from '../../../types';
 import { UserPlus, Briefcase, UserMinus, Wallet, CheckCircle2, UserCog, ArrowRight, X, Check, Eye, ShieldAlert } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 import { GAME_RULES } from '../../../constants';
@@ -18,32 +18,38 @@ interface DashboardWidgetsProps {
     readOnly?: boolean;
 }
 
-// --- LOGIQUE DE DETECTION RH (Interne au widget d'affichage) ---
-const detectAnomalies = (agency: Agency): string[] => {
-    const anomalies: string[] = [];
-    if (agency.peerReviews.length > 2) {
-        const averageScore = agency.peerReviews.reduce((acc, r) => 
-            acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / agency.peerReviews.length;
-        if (averageScore > 4.8) anomalies.push("Notes Suspectes");
-    }
-    if (agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD) anomalies.push("FAILLITE !!!");
-    else if (agency.budget_real < 0) anomalies.push("Dette (Gel Salaire)");
-    
-    if (agency.eventLog.length < 2) anomalies.push("Inactivité détectée");
-    return anomalies;
-};
-
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ 
     pendingUsersCount, pendingHires, pendingFires, pendingTransactions, pendingReviews, activeAgencies, 
     onNavigate, onSetGradingItem, onSetAuditAgency, readOnly 
 }) => {
     
-    const { handleTransactionRequest } = useGame();
+    const { handleTransactionRequest, reviews } = useGame();
+
+    // --- LOGIQUE DE DETECTION RH (Interne au widget d'affichage) ---
+    const detectAnomalies = (agency: Agency, allReviews: PeerReview[]): string[] => {
+        const anomalies: string[] = [];
+        const agencyReviews = allReviews.filter(r => r.agencyId === agency.id);
+        
+        if (agencyReviews.length > 2) {
+            const averageScore = agencyReviews.reduce((acc, r) => 
+                acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / agencyReviews.length;
+            if (averageScore > 4.8) anomalies.push("Notes Suspectes");
+        }
+        if (agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD) anomalies.push("FAILLITE !!!");
+        else if (agency.budget_real < 0) anomalies.push("Dette (Gel Salaire)");
+        
+        if (agency.eventLog.length < 2) anomalies.push("Inactivité détectée");
+        return anomalies;
+    };
 
     // Count Suspicious Activity (BLACK_OP events in last 24h across all agencies)
     const suspicionCount = activeAgencies.reduce((acc, agency) => {
         return acc + agency.eventLog.filter(e => e.type === 'BLACK_OP').length;
     }, 0);
+
+    const anomalousAgencies = useMemo(() => {
+        return activeAgencies.filter(a => detectAnomalies(a, reviews).length > 0);
+    }, [activeAgencies, reviews]);
 
     return (
         <div className="xl:col-span-1 space-y-4">
@@ -170,16 +176,16 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                     Audits RH Requis
                 </h3>
                 <div className="space-y-2">
-                     {activeAgencies.filter(a => detectAnomalies(a).length > 0).length === 0 && (
+                     {anomalousAgencies.length === 0 && (
                           <div className="text-center py-6 text-slate-400 text-xs italic border-2 border-dashed border-slate-100 rounded-xl">
                             R.A.S
                         </div>
                      )}
-                     {activeAgencies.filter(a => detectAnomalies(a).length > 0).map(agency => (
+                     {anomalousAgencies.map(agency => (
                          <div key={agency.id} className="flex justify-between items-center p-3 bg-red-50 border border-red-100 rounded-xl">
                              <div>
                                  <div className="font-bold text-slate-800 text-xs">{agency.name}</div>
-                                 <div className="text-[10px] text-red-600 font-bold">{detectAnomalies(agency)[0]}</div>
+                                 <div className="text-[10px] text-red-600 font-bold">{detectAnomalies(agency, reviews)[0]}</div>
                              </div>
                              <button onClick={() => onSetAuditAgency(agency)} className="p-1.5 bg-white text-red-500 rounded-lg hover:bg-red-100 border border-red-100">
                                  <Eye size={14}/>

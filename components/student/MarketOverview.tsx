@@ -5,7 +5,7 @@ import { History, BarChart2, Wallet, Lock } from 'lucide-react';
 import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
-import { CycleObjective } from './dashboard/CycleObjective'; // NEW IMPORT
+import { CycleObjective } from './dashboard/CycleObjective'; 
 
 interface MarketOverviewProps {
   agency: Agency;
@@ -22,9 +22,10 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
         
         {/* NEW: CYCLE OBJECTIVE HEADER */}
+        {/* PLUS BESOIN DE PROPS AGENCY, LE COMPOSANT EST AUTONOME */}
         {!isUnassigned && (
             <div className="mb-6">
-                <CycleObjective agency={agency} />
+                <CycleObjective />
             </div>
         )}
 

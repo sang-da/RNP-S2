@@ -1,12 +1,14 @@
 
 import { writeBatch, doc, db } from '../../../services/firebase';
-import { Agency, GameEvent } from '../../../types';
-import { calculateVECap, GAME_RULES } from '../../../constants';
+import { Agency, GameEvent, PeerReview, CareerStep } from '../../../types';
+import { calculateVECap } from '../../../constants';
 
-export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
+export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
   const processPerformance = async (targetClass: 'A' | 'B' | 'ALL') => {
       const today = new Date().toISOString().split('T')[0];
+      const currentWeek = getCurrentGameWeek().toString();
+
       try {
         const batch = writeBatch(db);
         let processedCount = 0;
@@ -24,7 +26,9 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
 
+                // --- 1. CALCUL DU SCORE ---
                 if (isSoloMode) {
+                    // Logique Solo (basée sur VE et Budget)
                     if (agency.ve_current >= 60) {
                         scoreDelta += 2; newStreak++;
                     } else if (agency.ve_current >= 40) {
@@ -32,15 +36,21 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                     } else if (agency.ve_current < 20) {
                         scoreDelta -= 2; newStreak = 0;
                     }
-
                     if (agency.budget_real >= 1500 && (member.wallet || 0) >= 500) {
                         scoreDelta += 2; 
                     }
                 } 
                 else {
-                    const reviews = agency.peerReviews.filter(r => r.targetId === member.id);
-                    if (reviews.length > 0) {
-                        const avg = reviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / reviews.length;
+                    // Logique Team : On cherche les reviews dans la collection globale
+                    // Filtre : Target = Membre ET Agency = Agence ET Week = Current
+                    const memberReviews = reviews.filter(r => 
+                        r.targetId === member.id && 
+                        r.weekId === currentWeek &&
+                        r.agencyId === agency.id // Sécurité supplémentaire
+                    );
+
+                    if (memberReviews.length > 0) {
+                        const avg = memberReviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / memberReviews.length;
                         if (avg > 4.5) { scoreDelta += 2; newStreak++; } 
                         else if (avg >= 4.0) { scoreDelta += 1; newStreak = 0; } 
                         else if (avg < 2.0) { scoreDelta -= 5; newStreak = 0; } 
@@ -53,9 +63,40 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
                     newStreak = 0; 
                 }
 
-                return { ...member, individualScore: Math.max(0, Math.min(100, member.individualScore + scoreDelta)), streak: newStreak };
+                const finalScore = Math.max(0, Math.min(100, member.individualScore + scoreDelta));
+
+                // --- 2. HISTORISATION CARRIÈRE (DANS USER) ---
+                // Si l'étudiant a un vrai compte lié (pas s-...), on met à jour son doc user
+                if (!member.id.startsWith('s-') && !member.id.startsWith('agency_')) {
+                    const careerStep: CareerStep = {
+                        weekId: currentWeek,
+                        agencyId: agency.id,
+                        agencyName: agency.name,
+                        role: member.role,
+                        scoreAtWeek: finalScore,
+                        walletAtWeek: member.wallet || 0
+                    };
+                    
+                    // Note : On ne peut pas faire un arrayUnion complexe sur des objets
+                    // On va écraser la liste 'careerPath' en ajoutant le nouvel élément.
+                    // Pour simplifier, dans un batch massif, on ne lit pas avant d'écrire.
+                    // On utilise donc arrayUnion de Firestore.
+                    // Attention: careerPath doit être un array dans User
+                    const userRef = doc(db, "users", member.id);
+                    // @ts-ignore : firebase.firestore.FieldValue.arrayUnion
+                    // Comme on utilise la compat v8/v9 via le service wrapper, on va faire simple :
+                    // On ne met pas à jour l'historique dans le batch global 'agencies' pour ne pas exploser la limite.
+                    // On le fera dans une Cloud Function idéale, mais ici on le tente.
+                    // On suppose que le field existe.
+                    // LIMITATION : Firestore batch limit 500. Si bcp d'étudiants, ça peut casser.
+                    // Pour l'instant, on ignore l'écriture user dans ce batch pour la stabilité.
+                    // TODO: Créer un batch séparé pour les users.
+                }
+
+                return { ...member, individualScore: finalScore, streak: newStreak };
             });
 
+            // --- 3. CALCUL VE ---
             let veAdjustment = 0;
             const budget = agency.budget_real;
             if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
@@ -68,17 +109,11 @@ export const usePerformanceLogic = (agencies: Agency[], toast: (type: string, ms
             const veCap = calculateVECap(agency);
             const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
 
-            // --- ARCHIVAGE DES REVIEWS ---
-            // Au lieu de les perdre, on les ajoute à l'historique
-            const previousHistory = agency.reviewHistory || [];
-            const newArchive = [...previousHistory, ...agency.peerReviews];
-
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 members: updatedMembers,
                 ve_current: finalVE,
-                peerReviews: [], // On vide la semaine active
-                reviewHistory: newArchive, // On sauvegarde tout dans l'archive
+                // peerReviews: [], // PLUS BESOIN DE VIDER L'ARRAY LOCAL
                 eventLog: [...agency.eventLog, ...logEvents],
                 status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'
             });

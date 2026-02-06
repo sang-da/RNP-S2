@@ -1,16 +1,19 @@
 
 import React from 'react';
-import { Agency, CycleType } from '../../../types';
+import { useGame } from '../../../contexts/GameContext'; // IMPORT DU CONTEXTE GLOBAL
 import { CYCLE_AWARDS } from '../../../constants';
-import { Trophy, Target, Sparkles, ArrowRight } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
-interface CycleObjectiveProps {
-    agency: Agency;
-}
-
-export const CycleObjective: React.FC<CycleObjectiveProps> = ({ agency }) => {
-    // Trouver le prix associé au cycle actuel de l'agence
-    const currentAward = CYCLE_AWARDS.find(a => a.cycleId === agency.currentCycle);
+export const CycleObjective: React.FC = () => {
+    const { gameConfig } = useGame(); 
+    
+    // Conversion sécurisée en nombre (Firebase renvoie parfois des strings)
+    const activeCycle = Number(gameConfig?.currentCycle) || 1;
+    
+    // Le tableau CYCLE_AWARDS est 0-indexed (0=Cycle 1, 1=Cycle 2...)
+    // On sécurise l'index pour éviter le crash si activeCycle > 4
+    const safeIndex = Math.max(0, Math.min(activeCycle - 1, CYCLE_AWARDS.length - 1));
+    const currentAward = CYCLE_AWARDS[safeIndex];
 
     if (!currentAward) return null;
 
@@ -36,7 +39,7 @@ export const CycleObjective: React.FC<CycleObjectiveProps> = ({ agency }) => {
                             Objectif du Cycle
                         </span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">
-                            {agency.currentCycle}
+                            Cycle {activeCycle}
                         </span>
                     </div>
                     <h3 className="text-xl font-display font-bold text-white mb-1">

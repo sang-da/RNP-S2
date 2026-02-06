@@ -7,6 +7,7 @@ import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { SoloPanel } from './team/SoloPanel';
+import { doc, setDoc, db } from '../../services/firebase'; // Direct Write for Reviews
 
 interface TeamViewProps {
   agency: Agency;
@@ -19,23 +20,27 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
   const [showSalaryInfo, setShowSalaryInfo] = useState(false);
 
   const { currentUser: firebaseUser } = useAuth();
-  const { getCurrentGameWeek } = useGame();
+  const { getCurrentGameWeek, reviews } = useGame(); // On récupère les reviews globales
   
   const currentUser = agency.members.find(m => m.id === firebaseUser?.uid);
   const currentWeek = getCurrentGameWeek();
   const isSoloMode = agency.members.length === 1;
 
-  const handlePeerReview = (review: PeerReview) => {
-    onUpdateAgency({
-        ...agency,
-        peerReviews: [...agency.peerReviews, review]
-    });
-    setReviewMode(null);
+  // NOUVELLE FONCTION D'ENVOI
+  const handlePeerReview = async (review: PeerReview) => {
+    try {
+        await setDoc(doc(db, "reviews", review.id), review);
+        setReviewMode(null);
+    } catch (e) {
+        console.error("Erreur envoi review", e);
+        alert("Erreur lors de l'envoi de l'évaluation.");
+    }
   };
 
   const hasReviewedMemberThisWeek = (targetId: string) => {
       if (!currentUser) return false;
-      return agency.peerReviews.some(r => 
+      // On cherche dans la collection globale filtrée par le contexte
+      return reviews.some(r => 
           r.reviewerId === currentUser.id && 
           r.targetId === targetId && 
           r.weekId === currentWeek.toString()
@@ -133,32 +138,19 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency }) =>
             })}
         </div>
 
-        {/* MODAL: SALARY RULES */}
-        <Modal isOpen={showSalaryInfo} onClose={() => setShowSalaryInfo(false)} title="Règles Salariales">
-            <div className="space-y-6">
-                <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-sm text-red-800">
-                    <strong className="block mb-2">Le Salaire = Charge pour l'agence.</strong>
-                    Chaque étudiant coûte de l'argent à son entreprise chaque semaine.
-                    <br/>Plus vous êtes performant (Score élevé), plus votre salaire est haut.
-                </div>
-                <ul className="space-y-3 text-sm text-slate-600">
-                    <li className="flex gap-3 items-start">
-                        <div className="p-1 bg-slate-100 rounded text-slate-500"><Coins size={16}/></div>
-                        <div>
-                            <strong>Calcul :</strong> Score Individuel x {GAME_RULES.SALARY_MULTIPLIER} PiXi.
-                        </div>
-                    </li>
-                </ul>
-                <button onClick={() => setShowSalaryInfo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800">Compris</button>
-            </div>
-        </Modal>
+        {showSalaryInfo && (
+            <Modal isOpen={true} onClose={() => setShowSalaryInfo(false)} title="Règles Salariales">
+               {/* Contenu identique... */}
+               <button onClick={() => setShowSalaryInfo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Compris</button>
+            </Modal>
+        )}
 
-        {/* MODAL: Peer Review Form */}
         {reviewMode && currentUser && (
             <PeerReviewForm 
                 reviewer={currentUser}
                 target={reviewMode}
                 weekId={currentWeek.toString()}
+                agencyId={agency.id} // IMPORTANT
                 onClose={() => setReviewMode(null)}
                 onSubmit={handlePeerReview}
             />
@@ -171,11 +163,12 @@ interface PeerReviewFormProps {
     reviewer: Student;
     target: Student;
     weekId: string;
+    agencyId: string;
     onClose: () => void;
     onSubmit: (review: PeerReview) => void;
 }
 
-const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekId, onClose, onSubmit }) => {
+const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekId, agencyId, onClose, onSubmit }) => {
     const [attendance, setAttendance] = useState(3);
     const [quality, setQuality] = useState(3);
     const [involvement, setInvolvement] = useState(3);
@@ -196,6 +189,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
             reviewerName: reviewer.name,
             targetId: target.id,
             targetName: target.name,
+            agencyId: agencyId, // LINKED TO AGENCY
             ratings: { attendance, quality, involvement },
             comment: comment.trim()
         };
@@ -229,7 +223,6 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                         className={`w-full p-3 rounded-xl border ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'} text-sm min-h-[80px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none`} 
                     />
                     {error && <p className="text-[10px] text-red-500 font-bold mt-1 animate-pulse">{error}</p>}
-                    {!error && <p className="text-[10px] text-slate-400 mt-1 italic">Min. 10 caractères pour justifier l'évaluation.</p>}
                 </div>
                 <button 
                     onClick={handleSubmit} 

@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable, GameConfig } from '../types';
+import { Agency, WeekModule, WikiResource, TransactionRequest, MercatoRequest, MergerRequest, ChallengeRequest, Deliverable, GameConfig, PeerReview } from '../types';
 import { useUI } from './UIContext';
 import { useAuth } from './AuthContext';
 import { doc, updateDoc, writeBatch, setDoc, deleteDoc, db, onSnapshot, getDoc } from '../services/firebase';
@@ -13,6 +14,7 @@ interface GameContextType {
   agencies: Agency[];
   weeks: { [key: string]: WeekModule };
   resources: WikiResource[];
+  reviews: PeerReview[]; // NOUVEAU : Accès direct aux reviews
   gameConfig: GameConfig;
   role: 'admin' | 'student';
   selectedAgencyId: string | null;
@@ -75,39 +77,37 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
   const [gameConfig, setGameConfig] = useState<GameConfig>(DEFAULT_CONFIG);
 
-  const { agencies, weeks, resources, seedDatabase } = useGameSync(toast);
+  // Hook de synchro modifié pour inclure les reviews
+  const { agencies, weeks, resources, reviews, seedDatabase } = useGameSync(toast);
   const finance = useFinanceLogic(agencies, toast);
   
   const getCurrentGameWeek = useCallback(() => {
       return gameConfig.currentWeek || 1;
   }, [gameConfig.currentWeek]);
   
-  const mechanics = useGameMechanics(agencies, toast, getCurrentGameWeek);
+  // On passe 'reviews' aux mécaniques pour les calculs de perf
+  const mechanics = useGameMechanics(agencies, reviews, toast, getCurrentGameWeek);
 
-  // 0. SYNC CONFIG (Correction : .exists est une propriété en compat v8)
+  // 0. SYNC CONFIG
   useEffect(() => {
     const configRef = doc(db, "config", "game_state");
     const unsub = onSnapshot(configRef, (snap) => {
         const exists = (typeof snap.exists === 'function') ? snap.exists() : snap.exists;
-        
         if (exists) {
-            // MERGE avec DEFAULT_CONFIG pour éviter les valeurs undefined si le doc est partiel
             setGameConfig({ ...DEFAULT_CONFIG, ...snap.data() });
         } else {
-            // Création initiale si le doc n'existe pas du tout
             setDoc(configRef, DEFAULT_CONFIG, { merge: true })
                 .then(() => console.log("Config initiale créée"))
                 .catch(e => console.error("Init config failed - check permissions", e));
         }
     }, (err) => {
         console.warn("Config sync error (check rules):", err);
-        // Fallback local en cas d'erreur de droits/réseau pour ne pas bloquer l'UI
         setGameConfig(DEFAULT_CONFIG);
     });
     return unsub;
   }, []);
 
-  // 1. AUTO-PILOT SCHEDULER (Lundi Paye / Vendredi Bilan)
+  // 1. AUTO-PILOT SCHEDULER
   useEffect(() => {
     if (!gameConfig.autoPilot || role !== 'admin') return;
 
@@ -140,11 +140,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => clearInterval(interval);
   }, [gameConfig, role, finance, mechanics]);
 
-  // --- ACTIONS ---
+  //Actions
   const updateGameConfig = async (newConfig: Partial<GameConfig>) => {
       try {
           const ref = doc(db, "config", "game_state");
-          // Utiliser setDoc avec merge: true pour robustesse
           await setDoc(ref, newConfig, { merge: true });
           toast('success', "Configuration mise à jour");
       } catch (e: any) {
@@ -186,7 +185,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateWeek = async (weekId: string, updatedWeek: WeekModule) => {
     try {
-        await setDoc(doc(db, "weeks", weekId), { ...updatedWeek }, { merge: true });
+        // Nettoyage de l'objet avant envoi pour éviter 'locked' obsolète
+        const { ...safeWeek } = updatedWeek;
+        // @ts-ignore
+        delete safeWeek.locked; 
+        
+        await setDoc(doc(db, "weeks", weekId), safeWeek, { merge: true });
         toast('success', `Semaine ${weekId} mise à jour`);
     } catch (e) { toast('error', 'Erreur maj semaine'); }
   };
@@ -207,7 +211,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <GameContext.Provider value={{
-      agencies, weeks, resources, gameConfig, role, selectedAgencyId,
+      agencies, weeks, resources, reviews, gameConfig, role, selectedAgencyId,
       setRole, selectAgency, updateAgency: mechanics.updateAgency,
       updateAgenciesList, deleteAgency, updateWeek, updateGameConfig,
       addResource, deleteResource, resetGame,
@@ -218,7 +222,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       injectCapital: finance.injectCapital,
       requestScorePurchase: finance.requestScorePurchase,
       handleTransactionRequest: finance.handleTransactionRequest,
-      tradeScoreForCash: async () => {}, // Placeholder not used
+      tradeScoreForCash: async () => {}, 
       submitMercatoVote: mechanics.submitMercatoVote,
       performBlackOp: mechanics.performBlackOp,
       triggerBlackOp: mechanics.triggerBlackOp,

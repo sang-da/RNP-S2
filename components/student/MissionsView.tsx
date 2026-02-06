@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Agency, WeekModule, GameEvent, CycleType, Deliverable } from '../../types';
+import { Agency, WeekModule, GameEvent, Deliverable } from '../../types';
 import { Layers, Zap, Lock } from 'lucide-react';
 import { useUI } from '../../contexts/UIContext';
 import { useGame } from '../../contexts/GameContext';
 import { MissionCard } from './missions/MissionCard';
-import { LockedMissionCard } from './missions/LockedMissionCard'; // IMPORT
+import { LockedMissionCard } from './missions/LockedMissionCard';
 import { UploadModal } from './missions/UploadModal';
 import { CharterModal, NamingModal } from './missions/SpecialForms';
 import { useSubmissionLogic } from './missions/useSubmissionLogic';
@@ -19,62 +19,79 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgency }) => {
   const { toast } = useUI();
-  const { gameConfig, weeks: globalWeeks } = useGame();
+  const { gameConfig, weeks: globalWeeks } = useGame(); 
   
-  // NAVIGATION DES CYCLES
-  const [selectedCycle, setSelectedCycle] = useState<number>(gameConfig.currentCycle || 1);
+  // FALLBACK INTELLIGENT : Si la synchro globale échoue, on utilise la copie locale de l'agence
+  const weeksSource = (globalWeeks && Object.keys(globalWeeks).length > 0) ? globalWeeks : agency.progress;
 
-  // LOGIQUE DE RECUPERATION: On prend TOUTES les semaines du cycle, visibles ou non
+  // 1. DÉTERMINATION DU CYCLE ACTIF
+  const [selectedCycle, setSelectedCycle] = useState<number>(1);
+
+  useEffect(() => {
+      if (gameConfig && gameConfig.currentCycle) {
+          setSelectedCycle(Number(gameConfig.currentCycle));
+      }
+  }, [gameConfig.currentCycle]);
+
+  // 2. CONSTRUCTION DE LA ROADMAP
   const cycleWeeks = useMemo(() => {
-      const allWeeks = Object.values(agency.progress) as WeekModule[];
+      if (!weeksSource) return [];
+      const allWeeks = Object.values(weeksSource) as WeekModule[];
+      
       return allWeeks
           .filter((w: WeekModule) => w.cycleId === selectedCycle)
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
-  }, [agency.progress, selectedCycle]);
+  }, [weeksSource, selectedCycle]);
 
-  // État de la semaine active (Onglet sélectionné)
+  // 3. SEMAINE ACTIVE
   const [activeWeekId, setActiveWeekId] = useState<string>(""); 
 
   useEffect(() => {
-    // Par défaut, on sélectionne la semaine "Live" du jeu si elle est dans le cycle
-    // Sinon la dernière semaine visible du cycle
-    const globalWeekStr = gameConfig.currentWeek.toString();
-    const isLiveInCycle = cycleWeeks.find(w => w.id === globalWeekStr);
+    const globalCurrentWeekStr = String(gameConfig.currentWeek);
+    const isLiveInThisCycle = cycleWeeks.find(w => w.id === globalCurrentWeekStr);
 
-    if (isLiveInCycle) {
-        setActiveWeekId(globalWeekStr);
-    } else {
-        // Chercher la dernière semaine visible (débloquée)
-        const visibleWeeks = cycleWeeks.filter(w => {
-             const globalConf = globalWeeks[w.id];
-             return globalConf ? (globalConf.isVisible !== false) : true;
-        });
-        if (visibleWeeks.length > 0) {
-            setActiveWeekId(visibleWeeks[visibleWeeks.length - 1].id);
-        } else if (cycleWeeks.length > 0) {
-            // Si rien n'est visible, on montre la 1ere (qui sera locked)
-            setActiveWeekId(cycleWeeks[0].id);
-        }
+    if (isLiveInThisCycle) {
+        setActiveWeekId(globalCurrentWeekStr);
+    } else if (cycleWeeks.length > 0) {
+        setActiveWeekId(cycleWeeks[0].id);
     }
   }, [cycleWeeks, gameConfig.currentWeek]);
 
-  // Variables pour la semaine affichée
-  const displayedWeek = agency.progress[activeWeekId];
-  // Vérification de la visibilité réelle (Synchronisée avec config globale Admin)
-  const isDisplayedWeekVisible = useMemo(() => {
-      if (!displayedWeek) return false;
-      const globalConf = globalWeeks[displayedWeek.id];
-      return globalConf ? (globalConf.isVisible !== false) : true;
-  }, [displayedWeek, globalWeeks]);
-
-  const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
+  // 4. RÉCUPÉRATION DÉFINITION
+  const weekDef = weeksSource[activeWeekId];
   
-  // MODAL STATES
+  // On utilise isVisible s'il existe (nouveau système), sinon on inverse locked (vieux système)
+  const isDisplayedWeekVisible = weekDef ? (weekDef.isVisible !== undefined ? weekDef.isVisible : !(weekDef as any).locked) : false;
+
+  // 5. FUSION DES DONNÉES
+  const studentWeekData = agency.progress[activeWeekId];
+
+  const mergedDeliverables = useMemo(() => {
+      if (!weekDef) return [];
+      
+      return weekDef.deliverables.map(adminDel => {
+          const studentDel = studentWeekData?.deliverables.find(d => d.id === adminDel.id);
+          
+          return {
+              ...adminDel, 
+              deadline: adminDel.deadline,
+              status: studentDel ? studentDel.status : 'pending',
+              fileUrl: studentDel?.fileUrl,
+              feedback: studentDel?.feedback,
+              grading: studentDel?.grading,
+              submissionDate: studentDel?.submissionDate,
+              selfAssessment: studentDel?.selfAssessment,
+              nominatedMvpId: studentDel?.nominatedMvpId
+          } as Deliverable;
+      });
+  }, [weekDef, studentWeekData]);
+
+  // --- LOGIQUE MODALES & UPLOAD ---
+  const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
   const [isCharterModalOpen, setIsCharterModalOpen] = useState(false);
   const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   
-  // FORMS & DATA
   const [charterForm, setCharterForm] = useState({ problem: "", target: "", location: "", gesture: "", context: "", theme: "", direction: "" });
   const [namingForm, setNamingForm] = useState({ name: "", tagline: "" });
   const [checks, setChecks] = useState({ naming: false, format: false, resolution: false, audio: false });
@@ -89,13 +106,12 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   }, [agency]);
 
   const handleFileClick = (deliverableId: string) => {
-    const deliverable = displayedWeek?.deliverables.find(d => d.id === deliverableId);
+    const deliverable = mergedDeliverables.find(d => d.id === deliverableId);
     if (!deliverable) return;
     const type = deliverable.type || 'FILE';
     if (type === 'FORM_CHARTER') { setIsCharterModalOpen(true); return; }
     if (type === 'FORM_NAMING') { setIsNamingModalOpen(true); return; }
     
-    // Reset Checklist
     setChecks({ naming: false, format: false, resolution: false, audio: false });
     setTargetDeliverableId(deliverableId);
     setSelfAssessment('B');
@@ -105,12 +121,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   const onFileSelected = async (file: File) => {
     if (!file || !targetDeliverableId) return;
-
     if (file.size > MAX_FILE_SIZE_BYTES) {
         toast('error', `Fichier trop lourd (${(file.size/1024/1024).toFixed(1)}Mo). Max 50Mo.`);
         return;
     }
-
     setIsChecklistOpen(false); 
     await handleFileUpload(file, targetDeliverableId, activeWeekId, selfAssessment, nominatedMvp);
     setTargetDeliverableId(null);
@@ -124,10 +138,12 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   };
 
   const handleSubmitNaming = () => {
-      const namingDeliverable = displayedWeek?.deliverables.find(d => d.type === 'FORM_NAMING');
+      const namingDeliverable = mergedDeliverables.find(d => d.type === 'FORM_NAMING');
       if (!namingDeliverable) { setIsNamingModalOpen(false); return; }
 
       const autoBonusVE = 4;
+      const currentAgencyWeek = agency.progress[activeWeekId] || { ...weekDef, deliverables: mergedDeliverables };
+      
       const updatedDeliverable: Deliverable = {
           ...namingDeliverable,
           status: 'validated',
@@ -136,7 +152,11 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
           grading: { quality: 'B', daysLate: 0, constraintBroken: false, finalDelta: autoBonusVE }
       };
 
-      const updatedWeek = { ...displayedWeek, deliverables: displayedWeek.deliverables.map(d => d.id === namingDeliverable.id ? updatedDeliverable : d) };
+      const updatedWeek = { 
+          ...currentAgencyWeek, 
+          deliverables: currentAgencyWeek.deliverables.map(d => d.id === namingDeliverable.id ? updatedDeliverable : d) 
+      };
+      
       const newEvent: GameEvent = { id: `evt-naming-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'VE_DELTA', label: 'Baptême Studio', deltaVE: autoBonusVE, description: `Changement de nom officiel : ${namingForm.name}. (+${autoBonusVE} VE Auto)` };
 
       const updatedAgency = { ...agency, name: namingForm.name, tagline: namingForm.tagline, ve_current: agency.ve_current + autoBonusVE, eventLog: [...agency.eventLog, newEvent], progress: { ...agency.progress, [activeWeekId]: updatedWeek } };
@@ -148,7 +168,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
         
-        {/* CYCLE SELECTOR (TABS) */}
+        {/* CYCLE SELECTOR */}
         <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
             {[1, 2, 3, 4].map(cycleId => (
                 <button
@@ -166,15 +186,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
             ))}
         </div>
 
-        {/* WEEK SELECTOR (ROADMAP) */}
+        {/* WEEK SELECTOR */}
         <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar snap-x">
              {cycleWeeks.length === 0 ? (
                  <div className="text-sm text-slate-400 italic px-4 py-2">Aucune semaine disponible pour ce cycle.</div>
              ) : (
                  cycleWeeks.map((week: WeekModule) => {
-                    const isLive = week.id === gameConfig.currentWeek.toString();
-                    const globalConf = globalWeeks[week.id];
-                    const isVisible = globalConf ? (globalConf.isVisible !== false) : true;
+                    const isLive = String(week.id) === String(gameConfig.currentWeek);
+                    const isVisible = week.isVisible !== undefined ? week.isVisible : !(week as any).locked;
                     const isActive = activeWeekId === week.id;
 
                     return (
@@ -194,16 +213,12 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                                     <Zap size={8} className="fill-white"/> LIVE
                                 </div>
                             )}
-                            {/* LOCKED INDICATOR */}
                             {!isVisible && (
                                 <div className="absolute top-2 right-2">
                                     <Lock size={10} className="text-slate-400"/>
                                 </div>
                             )}
-                            
                             <span className="font-display font-bold text-lg">SEM {week.id}</span>
-                            
-                            {/* MINI STATUS LABEL */}
                             <span className="text-[8px] font-black opacity-60 uppercase mt-0.5">
                                 {isVisible ? (isLive ? 'En cours' : 'Dispo') : 'Bientôt'}
                             </span>
@@ -213,23 +228,23 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
              )}
         </div>
 
-        {displayedWeek ? (
+        {weekDef ? (
             isDisplayedWeekVisible ? (
-                // 1. SEMAINE VISIBLE (CONTENU NORMAL)
+                // SEMAINE VISIBLE
                 <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden">
-                    {displayedWeek.id === gameConfig.currentWeek.toString() && (
+                    {String(weekDef.id) === String(gameConfig.currentWeek) && (
                         <div className="absolute top-0 right-0 p-4 opacity-5">
                             <Zap size={120} />
                         </div>
                     )}
-                    <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{displayedWeek.title}</h3>
+                    <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{weekDef.title}</h3>
                     <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest flex items-center gap-2">
                         Cycle {selectedCycle} en cours
-                        {displayedWeek.id === gameConfig.currentWeek.toString() && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
+                        {String(weekDef.id) === String(gameConfig.currentWeek) && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
                     </p>
                     <div className="space-y-6">
-                        {displayedWeek.deliverables.map((deliverable) => {
-                            const dynDeadline = getDynamicDeadline(displayedWeek, agency.classId as string);
+                        {mergedDeliverables.map((deliverable) => {
+                            const dynDeadline = getDynamicDeadline(weekDef, agency.classId as string);
                             const finalDeliverable = { ...deliverable, deadline: deliverable.deadline || dynDeadline };
                             return (
                                 <MissionCard 
@@ -243,8 +258,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     </div>
                 </div>
             ) : (
-                // 2. SEMAINE VERROUILLÉE (TEASING)
-                <LockedMissionCard week={displayedWeek} />
+                // SEMAINE VERROUILLÉE
+                <LockedMissionCard week={weekDef} />
             )
         ) : cycleWeeks.length > 0 && ( 
             <div className="p-12 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed flex flex-col items-center gap-4">

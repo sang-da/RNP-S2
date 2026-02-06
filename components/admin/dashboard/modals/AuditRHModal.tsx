@@ -1,8 +1,9 @@
 
-import React from 'react';
-import { Agency, GameEvent } from '../../../../types';
+import React, { useMemo } from 'react';
+import { Agency, GameEvent, PeerReview } from '../../../../types';
 import { Modal } from '../../../Modal';
 import { useUI } from '../../../../contexts/UIContext';
+import { useGame } from '../../../../contexts/GameContext';
 import { UserCog, Flame } from 'lucide-react';
 
 interface AuditRHModalProps {
@@ -14,12 +15,17 @@ interface AuditRHModalProps {
 
 export const AuditRHModal: React.FC<AuditRHModalProps> = ({agency, onClose, onUpdateAgency, readOnly}) => {
     const { toast, confirm } = useUI();
+    const { reviews } = useGame();
 
-    const detectAnomalies = (agency: Agency): string[] => {
+    const agencyReviews = useMemo(() => 
+        reviews.filter(r => r.agencyId === agency.id)
+    , [reviews, agency.id]);
+
+    const detectAnomalies = (agency: Agency, currentReviews: PeerReview[]): string[] => {
         const anomalies: string[] = [];
-        if (agency.peerReviews.length > 2) {
-            const averageScore = agency.peerReviews.reduce((acc, r) => 
-                acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / agency.peerReviews.length;
+        if (currentReviews.length > 2) {
+            const averageScore = currentReviews.reduce((acc, r) => 
+                acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / currentReviews.length;
             if (averageScore > 4.8) anomalies.push("Notes Suspectes");
         }
         if (agency.budget_real < 0) anomalies.push("Faillite imminente");
@@ -62,18 +68,18 @@ export const AuditRHModal: React.FC<AuditRHModalProps> = ({agency, onClose, onUp
                 <div className="flex items-center gap-3 bg-purple-50 p-4 rounded-xl border border-purple-100">
                     <UserCog size={24} className="text-purple-600"/>
                     <p className="text-sm text-purple-900 leading-tight">
-                        Anomalies détectées : <strong>{detectAnomalies(agency).join(', ') || 'Aucune'}</strong>.
+                        Anomalies détectées : <strong>{detectAnomalies(agency, agencyReviews).join(', ') || 'Aucune'}</strong>.
                         <br/>Vérifiez la variance des notes.
                     </p>
                 </div>
 
                 <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                    {agency.peerReviews.length === 0 ? (
+                    {agencyReviews.length === 0 ? (
                         <div className="text-center text-slate-400 py-8 italic border-2 border-dashed rounded-xl">
                             Aucune évaluation effectuée par les étudiants.
                         </div>
                     ) : (
-                        agency.peerReviews.map(review => (
+                        agencyReviews.map(review => (
                             <div key={review.id} className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-sm">
