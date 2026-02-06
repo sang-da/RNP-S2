@@ -14,10 +14,11 @@ interface GameContextType {
   agencies: Agency[];
   weeks: { [key: string]: WeekModule };
   resources: WikiResource[];
-  reviews: PeerReview[]; // NOUVEAU : Accès direct aux reviews
+  reviews: PeerReview[];
   gameConfig: GameConfig;
   role: 'admin' | 'student';
   selectedAgencyId: string | null;
+  isLoading: boolean; // NOUVEAU
   
   setRole: (role: 'admin' | 'student') => void;
   selectAgency: (id: string | null) => void;
@@ -43,7 +44,7 @@ interface GameContextType {
   submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 
   triggerBlackOp: (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => Promise<void>;
-  performBlackOp: (studentId: string, agencyId: string, opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE', payload: any) => Promise<void>;
+  performBlackOp: (studentId: string, agencyId: string, opType: 'SHORT_SELL' | 'DOXXING' | 'FAKE_CERT' | 'BUY_VOTE' | 'AUDIT_HOSTILE' | 'LEAK', payload: any) => Promise<void>;
   proposeMerger: (sourceAgencyId: string, targetAgencyId: string) => Promise<void>;
   finalizeMerger: (mergerId: string, targetAgencyId: string, approved: boolean) => Promise<void>;
   
@@ -78,7 +79,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [gameConfig, setGameConfig] = useState<GameConfig>(DEFAULT_CONFIG);
 
   // Hook de synchro modifié pour inclure les reviews
-  const { agencies, weeks, resources, reviews, seedDatabase } = useGameSync(toast);
+  const { agencies, weeks, resources, reviews, seedDatabase, isLoading } = useGameSync(toast);
   const finance = useFinanceLogic(agencies, toast);
   
   const getCurrentGameWeek = useCallback(() => {
@@ -185,7 +186,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateWeek = async (weekId: string, updatedWeek: WeekModule) => {
     try {
-        // Nettoyage de l'objet avant envoi pour éviter 'locked' obsolète
         const { ...safeWeek } = updatedWeek;
         // @ts-ignore
         delete safeWeek.locked; 
@@ -211,7 +211,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <GameContext.Provider value={{
-      agencies, weeks, resources, reviews, gameConfig, role, selectedAgencyId,
+      agencies, weeks, resources, reviews, gameConfig, role, selectedAgencyId, isLoading,
       setRole, selectAgency, updateAgency: mechanics.updateAgency,
       updateAgenciesList, deleteAgency, updateWeek, updateGameConfig,
       addResource, deleteResource, resetGame,
