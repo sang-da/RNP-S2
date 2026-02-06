@@ -131,6 +131,8 @@ export interface Student {
   avatarUrl: string;
   individualScore: number; 
   wallet: number; 
+  savings?: number; // RNP BANK: Compte Épargne
+  loanDebt?: number; // RNP BANK: Dette active
   karma?: number; 
   cvUrl?: string; 
   classId: 'A' | 'B'; 

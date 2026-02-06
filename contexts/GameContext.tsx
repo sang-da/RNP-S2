@@ -41,6 +41,9 @@ interface GameContextType {
   injectCapital: (studentId: string, agencyId: string, amount: number) => Promise<void>;
   requestScorePurchase: (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => Promise<void>;
   handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
+  manageSavings: (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => Promise<void>;
+  manageLoan: (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => Promise<void>;
+  
   submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 
   triggerBlackOp: (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => Promise<void>;
@@ -222,6 +225,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       injectCapital: finance.injectCapital,
       requestScorePurchase: finance.requestScorePurchase,
       handleTransactionRequest: finance.handleTransactionRequest,
+      manageSavings: finance.manageSavings,
+      manageLoan: finance.manageLoan,
       tradeScoreForCash: async () => {}, 
       submitMercatoVote: mechanics.submitMercatoVote,
       performBlackOp: mechanics.performBlackOp,

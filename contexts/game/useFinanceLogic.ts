@@ -1,3 +1,4 @@
+
 import { writeBatch, doc, updateDoc, db } from '../../services/firebase';
 import { Agency, GameEvent, TransactionRequest } from '../../types';
 import { GAME_RULES } from '../../constants';
@@ -65,31 +66,56 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 }));
             }
 
-            // 3. SALARIES & TALENT DIVIDENDS (VE CONVERSION)
+            // 3. RNP BANK : SAVINGS INTERESTS & SALARIES & GARNISHMENT
             let actualDisbursed = 0;
             const SCORE_THRESHOLD_FOR_VE = 80;
             const VE_CONVERSION_RATE = 10; // 10 points over 80 = 1 VE
 
             if (currentBudget >= 0) {
                 agencyMembers = agencyMembers.map(member => {
+                    // A. Intérêts Épargne (10%)
+                    let currentSavings = member.savings || 0;
+                    if (currentSavings > 0) {
+                        const interest = Math.floor(currentSavings * 0.10);
+                        currentSavings += interest;
+                    }
+
+                    // B. Calcul Salaire
                     const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
+                    const grossSalary = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                     
-                    // Cap Salary at 800 (Score 80)
-                    const pay = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
-                    
-                    // Calculate Surplus Score for VE Conversion
+                    // C. Saisie sur salaire pour Dette (Garnishment)
+                    let netSalary = grossSalary;
+                    let currentDebt = member.loanDebt || 0;
+                    let debtRepayment = 0;
+
+                    if (currentDebt > 0) {
+                        // On saisit tout le salaire jusqu'à remboursement total
+                        const seizure = Math.min(netSalary, currentDebt);
+                        currentDebt -= seizure;
+                        netSalary -= seizure;
+                        debtRepayment = seizure;
+                    }
+
+                    // D. Calculate Surplus Score for VE Conversion
                     if (member.individualScore > SCORE_THRESHOLD_FOR_VE) {
                         const surplus = member.individualScore - SCORE_THRESHOLD_FOR_VE;
                         const veGain = surplus / VE_CONVERSION_RATE;
                         totalVeBonusFromTalent += veGain;
                     }
 
-                    actualDisbursed += pay;
-                    return { ...member, wallet: (member.wallet || 0) + pay };
+                    actualDisbursed += grossSalary; // L'agence paie le brut, peu importe si l'étudiant rembourse sa dette perso
+                    
+                    return { 
+                        ...member, 
+                        wallet: (member.wallet || 0) + netSalary,
+                        savings: currentSavings,
+                        loanDebt: currentDebt
+                    };
                 });
                 
                 currentBudget -= actualDisbursed;
-                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires', deltaBudgetReal: -actualDisbursed, description: `Salaires versés (Plafonnés à ${GAME_RULES.SALARY_CAP_FOR_STUDENT}).` });
+                logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires & Banque', deltaBudgetReal: -actualDisbursed, description: `Salaires versés. Intérêts épargne crédités. Saisies sur dettes effectuées.` });
             } else {
                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Pas de salaire.` });
             }
@@ -190,9 +216,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
               eventLog: [...targetAgency.eventLog, receiptLog]
           });
       } else {
-          // Same agency, one update is enough for members, but we already queued it on source update logic.
-          // Wait, if same agency, we updated members in sourceAgency logic.
-          // Correct logic for same agency:
           const finalMembers = updatedSourceMembers.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
           batch.update(doc(db, "agencies", sourceAgency.id), { members: finalMembers });
       }
@@ -259,5 +282,73 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', "Transaction validée");
   };
 
-  return { processFinance, transferFunds, injectCapital, requestScorePurchase, handleTransactionRequest };
+  const manageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if (!agency) return;
+      const student = agency.members.find(m => m.id === studentId);
+      if (!student) return;
+
+      const wallet = student.wallet || 0;
+      const savings = student.savings || 0;
+
+      let newWallet = wallet;
+      let newSavings = savings;
+
+      if (type === 'DEPOSIT') {
+          if (amount > wallet) { toast('error', 'Fonds insuffisants'); return; }
+          newWallet -= amount;
+          newSavings += amount;
+      } else {
+          if (amount > savings) { toast('error', 'Épargne insuffisante'); return; }
+          newWallet += amount;
+          newSavings -= amount;
+      }
+
+      const updatedMembers = agency.members.map(m => 
+          m.id === studentId ? { ...m, wallet: newWallet, savings: newSavings } : m
+      );
+
+      await updateDoc(doc(db, "agencies", agencyId), { members: updatedMembers });
+      toast('success', type === 'DEPOSIT' ? `Placé : ${amount} PiXi` : `Retiré : ${amount} PiXi`);
+  };
+
+  const manageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if (!agency) return;
+      const student = agency.members.find(m => m.id === studentId);
+      if (!student) return;
+
+      const wallet = student.wallet || 0;
+      const debt = student.loanDebt || 0;
+      
+      let newWallet = wallet;
+      let newDebt = debt;
+
+      if (type === 'TAKE') {
+          // Capacité d'emprunt = (Score * 30) - Dette Actuelle
+          const maxCapacity = (student.individualScore * 30) - debt;
+          if (amount > maxCapacity) { toast('error', `Capacité dépassée (Max: ${maxCapacity})`); return; }
+          
+          // Cout du prêt = 50% d'intérêts immédiats
+          // Emprunte 1000 -> Reçoit 1000, Dette monte de 1500
+          newWallet += amount;
+          newDebt += Math.floor(amount * 1.5);
+      } else {
+          // Repayment
+          const repaymentAmount = Math.min(amount, debt); // On ne peut pas rembourser plus que la dette
+          if (repaymentAmount > wallet) { toast('error', 'Fonds insuffisants pour rembourser'); return; }
+          
+          newWallet -= repaymentAmount;
+          newDebt -= repaymentAmount;
+      }
+
+      const updatedMembers = agency.members.map(m => 
+          m.id === studentId ? { ...m, wallet: newWallet, loanDebt: newDebt } : m
+      );
+
+      await updateDoc(doc(db, "agencies", agencyId), { members: updatedMembers });
+      toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
+  };
+
+  return { processFinance, transferFunds, injectCapital, requestScorePurchase, handleTransactionRequest, manageSavings, manageLoan };
 };
