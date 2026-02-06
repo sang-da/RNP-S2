@@ -60,8 +60,8 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   // 4. RÉCUPÉRATION DÉFINITION
   const weekDef = weeksSource[activeWeekId];
   
-  // On utilise isVisible s'il existe (nouveau système), sinon on inverse locked (vieux système)
-  const isDisplayedWeekVisible = weekDef ? (weekDef.isVisible !== undefined ? weekDef.isVisible : !(weekDef as any).locked) : false;
+  // On utilise isVisible comme seule source de vérité pour l'affichage
+  const isDisplayedWeekVisible = weekDef ? weekDef.isVisible : false;
 
   // 5. FUSION DES DONNÉES
   const studentWeekData = agency.progress[activeWeekId];
@@ -193,7 +193,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
              ) : (
                  cycleWeeks.map((week: WeekModule) => {
                     const isLive = String(week.id) === String(gameConfig.currentWeek);
-                    const isVisible = week.isVisible !== undefined ? week.isVisible : !(week as any).locked;
+                    const isVisible = week.isVisible;
                     const isActive = activeWeekId === week.id;
 
                     return (

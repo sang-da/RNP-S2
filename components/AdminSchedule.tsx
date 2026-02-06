@@ -62,19 +62,31 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
   const handleToggleVisibility = async (week: WeekModule) => {
       if (readOnly) return;
       
+      // Inversion : si c'est visible, on cache. Sinon on montre.
       const newStatus = !(week.isVisible === true);
       const updatedWeek = { ...week, isVisible: newStatus };
       
-      // Update local context
+      // Mise à jour de l'état local via le Context pour feedback immédiat
       onUpdateWeek(week.id, updatedWeek);
       
       try {
           const batch = writeBatch(db);
-          // Update GLOBAL config only (Source of Truth)
-          batch.update(doc(db, "weeks", week.id), { isVisible: newStatus });
+          // FORCE WRITE GLOBAL (SET MERGE pour créer si manquant)
+          batch.set(doc(db, "weeks", week.id), { isVisible: newStatus }, { merge: true });
+          
+          // PROPAGATION AGENCIES (Pour les clients qui n'ont pas encore la synchro globale)
+          agencies.forEach(agency => {
+              if (agency.id === 'unassigned') return;
+              const ref = doc(db, "agencies", agency.id);
+              // On met à jour à la fois `isVisible` et `locked` pour rétrocompatibilité
+              batch.update(ref, { 
+                  [`progress.${week.id}.isVisible`]: newStatus,
+                  [`progress.${week.id}.locked`]: !newStatus
+              });
+          });
           
           await batch.commit();
-          toast('success', `Semaine ${week.id} ${newStatus ? 'VISIBLE' : 'CACHÉE'}`);
+          toast('success', `Semaine ${week.id} ${newStatus ? 'déverrouillée' : 'verrouillée'}`);
       } catch (e) {
           toast('error', "Erreur de synchronisation Firestore.");
           console.error(e);
@@ -128,10 +140,10 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
       try {
           const batch = writeBatch(db);
           
-          // Update Global Definition
+          // Update Global Definition (SET MERGE)
           batch.set(doc(db, "weeks", contentForm.id), contentForm, { merge: true });
 
-          // Update Agencies Progress (Keep their files, update definitions)
+          // Update Agencies
           agencies.forEach(agency => {
               if (agency.id === 'unassigned') return;
               const existingWeek = agency.progress[contentForm.id];
@@ -148,7 +160,7 @@ export const AdminSchedule: React.FC<AdminScheduleProps> = ({ weeksData, onUpdat
                   type: contentForm.type,
                   deliverables: mergedDeliverables,
                   scoring: contentForm.scoring,
-                  isVisible: contentForm.isVisible // Propagate visibility settings
+                  isVisible: contentForm.isVisible 
               };
 
               const ref = doc(db, "agencies", agency.id);
