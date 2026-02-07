@@ -72,8 +72,14 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
 
   // 5. PRÉPARATION DES DONNÉES DE LA SEMAINE ACTIVE
   const currentWeekDef = activeWeekData[activeWeekId];
-  // Si Admin a dit visible=true, c'est visible. Sinon c'est flouté.
-  const isWeekLocked = currentWeekDef ? !currentWeekDef.isVisible : true;
+  
+  // --- VISIBILITY LOGIC (Global OR Local Override via Intel) ---
+  const isGloballyVisible = currentWeekDef ? currentWeekDef.isVisible : false;
+  // On vérifie si l'agence a payé pour débloquer cette semaine spécifique
+  const isLocallyUnlocked = agency.progress && agency.progress[activeWeekId] && agency.progress[activeWeekId].isVisible === true;
+  
+  // La semaine est verrouillée SEULEMENT SI elle n'est ni visible globalement, ni débloquée localement
+  const isWeekLocked = !isGloballyVisible && !isLocallyUnlocked;
 
   // Fusion avec les données locales étudiant (pour savoir ce qui est uploadé)
   const studentLocalData = agency.progress[activeWeekId];
@@ -220,6 +226,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                         Cycle {selectedCycle} en cours
                         {String(currentWeekDef.id) === String(gameConfig.currentWeek) && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
+                        {isLocallyUnlocked && !isGloballyVisible && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] border border-indigo-200">Débloqué via Intel</span>}
                     </p>
                 </div>
 
@@ -231,7 +238,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     isUploading={isUploading}
                     onFileClick={handleFileClick}
                     getDynamicDeadline={getDynamicDeadline}
-                    isLocked={isWeekLocked} // NOUVEAU PROP
+                    isLocked={isWeekLocked} // LOGIQUE MISE À JOUR
                 />
             </div>
         ) : (

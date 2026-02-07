@@ -1,5 +1,5 @@
 
-import { Book, Wallet, Building2, Users, Briefcase, Box, Calculator, Eye, Handshake } from 'lucide-react';
+import { Book, Wallet, Building2, Users, Briefcase, Box, Calculator, Eye, Handshake, Landmark, Trophy } from 'lucide-react';
 
 export const GAME_MANUALS = [
     {
@@ -221,6 +221,96 @@ Une agence saine peut proposer une absorption.
 
 # 3. Règle des 6
 Interdiction de créer une super-agence de plus de **6 membres**.
+`
+    },
+    {
+        id: 'm10',
+        title: '10. Banque RNP',
+        subtitle: 'Épargne & Crédit',
+        icon: Landmark,
+        color: 'text-emerald-600',
+        content: `
+# 1. Le Livret Épargne (Savings)
+Ne laissez pas votre argent dormir sur votre compte courant (Wallet). Placez-le pour le faire fructifier.
+
+*   **Taux d'Intérêt :** **10% par semaine**.
+    *   *Exemple :* Vous placez 1000 PiXi le Lundi S1. Le Lundi S2, vous recevez +100 PiXi d'intérêts.
+*   **Sécurité :** L'argent placé sur le Livret est **protégé**. Il ne peut pas être saisi par l'agence en cas de faillite (Clause de Solidarité).
+*   **Liquidité :** Vous pouvez retirer votre argent à tout moment via l'onglet "Banque".
+
+# 2. Le Crédit Étudiant (Loans)
+Besoin de cash immédiat pour payer une formation (Score), une injection de capital ou survivre ?
+
+*   **Capacité d'Emprunt :** Calculée sur votre crédibilité.
+    *   Formule : \`Score Individuel x 30\`
+    *   *Exemple :* Score 50 = 1500 PiXi empruntables max.
+*   **Coût du Crédit :** **50% d'intérêts** fixes payés immédiatement.
+    *   *Exemple :* Vous demandez 1000 PiXi.
+    *   Vous recevez **+1000 PiXi** (Cash).
+    *   Votre dette augmente de **1500 PiXi**.
+*   **Remboursement (La Saisie sur Salaire) :**
+    *   Le remboursement est **automatique**.
+    *   Tant que vous avez une dette > 0, **100% de votre salaire hebdomadaire** est saisi par la banque pour rembourser la dette.
+    *   Vous vivez avec 0 revenu tant que la dette n'est pas purgée.
+
+> **Conseil Stratégique :** Le crédit est un outil puissant pour sauver une agence de la faillite (-5000) ou acheter un boost de score rapide, mais il vous condamne à la pauvreté pendant plusieurs semaines. Utilisez-le en dernier recours.
+`
+    },
+    {
+        id: 'm11',
+        title: '11. Trophées & Succès',
+        subtitle: 'Achievements & Rentes',
+        icon: Trophy,
+        color: 'text-yellow-500',
+        content: `
+# 1. Les Badges de Carrière (Automatisés)
+Le système analyse vos performances chaque semaine et débloque ces badges automatiquement.
+
+*   **👁️ Visionnaire**
+    *   *Condition :* Enchaîner 3 semaines consécutives avec une hausse de performance (Streak).
+    *   *Gain :* **+10 Points de Score** (Immédiat) + Badge sur le profil.
+    *   *Prestige :* Prouve votre constance artistique.
+
+*   **👑 Licorne (Unicorn)**
+    *   *Condition :* Appartenir à une agence dont la Trésorerie dépasse **20 000 PiXi**.
+    *   *Gain :* **+5 Points de Score** pour tous les membres + Badge.
+    *   *Prestige :* Prouve votre sens du business.
+
+*   **👥 Esprit de Corps**
+    *   *Condition :* Obtenir une moyenne d'évaluation par les pairs (RH) supérieure à **4.8/5**.
+    *   *Gain :* **+5 Points de Score** + Badge.
+    *   *Prestige :* Vous êtes le collègue idéal.
+
+*   **🛡️ Survivant**
+    *   *Condition :* Remis manuellement par l'enseignant lors d'un sauvetage in-extremis d'une agence en faillite.
+    *   *Gain :* **Immunité** à la prochaine crise individuelle.
+
+# 2. Les Grands Prix (Cycles)
+Le semestre est divisé en 4 Cycles de 3 semaines. À la fin de chaque cycle, l'enseignant remet un Prix Unique à la meilleure agence.
+
+**Pourquoi c'est vital ?**
+Gagner un Prix ne donne pas seulement de la VE. Cela débloque une **Rente Hebdomadaire**.
+*   *Exemple :* Si vous gagnez le Golden Brief (+250 PiXi), votre agence touchera **+250 PiXi tous les lundis** jusqu'à la fin du semestre, en plus de ses revenus habituels.
+
+### Le Calendrier des Prix
+
+1.  **🧭 Cycle 1 : Le "Golden Brief"** (Semaine 3)
+    *   *Critère :* Meilleure cohérence Stratégie / Cible / Identité.
+    *   *Gain :* +15 VE et **+250 PiXi / semaine**.
+
+2.  **🎤 Cycle 2 : Prix "Narration"** (Semaine 6)
+    *   *Critère :* Storytelling le plus captivant et intégration IA pertinente.
+    *   *Gain :* +20 VE et **+350 PiXi / semaine**.
+
+3.  **👁️ Cycle 3 : Prix "Vision"** (Semaine 9)
+    *   *Critère :* Direction Artistique et Qualité Technique (Rendu 3D/Vidéo).
+    *   *Gain :* +25 VE et **+500 PiXi / semaine**.
+
+4.  **👑 Cycle 4 : Prix "Signature"** (Jury Final)
+    *   *Critère :* Le projet global le plus abouti et "vendable".
+    *   *Gain :* +40 VE et **Badge Légendaire**.
+
+> **Stratégie :** Gagner un prix tôt dans le semestre (C1 ou C2) garantit une sécurité financière sur le long terme grâce aux rentes cumulées.
 `
     }
 ];

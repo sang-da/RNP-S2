@@ -1,7 +1,7 @@
 
 import { writeBatch, doc, db } from '../../../services/firebase';
-import { Agency, GameEvent, PeerReview, CareerStep } from '../../../types';
-import { calculateVECap } from '../../../constants';
+import { Agency, GameEvent, PeerReview, CareerStep, Badge } from '../../../types';
+import { calculateVECap, BADGE_DEFINITIONS } from '../../../constants';
 
 export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
@@ -25,6 +25,8 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
             const updatedMembers = (agency.members || []).map(member => {
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
+                let memberBadges = [...(member.badges || [])];
+                let eventsDescription = "";
 
                 // --- 1. CALCUL DU SCORE ---
                 if (isSoloMode) {
@@ -51,7 +53,20 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
 
                     if (memberReviews.length > 0) {
                         const avg = memberReviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / memberReviews.length;
-                        if (avg > 4.5) { scoreDelta += 2; newStreak++; } 
+                        if (avg > 4.5) { 
+                            scoreDelta += 2; 
+                            newStreak++; 
+                            
+                            // BADGE AUTOMATIQUE : ESPRIT DE CORPS
+                            if (!memberBadges.find(b => b.id === 'teamwork')) {
+                                const badgeDef = BADGE_DEFINITIONS.find(b => b.id === 'teamwork');
+                                if (badgeDef) {
+                                    memberBadges.push(badgeDef);
+                                    scoreDelta += 5; // Bonus unique
+                                    eventsDescription += ` [Badge Esprit de Corps: +5]`;
+                                }
+                            }
+                        } 
                         else if (avg >= 4.0) { scoreDelta += 1; newStreak = 0; } 
                         else if (avg < 2.0) { scoreDelta -= 5; newStreak = 0; } 
                         else { newStreak = 0; }
@@ -60,6 +75,15 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
 
                 if (newStreak >= 3) { 
                     scoreDelta += 10; 
+                    
+                    // BADGE AUTOMATIQUE : VISIONNAIRE
+                    if (!memberBadges.find(b => b.id === 'visionary')) {
+                        const badgeDef = BADGE_DEFINITIONS.find(b => b.id === 'visionary');
+                        if (badgeDef) {
+                            memberBadges.push(badgeDef);
+                            eventsDescription += ` [Badge Visionnaire: Débloqué]`;
+                        }
+                    }
                     newStreak = 0; 
                 }
 
@@ -93,7 +117,7 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
                     // TODO: Créer un batch séparé pour les users.
                 }
 
-                return { ...member, individualScore: finalScore, streak: newStreak };
+                return { ...member, individualScore: finalScore, streak: newStreak, badges: memberBadges };
             });
 
             // --- 3. CALCUL VE ---

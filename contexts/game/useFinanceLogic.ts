@@ -1,7 +1,7 @@
 
 import { writeBatch, doc, updateDoc, db } from '../../services/firebase';
 import { Agency, GameEvent, TransactionRequest } from '../../types';
-import { GAME_RULES } from '../../constants';
+import { GAME_RULES, BADGE_DEFINITIONS } from '../../constants';
 
 export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
 
@@ -134,15 +134,42 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 });
             }
 
-            // 5. COST OF LIVING
+            // 5. COST OF LIVING & UNICORN BADGE
+            let unicornAwarded = false;
             agencyMembers = agencyMembers.map(member => {
                 let newWallet = (member.wallet || 0) - GAME_RULES.COST_OF_LIVING;
                 let newScore = member.individualScore;
+                let memberBadges = [...(member.badges || [])];
+
+                // Check Poverty
                 if (newWallet < 0) {
                     newScore = Math.max(0, newScore - GAME_RULES.POVERTY_SCORE_PENALTY);
                 }
-                return { ...member, wallet: newWallet, individualScore: newScore };
+
+                // Check Unicorn (Wealthy) Badge
+                // Seuil 20k dans la trésorerie Agence
+                if (currentBudget > 20000 && !memberBadges.find(b => b.id === 'wealthy')) {
+                    const badgeDef = BADGE_DEFINITIONS.find(b => b.id === 'wealthy');
+                    if (badgeDef) {
+                        memberBadges.push(badgeDef);
+                        newScore = Math.min(100, newScore + 5); // +5 Score Bonus
+                        unicornAwarded = true;
+                    }
+                }
+
+                return { ...member, wallet: newWallet, individualScore: newScore, badges: memberBadges };
             });
+
+            if (unicornAwarded) {
+                logEvents.push({
+                    id: `badge-unicorn-${Date.now()}-${agency.id}`,
+                    date: today,
+                    type: 'INFO',
+                    label: 'Statut Licorne Atteint',
+                    deltaVE: 0,
+                    description: `Trésorerie > 20k. Badge Licorne + Bonus Score distribués.`
+                });
+            }
 
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {

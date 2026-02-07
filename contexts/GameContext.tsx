@@ -53,6 +53,7 @@ interface GameContextType {
   
   sendChallenge: (targetAgencyId: string, title: string, description: string) => Promise<void>;
   submitChallengeVote: (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
+  purchaseIntel: (agencyId: string, weekId: string) => Promise<void>;
 
   getCurrentGameWeek: () => number;
 }
@@ -235,6 +236,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       finalizeMerger: mechanics.finalizeMerger,
       sendChallenge: mechanics.sendChallenge,
       submitChallengeVote: mechanics.submitChallengeVote,
+      purchaseIntel: mechanics.purchaseIntel,
       getCurrentGameWeek
     }}>
       {children}
