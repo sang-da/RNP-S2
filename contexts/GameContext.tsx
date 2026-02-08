@@ -51,7 +51,7 @@ interface GameContextType {
   proposeMerger: (sourceAgencyId: string, targetAgencyId: string) => Promise<void>;
   finalizeMerger: (mergerId: string, targetAgencyId: string, approved: boolean) => Promise<void>;
   
-  sendChallenge: (targetAgencyId: string, title: string, description: string) => Promise<void>;
+  sendChallenge: (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => Promise<void>;
   submitChallengeVote: (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
   purchaseIntel: (agencyId: string, weekId: string) => Promise<void>;
 
@@ -228,7 +228,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       handleTransactionRequest: finance.handleTransactionRequest,
       manageSavings: finance.manageSavings,
       manageLoan: finance.manageLoan,
-      tradeScoreForCash: async () => {}, 
+      tradeScoreForCash: async (studentId: string, scoreAmount: number) => {}, // Placeholder implementation
       submitMercatoVote: mechanics.submitMercatoVote,
       performBlackOp: mechanics.performBlackOp,
       triggerBlackOp: mechanics.triggerBlackOp,

@@ -1,9 +1,213 @@
 
+export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
+
+export interface Badge {
+    id: string;
+    label: string;
+    description: string;
+    icon: string;
+    unlockedAt?: string;
+}
+
+export interface CareerStep {
+    weekId: string;
+    agencyId: string;
+    agencyName: string;
+    role: string;
+    scoreAtWeek: number;
+    walletAtWeek: number;
+}
+
+export interface Student {
+    id: string;
+    name: string;
+    role: string;
+    avatarUrl: string;
+    individualScore: number;
+    wallet: number;
+    savings?: number;
+    loanDebt?: number;
+    karma?: number;
+    streak?: number;
+    classId: 'A' | 'B' | 'ALL';
+    connectionStatus: 'online' | 'offline';
+    badges?: Badge[];
+    history?: any[]; // Keep flexible
+    cvUrl?: string;
+}
+
+export interface GameEvent {
+    id: string;
+    date: string;
+    type: 'INFO' | 'CRISIS' | 'VE_DELTA' | 'REVENUE' | 'PAYROLL' | 'BLACK_OP' | 'BUDGET_DELTA';
+    label: string;
+    description: string;
+    deltaVE?: number;
+    deltaBudgetReal?: number;
+}
+
+export type DeliverableType = 'FILE' | 'LINK' | 'SPECIAL_LOGO' | 'SPECIAL_BANNER' | 'FORM_CHARTER' | 'FORM_NAMING';
+
+export interface GradingConfig {
+    quality: 'A' | 'B' | 'C';
+    daysLate: number;
+    constraintBroken: boolean;
+    finalDelta: number;
+    mvpId?: string;
+}
+
+export interface Deliverable {
+    id: string;
+    name: string;
+    description: string;
+    status: 'pending' | 'submitted' | 'validated' | 'rejected';
+    type?: DeliverableType;
+    fileUrl?: string;
+    feedback?: string;
+    submissionDate?: string;
+    deadline?: string;
+    selfAssessment?: 'A' | 'B' | 'C';
+    nominatedMvpId?: string | null;
+    grading?: GradingConfig;
+}
+
+export interface WeekScoringConfig {
+    pointsA: number;
+    pointsB: number;
+    penaltyLatePerDay: number;
+    penaltyConstraint: number;
+    expectedTargetVE: number;
+}
+
+export interface WeekModule {
+    id: string;
+    cycleId: number;
+    title: string;
+    type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
+    isVisible: boolean;
+    objectives: string[];
+    deliverables: Deliverable[];
+    status: 'pending' | 'active' | 'completed';
+    schedule: {
+        classA?: { date: string, slot: 'MATIN' | 'APRÈS-MIDI' | 'JOURNÉE' } | null;
+        classB?: { date: string, slot: 'MATIN' | 'APRÈS-MIDI' | 'JOURNÉE' } | null;
+    };
+    scoring?: WeekScoringConfig;
+}
+
+export interface MercatoRequest {
+    id: string;
+    type: 'HIRE' | 'FIRE' | 'FOUND_AGENCY';
+    studentId: string;
+    studentName: string;
+    requesterId: string;
+    targetAgencyId: string;
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    date: string;
+    motivation: string;
+    votes?: { [userId: string]: 'APPROVE' | 'REJECT' };
+}
+
+export interface TransactionRequest {
+    id: string;
+    studentId: string;
+    studentName: string;
+    type: 'BUY_SCORE';
+    amountPixi: number;
+    amountScore: number;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    date: string;
+}
+
+export interface MergerRequest {
+    id: string;
+    requesterAgencyId: string;
+    requesterAgencyName: string;
+    targetAgencyId: string;
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    date: string;
+    offerDetails: string;
+}
+
+export interface ChallengeRequest {
+    id: string;
+    title: string;
+    description: string;
+    status: 'PENDING_VOTE' | 'ACCEPTED' | 'REJECTED';
+    date: string;
+    rewardVE: number; 
+    rewardBudget: number;
+    votes: { [studentId: string]: 'APPROVE' | 'REJECT' };
+}
+
 export enum CycleType {
-  MARQUE_BRIEF = "Cycle 1: Marque & Brief",
-  NARRATION_IA = "Cycle 2: Narration & IA",
-  LOOKDEV = "Cycle 3: Look-dev & Sélection",
-  PACKAGING = "Cycle 4: Packaging & Soutenance"
+    MARQUE_BRIEF = 'MARQUE_BRIEF',
+    NARRATION_IA = 'NARRATION_IA',
+    LOOKDEV = 'LOOKDEV',
+    PACKAGING = 'PACKAGING',
+}
+
+export interface Agency {
+    id: string;
+    name: string;
+    tagline: string;
+    ve_current: number;
+    veCapOverride?: number;
+    status: 'stable' | 'fragile' | 'critique';
+    classId: 'A' | 'B' | 'ALL';
+    budget_real: number;
+    budget_valued: number;
+    weeklyTax: number;
+    weeklyRevenueModifier: number;
+    members: Student[];
+    eventLog: GameEvent[];
+    currentCycle: CycleType;
+    projectDef: {
+        problem: string;
+        target: string;
+        location: string;
+        gesture: string;
+        theme?: string;
+        context?: string;
+        direction?: string;
+        isLocked: boolean;
+    };
+    mercatoRequests: MercatoRequest[];
+    transactionRequests: TransactionRequest[];
+    mergerRequests?: MergerRequest[];
+    challenges?: ChallengeRequest[];
+    constraints: { space: string; style: string; client: string };
+    progress: { [weekId: string]: WeekModule };
+    branding?: { color: BrandColor; bannerUrl?: string };
+    logoUrl?: string;
+    badges: Badge[];
+}
+
+export interface PeerReview {
+    id: string;
+    weekId: string;
+    date: string;
+    reviewerId: string;
+    reviewerName: string;
+    targetId: string;
+    targetName: string;
+    agencyId: string;
+    ratings: {
+        attendance: number;
+        quality: number;
+        involvement: number;
+    };
+    comment: string;
+    classId?: string; // Derived in UI often
+}
+
+export interface WikiResource {
+    id: string;
+    title: string;
+    url: string;
+    type: 'PDF' | 'VIDEO' | 'LINK' | 'ASSET';
+    targetClass: 'ALL' | 'A' | 'B';
+    date: string;
 }
 
 export interface GameConfig {
@@ -15,271 +219,16 @@ export interface GameConfig {
     lastPerformanceRun: string | null;
 }
 
-export interface PeerReview {
-  id: string;
-  date: string;
-  weekId: string;
-  reviewerId: string;
-  reviewerName: string;
-  targetId: string;
-  targetName: string;
-  agencyId: string; // Ajouté pour faciliter le requêtage global
-  ratings: {
-    attendance: number;
-    quality: number;
-    involvement: number;
-  };
-  comment: string;
-}
-
-export type DeliverableType = 'FILE' | 'LINK' | 'FORM_CHARTER' | 'FORM_NAMING' | 'SPECIAL_LOGO' | 'SPECIAL_BANNER';
-
-export interface Deliverable {
-  id: string;
-  name: string;
-  description: string;
-  type?: DeliverableType;
-  status: 'pending' | 'submitted' | 'validated' | 'rejected';
-  score?: number; 
-  feedback?: string;
-  fileUrl?: string;
-  deadline?: string; 
-  selfAssessment?: 'A' | 'B' | 'C'; 
-  nominatedMvpId?: string | null; 
-  submissionDate?: string;
-  grading?: {
-    quality: 'A' | 'B' | 'C' | 'REJECTED';
-    daysLate: number;
-    constraintBroken: boolean;
-    finalDelta: number;
-    mvpId?: string | null;
-  } | null;
-}
-
-export interface ClassSession {
-    date: string; 
-    slot: 'MATIN' | 'APRÈS-MIDI' | 'JOURNÉE';
-}
-
-export interface WeekScoringConfig {
-    pointsA: number;
-    pointsB: number;
-    penaltyLatePerDay: number;
-    penaltyConstraint: number;
-    expectedTargetVE: number; 
-}
-
-export interface WeekModule {
-  id: string;
-  cycleId: number; 
-  title: string;
-  type: 'FUN/CHILL' | 'THÉORIE' | 'TECHNIQUE' | 'JURY';
-  objectives: string[];
-  deliverables: Deliverable[];
-  isVisible: boolean; // SEULE SOURCE DE VÉRITÉ POUR L'AFFICHAGE
-  status?: 'pending' | 'in_progress' | 'validated';
-  schedule: {
-      classA: ClassSession | null;
-      classB: ClassSession | null;
-  };
-  scoring?: WeekScoringConfig;
-}
-
-// Nouvelle structure pour l'historique de carrière stockée dans 'users'
-export interface CareerStep {
-    weekId: string;
-    agencyId: string;
-    agencyName: string;
-    role: string;
-    scoreAtWeek: number;
-    walletAtWeek: number;
-}
-
-export interface StudentHistoryEntry {
-    date: string;
-    agencyId: string;
-    agencyName: string;
-    action: 'JOINED' | 'LEFT' | 'FIRED' | 'RESIGNED' | 'MERGED';
-    contextVE: number;      
-    contextBudget: number;  
-    reason?: string;        
-}
-
-export interface Badge {
-    id: string;
-    label: string;
-    description: string;
-    icon: string; 
-    unlockedAt?: string;
-}
-
-export interface Bet {
-    id: string;
-    targetAgencyId: string;
-    targetAgencyName: string;
-    amountWagered: number; 
-    weekId: string; 
-    status: 'ACTIVE' | 'WON' | 'LOST';
-    date: string;
-}
-
-export interface Student {
-  id: string;
-  name: string;
-  email?: string; 
-  role: string; 
-  avatarUrl: string;
-  individualScore: number; 
-  wallet: number; 
-  savings?: number; // RNP BANK: Compte Épargne
-  loanDebt?: number; // RNP BANK: Dette active
-  karma?: number; 
-  cvUrl?: string; 
-  classId: 'A' | 'B'; 
-  connectionStatus?: 'online' | 'offline' | 'pending';
-  history?: StudentHistoryEntry[]; 
-  careerPath?: CareerStep[]; // Nouveau : Historique hebdomadaire
-  badges?: Badge[]; 
-  streak?: number; 
-  activeBets?: Bet[]; 
-}
-
-export type EventType = 'CRISIS' | 'VE_DELTA' | 'BUDGET_DELTA' | 'CHECKPOINT' | 'INFO' | 'PAYROLL' | 'REVENUE' | 'BLACK_OP' | 'MERGER';
-
-export interface GameEvent {
-  id: string;
-  date: string; 
-  type: EventType;
-  label: string; 
-  description?: string;
-  deltaVE?: number; 
-  deltaBudgetReal?: number;
-  deltaBudgetValued?: number;
-}
-
-export interface ProjectDefinition {
-  problem: string;      
-  target: string;       
-  location: string;     
-  gesture: string;      
-  theme?: string;       
-  direction?: string;   
-  context?: string;     
-  isLocked: boolean;    
-}
-
-export interface MercatoRequest {
-  id: string;
-  type: 'HIRE' | 'FIRE' | 'FOUND_AGENCY'; 
-  studentId: string; 
-  studentName: string;
-  requesterId?: string; 
-  targetAgencyId: string; 
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
-  date: string;
-  motivation?: string; 
-  votes?: { [studentId: string]: 'APPROVE' | 'REJECT' }; 
-}
-
-export interface ChallengeRequest {
-    id: string;
-    title: string;
-    description: string;
-    status: 'PENDING_VOTE' | 'ACCEPTED' | 'REJECTED';
-    date: string;
-    rewardVE: number; 
-    votes: { [studentId: string]: 'APPROVE' | 'REJECT' };
-}
-
-export interface MergerRequest {
-    id: string;
-    requesterAgencyId: string;
-    requesterAgencyName: string;
-    targetAgencyId: string; 
-    status: 'PENDING' | 'REJECTED';
-    date: string;
-    offerDetails: string; 
-}
-
-export interface TransactionRequest {
-    id: string;
-    studentId: string;
-    studentName: string;
-    type: 'BUY_SCORE';
-    amountPixi: number;
-    amountScore: number;
-    status: 'PENDING' | 'REJECTED';
-    date: string;
-}
-
 export interface AIInsight {
     id: string;
     type: 'URGENT' | 'WARNING' | 'OPPORTUNITY';
     title: string;
-    analysis: string; 
-    suggestedAction: {
+    analysis: string;
+    targetAgencyId: string;
+    suggestedAction?: {
         label: string;
         actionType: 'CRISIS' | 'REWARD' | 'MESSAGE' | 'AUDIT';
-        payload?: any; 
     };
-    targetAgencyId?: string;
-    targetStudentId?: string;
-}
-
-export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
-
-export interface AgencyBranding {
-    color: BrandColor;
-    bannerUrl?: string;
-}
-
-export interface Agency {
-  id: string;
-  name: string;
-  tagline: string;
-  logoUrl?: string;
-  members: Student[];
-  // peerReviews: PeerReview[]; // SUPPRIMÉ : DÉSORMAIS COLLECTION RACINE
-  // reviewHistory?: PeerReview[]; // SUPPRIMÉ : DÉSORMAIS COLLECTION RACINE
-  classId: 'A' | 'B' | 'ALL'; 
-  ve_current: number; 
-  veCapOverride?: number; 
-  budget_real: number; 
-  budget_valued: number; 
-  weeklyTax: number; 
-  weeklyRevenueModifier: number; 
-  status: 'stable' | 'fragile' | 'critique';
-  eventLog: GameEvent[]; 
-  currentCycle: CycleType;
-  projectDef: ProjectDefinition;
-  mercatoRequests: MercatoRequest[];
-  transactionRequests: TransactionRequest[];
-  mergerRequests?: MergerRequest[];
-  challenges?: ChallengeRequest[];
-  constraints: {
-    space: string;
-    style: string;
-    client: string;
-  };
-  progress: {
-    [weekId: string]: WeekModule;
-  };
-  branding: AgencyBranding;
-  badges: Badge[];
-}
-
-export interface AppState {
-  userRole: 'admin' | 'student';
-  selectedAgencyId: string | null;
-  agencies: Agency[];
-}
-
-export interface CrisisPreset {
-  label: string;
-  description: string;
-  deltaVE: number;
-  deltaBudget: number;
-  icon: any;
 }
 
 export interface CycleAwardDefinition {
@@ -288,16 +237,16 @@ export interface CycleAwardDefinition {
     title: string;
     description: string;
     veBonus: number;
-    weeklyBonus: number; 
-    iconName: 'compass' | 'mic' | 'eye' | 'crown';
+    weeklyBonus: number;
+    iconName: string;
 }
 
-export interface WikiResource {
-    id: string;
-    title: string;
-    description?: string;
-    type: 'PDF' | 'VIDEO' | 'LINK' | 'ASSET';
-    url: string;
-    targetClass: 'ALL' | 'A' | 'B';
-    date: string;
+export interface CrisisPreset {
+    label: string;
+    defaultReason: string;
+    deltaVE: number;
+    deltaBudget: number;
+    icon?: any;
+    category: string;
+    description: string;
 }

@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
 import { Modal } from '../../Modal';
-import { Student, Agency } from '../../../types';
-import { Save, UserCog, Link2, ShieldAlert, History } from 'lucide-react';
+import { Student, Agency, Badge } from '../../../types';
+import { Save, UserCog, Link2, ShieldAlert, History, Medal, Plus, X, Trash2 } from 'lucide-react';
 import { doc, updateDoc, db } from '../../../services/firebase';
 import { useUI } from '../../../contexts/UIContext';
+import { BADGE_DEFINITIONS } from '../../../constants';
 
 interface StudentEditModalProps {
     isOpen: boolean;
@@ -17,16 +18,37 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
     const { toast } = useUI();
     const [classId, setClassId] = useState<'A' | 'B'>(student.classId);
     const [name, setName] = useState(student.name);
+    const [badges, setBadges] = useState<Badge[]>(student.badges || []);
     const [isSaving, setIsSaving] = useState(false);
+    const [selectedBadgeId, setSelectedBadgeId] = useState<string>("");
 
     // Détection si l'étudiant est lié à un compte utilisateur réel
     const isLinked = !student.id.startsWith('s-'); 
+
+    const handleAddBadge = () => {
+        if (!selectedBadgeId) return;
+        const badgeDef = BADGE_DEFINITIONS.find(b => b.id === selectedBadgeId);
+        
+        if (badgeDef) {
+            // Vérifier doublon
+            if (badges.some(b => b.id === badgeDef.id)) {
+                toast('warning', "L'étudiant possède déjà ce badge.");
+                return;
+            }
+            setBadges([...badges, { ...badgeDef, unlockedAt: new Date().toISOString().split('T')[0] }]);
+            setSelectedBadgeId("");
+        }
+    };
+
+    const handleRemoveBadge = (badgeId: string) => {
+        setBadges(badges.filter(b => b.id !== badgeId));
+    };
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
             const updatedMembers = agency.members.map(m => 
-                m.id === student.id ? { ...m, name, classId } : m
+                m.id === student.id ? { ...m, name, classId, badges } : m
             );
             
             await updateDoc(doc(db, "agencies", agency.id), { members: updatedMembers });
@@ -92,9 +114,52 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
                                 CLASSE B
                             </button>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-2 italic">
-                            Attention : Changer la classe affecte les filtres de notation et le vivier de recrutement.
-                        </p>
+                    </div>
+                </div>
+
+                {/* GESTION DES BADGES */}
+                <div className="border-t border-slate-100 pt-4">
+                    <h5 className="text-xs font-bold text-slate-900 flex items-center gap-2 mb-3">
+                        <Medal size={14} className="text-yellow-500"/> Palmarès & Badges
+                    </h5>
+                    
+                    {/* Liste des badges actuels */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {badges.length === 0 && <span className="text-xs text-slate-400 italic">Aucun badge pour le moment.</span>}
+                        {badges.map((badge, index) => (
+                            <div key={`${badge.id}-${index}`} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg text-xs font-bold shadow-sm">
+                                <span>{badge.label}</span>
+                                <button 
+                                    onClick={() => handleRemoveBadge(badge.id)}
+                                    className="p-1 hover:bg-yellow-200 rounded-md text-yellow-600 transition-colors"
+                                >
+                                    <X size={12}/>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Ajouter un badge */}
+                    <div className="flex gap-2">
+                        <select 
+                            value={selectedBadgeId}
+                            onChange={(e) => setSelectedBadgeId(e.target.value)}
+                            className="flex-1 p-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option value="">-- Sélectionner un badge --</option>
+                            {BADGE_DEFINITIONS.map(b => (
+                                <option key={b.id} value={b.id}>
+                                    {b.icon} {b.label}
+                                </option>
+                            ))}
+                        </select>
+                        <button 
+                            onClick={handleAddBadge}
+                            disabled={!selectedBadgeId}
+                            className="p-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                        >
+                            <Plus size={20}/>
+                        </button>
                     </div>
                 </div>
 

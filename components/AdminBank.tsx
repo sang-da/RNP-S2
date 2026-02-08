@@ -1,6 +1,7 @@
+
 import React, { useMemo } from 'react';
 import { Agency, GameEvent } from '../types';
-import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank } from 'lucide-react';
+import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank, Building2 } from 'lucide-react';
 
 interface AdminBankProps {
     agencies: Agency[];
@@ -90,7 +91,7 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Building2 size={20}/></div> // Note: Building2 needs import
+                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Building2 size={20}/></div>
                         <p className="text-sm font-bold text-slate-500">Fonds Agences</p>
                     </div>
                     <p className="text-2xl font-bold text-slate-900">{stats.agencyShare.toLocaleString()}</p>
@@ -155,6 +156,3 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
         </div>
     );
 };
-
-// Quick fix for missing icon import in this specific file context if needed, but normally imported above.
-import { Building2 } from 'lucide-react';

@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
 import { Agency } from '../types';
-import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2, Settings2, Compass, BookOpen } from 'lucide-react';
+import { Save, MapPin, Target, Zap, HelpCircle, PenTool, List, Trash2, Settings2, Compass, BookOpen, Bot } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
 import { calculateVECap } from '../constants';
+import { ProjectAuditModal } from './admin/projects/ProjectAuditModal'; // IMPORT
 
 interface AdminProjectsProps {
   agencies: Agency[];
@@ -17,6 +18,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
   const { deleteAgency } = useGame();
   
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [auditAgency, setAuditAgency] = useState<Agency | null>(null); // STATE AUDIT
   const [formData, setFormData] = useState({ 
       problem: '', target: '', location: '', gesture: '',
       theme: '', context: '', direction: ''
@@ -177,11 +179,22 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                 <p className="text-xs text-slate-400">{agency.members.length} membres</p>
                             </div>
                         </div>
-                        {editingId !== agency.id && !readOnly && (
-                             <button onClick={() => startEditing(agency)} className="text-indigo-600 p-2 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
-                                <PenTool size={14} /> Éditer
-                            </button>
-                        )}
+                        <div className="flex gap-1">
+                            {!readOnly && (
+                                <button 
+                                    onClick={() => setAuditAgency(agency)} 
+                                    className="text-indigo-600 p-2 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                                    title="Lancer un Audit IA"
+                                >
+                                    <Bot size={16}/> Audit IA
+                                </button>
+                            )}
+                            {editingId !== agency.id && !readOnly && (
+                                <button onClick={() => startEditing(agency)} className="text-slate-500 p-2 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
+                                    <PenTool size={14} /> Éditer
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Content */}
@@ -344,6 +357,15 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                 </div>
             ))}
         </div>
+
+        {/* PROJECT AUDIT MODAL */}
+        {auditAgency && (
+            <ProjectAuditModal 
+                isOpen={!!auditAgency} 
+                onClose={() => setAuditAgency(null)} 
+                agency={auditAgency} 
+            />
+        )}
     </div>
   );
 };

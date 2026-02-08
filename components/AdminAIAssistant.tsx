@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Agency } from '../types';
+import { Agency, GameEvent } from '../types';
 import { askGroq } from '../services/groqService';
-import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal, Rocket, BrainCircuit, Target, AlertTriangle, Briefcase } from 'lucide-react';
+import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal, Rocket, BrainCircuit, Target, AlertTriangle, Briefcase, Gavel, PenTool, Coins } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
 import { GAME_RULES } from '../constants';
@@ -27,8 +27,8 @@ interface ProfilerResult {
 }
 
 export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) => {
-    const { toast } = useUI();
-    const { sendChallenge } = useGame();
+    const { toast, confirm } = useUI();
+    const { sendChallenge, updateAgency } = useGame();
     const [mode, setMode] = useState<Mode>('ORACLE');
     const [loading, setLoading] = useState(false);
     
@@ -40,8 +40,12 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
     // SCENARIO STATE
     const [targetAgencyId, setTargetAgencyId] = useState(agencies.filter(a => a.id !== 'unassigned')[0]?.id || "");
     const [generatedContent, setGeneratedContent] = useState("");
+    const [generatedTitle, setGeneratedTitle] = useState(""); 
+    
+    // CHALLENGE MODAL STATE
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
-    const [challengeForm, setChallengeForm] = useState({ title: '', description: '' });
+    const [challengeForm, setChallengeForm] = useState({ title: '', description: '', rewardVE: 10, rewardBudget: 500 });
+    const [isWritingChallenge, setIsWritingChallenge] = useState(false);
 
     // PROFILE STATE
     const [targetStudentId, setTargetStudentId] = useState("");
@@ -113,32 +117,81 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         Contexte : Ils ont ${context.metrics.cash} PiXi et une VE de ${context.metrics.ve}.
         Si leur Cashflow est négatif, appuie là où ça fait mal.
         Le ton doit être froid, administratif et urgent.
-        Format attendu : Un titre choc, suivi d'une description de la situation et de l'impact immédiat.`;
+        Format attendu : JSON { "title": "Titre Court", "description": "Texte explicatif" }
+        `;
 
         try {
-            const result = await askGroq(prompt, context, "Tu es un Auditeur Financier impitoyable.");
-            setGeneratedContent(result);
-            setChallengeForm({ title: "Crise Imprévue", description: result });
+            const result = await askGroq(prompt, context, "Tu es un Auditeur Financier impitoyable. Tu réponds UNIQUEMENT en JSON.");
+            const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            const parsed = JSON.parse(jsonStr);
+            
+            setGeneratedTitle(parsed.title);
+            setGeneratedContent(parsed.description);
+            // On ne met PAS à jour le challengeForm ici, c'est pour la crise directe
+        } catch(e) {
+            setGeneratedContent("Erreur de format IA. Réessayez.");
         } finally { setLoading(false); }
     };
 
-    const handleGenerateCreative = async () => {
-        setLoading(true);
+    const handleGenerateCreativeForChallenge = async () => {
+        setIsWritingChallenge(true);
         const context = getRichContextData(targetAgencyId)[0];
         
-        const prompt = `Agis comme un Directeur de Création excentrique.
-        Le projet de l'agence est : "${context.project_identity.theme}" pour résoudre "${context.project_identity.problem}".
-        Leur geste architectural est : "${context.project_identity.gesture}".
+        const prompt = `Agis comme un CLIENT EXIGEANT ou un INVESTISSEUR pour l'agence "${context.name}".
+        Leur projet : "${context.project_identity.theme}" sur le problème "${context.project_identity.problem}".
+        Cible : "${context.project_identity.target}".
         
-        Génère une "WILDCARD" (Contrainte Surprise) qui vient percuter leur concept.
-        Exemple : "Votre cible a changé", "Le lieu est inondé", "Le client veut du rose".
-        Cela doit être un défi ironique mais réalisable en 48h.`;
+        Rédige un BRIEF DE MISSION SPÉCIALE (Challenge) qui s'intègre parfaitement à leur réalité.
+        Demande un livrable précis (ex: "Une variante luxe", "Une version mobile", "Un poster pour un event spécifique").
+        
+        Format attendu : JSON { "title": "Titre accrocheur (ex: Commande Urgente)", "description": "Le contexte et la demande précise du livrable à produire." }
+        `;
 
         try {
-            const result = await askGroq(prompt, context, "Tu es un Directeur Artistique de renommée mondiale, brillant mais chaotique.");
-            setGeneratedContent(result);
-            setChallengeForm({ title: "Wildcard Créative", description: result });
-        } finally { setLoading(false); }
+            const result = await askGroq(prompt, context, "Tu es un client VIP réaliste et pressé. Tu réponds en JSON.");
+            const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            const parsed = JSON.parse(jsonStr);
+            
+            setChallengeForm(prev => ({
+                ...prev,
+                title: parsed.title,
+                description: parsed.description
+            }));
+        } catch(e) {
+            toast('error', "L'IA n'a pas pu générer le challenge.");
+        } finally { setIsWritingChallenge(false); }
+    };
+
+    const handleExecuteCrisis = async () => {
+        if (!generatedContent || !targetAgencyId) return;
+        const agency = agencies.find(a => a.id === targetAgencyId);
+        if(!agency) return;
+
+        const isConfirmed = await confirm({
+            title: "Exécuter la Crise ?",
+            message: `Vous allez infliger -10 VE à l'agence "${agency.name}" avec ce motif.\n\n"${generatedTitle}"`,
+            confirmText: "APPLIQUER LA SANCTION",
+            isDangerous: true
+        });
+
+        if (isConfirmed) {
+            const newEvent: GameEvent = {
+                id: `ai-crisis-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'CRISIS',
+                label: generatedTitle || "Crise IA",
+                description: generatedContent,
+                deltaVE: -10, // Valeur par défaut pour une crise IA
+                deltaBudgetReal: 0
+            };
+            
+            updateAgency({
+                ...agency,
+                ve_current: Math.max(0, agency.ve_current - 10),
+                eventLog: [...agency.eventLog, newEvent]
+            });
+            toast('success', "Crise IA appliquée avec succès.");
+        }
     };
 
     const handleAnalyzeProfile = async () => {
@@ -176,7 +229,6 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
         try {
             const result = await askGroq(prompt, { student: studentData }, "Tu es un algorithme de profilage RH avancé. Tu parles en JSON.");
-            // Nettoyage basique si l'IA bavarde autour du JSON
             const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
             setProfileResult(JSON.parse(jsonStr));
         } catch (error) {
@@ -189,8 +241,19 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
     const handleSendChallenge = async () => {
         if (!targetAgencyId || !challengeForm.title || !challengeForm.description) return;
-        await sendChallenge(targetAgencyId, challengeForm.title, challengeForm.description);
+        
+        // On envoie aussi les rewards
+        await sendChallenge(targetAgencyId, challengeForm.title, challengeForm.description, challengeForm.rewardVE, challengeForm.rewardBudget);
+        
         setIsChallengeModalOpen(false);
+        setChallengeForm({ title: '', description: '', rewardVE: 10, rewardBudget: 500 });
+        toast('success', "Offre de mission envoyée !");
+    };
+
+    // Helper pour reset le form quand on ouvre la modale
+    const openChallengeModal = () => {
+        setChallengeForm({ title: '', description: '', rewardVE: 10, rewardBudget: 500 });
+        setIsChallengeModalOpen(true);
     };
 
     return (
@@ -223,7 +286,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col relative">
                 
-                {/* MODE: ORACLE (CHAT) */}
+                {/* MODE: ORACLE (CHAT) - Inchangé... */}
                 {mode === 'ORACLE' && (
                     <div className="flex flex-col h-full">
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
@@ -283,7 +346,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                 <p className="text-sm opacity-80">
                                     {mode === 'GENERATOR_CRISIS' 
                                         ? "Créez des incidents financiers ou administratifs basés sur la santé réelle de l'agence." 
-                                        : "Générez des 'Wildcards' (Contraintes surprises) basées sur le thème et la cible du projet."}
+                                        : "Générez des 'Missions Commandos' (Challenges) basées sur la réalité du projet de l'agence."}
                                 </p>
                             </div>
                             <div className="w-full md:w-64 bg-white/10 p-2 rounded-xl backdrop-blur-sm">
@@ -298,51 +361,77 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                     ))}
                                 </select>
                             </div>
-                            <button 
-                                onClick={mode === 'GENERATOR_CRISIS' ? handleGenerateCrisis : handleGenerateCreative}
-                                disabled={loading}
-                                className="px-6 py-3 bg-white text-slate-900 font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {loading ? <RefreshCw className="animate-spin" size={18}/> : <Zap size={18}/>}
-                                Générer
-                            </button>
-                        </div>
-
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-y-auto shadow-inner">
-                            {generatedContent ? (
-                                <div className="prose prose-slate max-w-none">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <h4 className="text-lg font-bold text-slate-900">Scénario Suggéré</h4>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => { navigator.clipboard.writeText(generatedContent); toast('success', 'Copié !'); }} 
-                                                className="p-2 bg-white hover:bg-indigo-50 border rounded-lg text-slate-500 transition-colors"
-                                            >
-                                                <Copy size={16}/>
-                                            </button>
-                                            <button 
-                                                onClick={() => setIsChallengeModalOpen(true)}
-                                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white font-bold text-xs flex items-center gap-2 shadow-sm"
-                                            >
-                                                <Rocket size={16}/> Envoyer le Challenge
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                        {generatedContent}
-                                    </div>
-                                </div>
+                            
+                            {mode === 'GENERATOR_CRISIS' ? (
+                                <button 
+                                    onClick={handleGenerateCrisis}
+                                    disabled={loading}
+                                    className="px-6 py-3 bg-white text-slate-900 font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {loading ? <RefreshCw className="animate-spin" size={18}/> : <Zap size={18}/>}
+                                    Générer Crise
+                                </button>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center opacity-30">
-                                    <Terminal size={48} className="mb-4"/>
-                                    <p className="font-bold">En attente de génération...</p>
-                                </div>
+                                <button 
+                                    onClick={openChallengeModal}
+                                    className="px-6 py-3 bg-white text-slate-900 font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    <Rocket size={18}/>
+                                    Créer Challenge
+                                </button>
                             )}
                         </div>
+
+                        {/* RESULT AREA FOR CRISIS ONLY (CREA IS IN MODAL) */}
+                        {mode === 'GENERATOR_CRISIS' && (
+                            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-y-auto shadow-inner">
+                                {generatedContent ? (
+                                    <div className="prose prose-slate max-w-none">
+                                        <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
+                                            <div className="flex-1">
+                                                {generatedTitle && <h4 className="text-xl font-bold text-slate-900 mb-2">{generatedTitle}</h4>}
+                                                <div className="text-sm leading-relaxed text-slate-700 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                                    {generatedContent}
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
+                                                <button 
+                                                    onClick={handleExecuteCrisis}
+                                                    className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+                                                >
+                                                    <Gavel size={18}/> DÉCLENCHER CETTE CRISE
+                                                </button>
+                                                
+                                                <button 
+                                                    onClick={() => { navigator.clipboard.writeText(`${generatedTitle}\n\n${generatedContent}`); toast('success', 'Copié !'); }} 
+                                                    className="px-4 py-2 bg-white hover:bg-indigo-50 border border-slate-300 text-slate-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                                                >
+                                                    <Copy size={14}/> Copier le texte
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center opacity-30">
+                                        <Terminal size={48} className="mb-4"/>
+                                        <p className="font-bold">En attente de génération de crise...</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {mode === 'GENERATOR_CREA' && (
+                            <div className="flex-1 flex items-center justify-center opacity-30 border-2 border-dashed border-slate-200 rounded-2xl">
+                                <div className="text-center">
+                                    <Rocket size={48} className="mx-auto mb-4 text-purple-400"/>
+                                    <p className="font-bold">Cliquez sur "Créer Challenge" pour ouvrir l'éditeur.</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* MODE: PROFILER (VISUEL) */}
+                {/* MODE: PROFILER (VISUEL) - Inchangé... */}
                 {mode === 'PROFILER' && (
                     <div className="flex flex-col h-full p-6">
                         <div className="flex gap-4 mb-6">
@@ -440,37 +529,77 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                 )}
             </div>
 
-            {/* MODAL: SEND CHALLENGE */}
-            <Modal isOpen={isChallengeModalOpen} onClose={() => setIsChallengeModalOpen(false)} title="Lancer le Challenge">
+            {/* MODAL: SEND CHALLENGE V2 */}
+            <Modal isOpen={isChallengeModalOpen} onClose={() => setIsChallengeModalOpen(false)} title="Créer un Contrat Sur-Mesure">
                 <div className="space-y-4">
                     <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-900">
                         <Rocket size={20} className="mb-2"/>
-                        Vous allez proposer ce défi à l'agence. S'ils l'acceptent (vote), une mission spéciale sera créée dans leur planning.
+                        Vous allez proposer une <strong>Mission Spéciale</strong> à l'agence cible. 
+                        Si l'équipe vote OUI, un <strong>Livrable Spécial</strong> sera ajouté à leur liste de tâches de la semaine en cours.
                     </div>
                     
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre</label>
-                        <input 
-                            type="text" 
-                            value={challengeForm.title}
-                            onChange={(e) => setChallengeForm({...challengeForm, title: e.target.value})}
-                            className="w-full p-3 border border-slate-200 rounded-xl font-bold"
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2 flex justify-between items-end">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre de la mission</label>
+                            <button 
+                                onClick={handleGenerateCreativeForChallenge}
+                                disabled={isWritingChallenge}
+                                className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                            >
+                                {isWritingChallenge ? <RefreshCw className="animate-spin" size={12}/> : <Sparkles size={12}/>}
+                                Générer via IA (Contextuel)
+                            </button>
+                        </div>
+                        <div className="col-span-2">
+                            <input 
+                                type="text" 
+                                value={challengeForm.title}
+                                onChange={(e) => setChallengeForm({...challengeForm, title: e.target.value})}
+                                className="w-full p-3 border border-slate-200 rounded-xl font-bold"
+                                placeholder="Ex: Commande Client VIP"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                <Target size={12}/> Gain VE
+                            </label>
+                            <input 
+                                type="number" 
+                                value={challengeForm.rewardVE}
+                                onChange={(e) => setChallengeForm({...challengeForm, rewardVE: Number(e.target.value)})}
+                                className="w-full p-3 border border-slate-200 rounded-xl font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                <Coins size={12}/> Gain Budget (PiXi)
+                            </label>
+                            <input 
+                                type="number" 
+                                value={challengeForm.rewardBudget}
+                                onChange={(e) => setChallengeForm({...challengeForm, rewardBudget: Number(e.target.value)})}
+                                className="w-full p-3 border border-slate-200 rounded-xl font-bold"
+                            />
+                        </div>
                     </div>
+
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description & Livrable Attendu</label>
                         <textarea 
                             value={challengeForm.description}
                             onChange={(e) => setChallengeForm({...challengeForm, description: e.target.value})}
                             className="w-full p-3 border border-slate-200 rounded-xl min-h-[150px] text-sm"
+                            placeholder="Décrivez le contexte et ce que l'agence doit produire..."
                         />
                     </div>
 
                     <button 
                         onClick={handleSendChallenge}
-                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors"
+                        disabled={!challengeForm.title}
+                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
                     >
-                        Envoyer au Vote
+                        <PenTool size={18}/> Envoyer l'Offre de Contrat
                     </button>
                 </div>
             </Modal>

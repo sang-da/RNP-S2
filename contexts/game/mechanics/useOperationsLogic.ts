@@ -1,5 +1,6 @@
+
 import { writeBatch, doc, db } from '../../../services/firebase';
-import { Agency, GameEvent } from '../../../types';
+import { Agency, GameEvent, Deliverable } from '../../../types';
 import { GAME_RULES } from '../../../constants';
 
 export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
@@ -140,7 +141,7 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
       toast('success', "Fusion confirmée !");
   };
 
-  const sendChallenge = async (targetAgencyId: string, title: string, description: string) => {
+  const sendChallenge = async (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => {
       const target = agencies.find(a => a.id === targetAgencyId);
       if(!target) return;
 
@@ -150,7 +151,8 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
           description,
           status: 'PENDING_VOTE',
           date: new Date().toISOString().split('T')[0],
-          rewardVE: 10,
+          rewardVE: rewardVE || 10,
+          rewardBudget: rewardBudget || 500,
           votes: {}
       };
 
@@ -176,17 +178,38 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
       const batch = writeBatch(db);
       
       if (approvals / totalVoters > GAME_RULES.VOTE_THRESHOLD_CHALLENGE) {
-          // ACCEPTED
-          // Add special mission to progress
-          // Simplified: Just unlock a hidden mission or add a bonus event
-          batch.update(doc(db, "agencies", agency.id), {
-              challenges: agency.challenges?.filter(c => c.id !== challengeId), // Remove pending
-              eventLog: [...agency.eventLog, {
-                  id: `chall-accept-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
-                  label: 'Challenge Accepté', deltaVE: 0, description: challenge.title
-              }]
-          });
-          toast('success', "Challenge accepté par l'équipe !");
+          // ACCEPTED -> ON CRÉE UN LIVRABLE SPÉCIAL DANS LA SEMAINE EN COURS
+          const currentWeekId = getCurrentGameWeek().toString();
+          const currentWeekData = agency.progress[currentWeekId];
+          
+          if (currentWeekData) {
+              const specialDeliverable: Deliverable = {
+                  id: `d_special_${Date.now()}`,
+                  name: `⚡ MISSION: ${challenge.title}`,
+                  description: `${challenge.description} (Récompense: +${challenge.rewardVE} VE, +${challenge.rewardBudget} PiXi)`,
+                  status: 'pending',
+                  type: 'FILE',
+                  // On pourrait stocker les rewards dans le livrable pour l'auto-validation future, mais l'admin gèrera
+              };
+
+              const updatedWeek = {
+                  ...currentWeekData,
+                  deliverables: [...currentWeekData.deliverables, specialDeliverable]
+              };
+
+              batch.update(doc(db, "agencies", agency.id), {
+                  challenges: agency.challenges?.filter(c => c.id !== challengeId), // Remove pending
+                  [`progress.${currentWeekId}`]: updatedWeek,
+                  eventLog: [...agency.eventLog, {
+                      id: `chall-accept-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
+                      label: 'Contrat Signé', deltaVE: 0, description: `Nouvelle mission ajoutée au planning: "${challenge.title}"`
+                  }]
+              });
+              toast('success', "Contrat accepté ! Nouvelle mission ajoutée.");
+          } else {
+              toast('error', "Impossible de trouver la semaine en cours.");
+              return;
+          }
       } else {
           // Update votes
           const updatedChallenges = agency.challenges?.map(c => c.id === challengeId ? { ...c, votes: newVotes } : c);

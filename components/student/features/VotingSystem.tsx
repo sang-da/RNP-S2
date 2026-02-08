@@ -2,7 +2,7 @@
 import React from 'react';
 import { Agency, Student } from '../../../types';
 import { Modal } from '../../Modal';
-import { Users, Gavel, X, Check, Rocket } from 'lucide-react';
+import { Users, Gavel, X, Check, Rocket, Coins, TrendingUp } from 'lucide-react';
 import { GAME_RULES } from '../../../constants';
 
 interface VotingSystemProps {
@@ -89,37 +89,48 @@ const ChallengeVotingBooth: React.FC<{agency: Agency, currentUser: Student, onVo
     if (!pendingChallenge) return null;
 
     return (
-        <Modal isOpen={true} onClose={() => {}} title="⚠️ DÉFI SPÉCIAL DÉTECTÉ">
+        <Modal isOpen={true} onClose={() => {}} title="⚡ OFFRE DE MISSION SPÉCIALE">
             <div className="space-y-6">
                 <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 mb-2">
                             <Rocket className="text-yellow-400 animate-pulse"/>
-                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-300">Opportunité IA</span>
+                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-300">Opportunité Freelance</span>
                         </div>
                         <h3 className="text-2xl font-black mb-4 leading-tight">{pendingChallenge.title}</h3>
-                        <p className="text-sm text-indigo-100 leading-relaxed bg-white/10 p-4 rounded-xl border border-white/10">
+                        <p className="text-sm text-indigo-100 leading-relaxed bg-white/10 p-4 rounded-xl border border-white/10 mb-4">
                             {pendingChallenge.description}
                         </p>
+                        
+                        <div className="flex gap-4">
+                            <div className="bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 flex items-center gap-2">
+                                <TrendingUp size={16} className="text-emerald-400"/>
+                                <span className="font-bold text-emerald-200">+{pendingChallenge.rewardVE} VE</span>
+                            </div>
+                            <div className="bg-yellow-500/20 px-3 py-1.5 rounded-lg border border-yellow-500/30 flex items-center gap-2">
+                                <Coins size={16} className="text-yellow-400"/>
+                                <span className="font-bold text-yellow-200">+{pendingChallenge.rewardBudget || 0} PiXi</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div className="text-center">
-                    <p className="text-sm text-slate-600 mb-4">
-                        Si l'équipe accepte ce défi (Majorité &gt; {GAME_RULES.VOTE_THRESHOLD_CHALLENGE * 100}%), une <strong>mission spéciale</strong> sera ajoutée.
+                    <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        Si l'équipe accepte (Majorité &gt; {GAME_RULES.VOTE_THRESHOLD_CHALLENGE * 100}%), une <strong>mission spéciale</strong> sera ajoutée à votre tableau de bord cette semaine.
                     </p>
                     <div className="grid grid-cols-2 gap-4">
                         <button 
                             onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'REJECT')}
                             className="py-4 bg-white border-2 border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 font-bold rounded-xl transition-all"
                         >
-                            Refuser
+                            Refuser l'offre
                         </button>
                         <button 
                             onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'APPROVE')}
-                            className="py-4 bg-emerald-600 text-white hover:bg-emerald-500 font-bold rounded-xl transition-all shadow-lg shadow-emerald-200"
+                            className="py-4 bg-emerald-600 text-white hover:bg-emerald-500 font-bold rounded-xl transition-all shadow-lg shadow-emerald-200 flex flex-col items-center justify-center gap-1"
                         >
-                            Accepter le Défi
+                            <span className="flex items-center gap-2"><Check size={18}/> Accepter & Signer</span>
                         </button>
                     </div>
                 </div>
