@@ -58,6 +58,8 @@ export const onSnapshot = (ref: any, ...args: any[]) => ref.onSnapshot(...args);
 
 export const writeBatch = (firestore: any) => firestore.batch();
 export const serverTimestamp = () => firebase.firestore.FieldValue.serverTimestamp();
+export const arrayUnion = (...elements: any[]) => firebase.firestore.FieldValue.arrayUnion(...elements);
+export const arrayRemove = (...elements: any[]) => firebase.firestore.FieldValue.arrayRemove(...elements);
 
 // Query Adapter (Simple chaining for where clauses)
 export const where = (field: string, op: any, value: any) => (ref: any) => ref.where(field, op, value);

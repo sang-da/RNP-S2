@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Deliverable, GameEvent, WeekScoringConfig } from '../../../../types';
-import { Modal } from '../../../Modal';
 import { useUI } from '../../../../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../../../../constants';
-import { ExternalLink, AlertTriangle, Target, Calculator, Check, User, Crown } from 'lucide-react';
+import { calculateBusinessDaysLate } from '../../../../utils/dateUtils';
+import { SubmissionInfo } from './grading/SubmissionInfo';
+import { FileViewer } from './grading/FileViewer';
+import { ExternalLink, AlertTriangle, Target, Check, Crown, X, ArrowLeft } from 'lucide-react';
 
 interface GradingModalProps {
     isOpen: boolean;
@@ -22,25 +24,29 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const [daysLate, setDaysLate] = useState<number>(0);
     const [constraintBroken, setConstraintBroken] = useState<boolean>(false);
     const [feedback, setFeedback] = useState("");
-    const [selectedMvpId, setSelectedMvpId] = useState<string | "NONE">("NONE"); // Pour le MVP Final
+    const [selectedMvpId, setSelectedMvpId] = useState<string | "NONE">("NONE"); 
     const [isSaving, setIsSaving] = useState(false);
+
+    // Escape Key to Close
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
 
     const agency = agencies.find(a => a.id === item.agencyId);
     
-    // Récupérer le nom du MVP suggéré par l'équipe
+    // Suggestion MVP
     const suggestedMvpMember = useMemo(() => {
         if (!agency || !item.deliverable.nominatedMvpId) return null;
         return agency.members.find(m => m.id === item.deliverable.nominatedMvpId);
     }, [agency, item.deliverable.nominatedMvpId]);
 
-    // Récupérer la configuration de scoring de la semaine (ou défaut)
+    // Config Scoring
     const scoringConfig: WeekScoringConfig = useMemo(() => {
         if (!agency) return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
         const weekData = agency.progress[item.weekId];
-        if (weekData && weekData.scoring) {
-            return weekData.scoring;
-        }
-        // Fallback default
+        if (weekData && weekData.scoring) return weekData.scoring;
         return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
     }, [agency, item.weekId]);
 
@@ -49,26 +55,19 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         if (item.deliverable) {
             setFeedback(item.deliverable.feedback || "Fichier reçu. En attente de validation.");
             
-            // Auto-select suggéré si présent
+            // Auto-select MVP
             if (item.deliverable.nominatedMvpId && !item.deliverable.grading?.mvpId) {
                 setSelectedMvpId(item.deliverable.nominatedMvpId);
             } else if (item.deliverable.grading?.mvpId) {
                 setSelectedMvpId(item.deliverable.grading.mvpId);
             }
 
-            // Calcul automatique du retard
+            // Calcul Automatique du Retard (Jours Ouvrables)
             if (item.deliverable.submissionDate && item.deliverable.deadline) {
-                const submission = new Date(item.deliverable.submissionDate);
-                const deadline = new Date(item.deliverable.deadline);
-                const tolerance = 15 * 60 * 1000; 
-                
-                if (submission.getTime() > (deadline.getTime() + tolerance)) {
-                    const diffTime = Math.abs(submission.getTime() - deadline.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    setDaysLate(diffDays);
-                } else {
-                    setDaysLate(0);
-                }
+                const late = calculateBusinessDaysLate(item.deliverable.deadline, item.deliverable.submissionDate);
+                setDaysLate(late);
+            } else {
+                setDaysLate(0);
             }
         }
     }, [item]);
@@ -77,7 +76,6 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const calculation = useMemo(() => {
         if (!agency) return { base: 0, penalty: 0, final: 0, multiplier: 1, lucidity: 0 };
 
-        // Utilisation des valeurs dynamiques de la semaine
         const baseScore = quality === 'A' ? scoringConfig.pointsA : quality === 'B' ? scoringConfig.pointsB : 0;
         const penaltyLate = (daysLate || 0) * scoringConfig.penaltyLatePerDay;
         const penaltyConstraint = constraintBroken ? scoringConfig.penaltyConstraint : 0;
@@ -115,18 +113,13 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
 
             const updatedDeliverables = currentWeek.deliverables.map((d): Deliverable => {
                 if (d.id === item.deliverable.id) {
-                    
-                    // CONSTRUCTION SÉCURISÉE DE L'OBJET GRADING
                     const gradingPayload: any = { 
                         quality, 
                         daysLate: daysLate || 0, 
                         constraintBroken, 
                         finalDelta: calculation.finalVE,
                     };
-
-                    if (selectedMvpId !== "NONE") {
-                        gradingPayload.mvpId = selectedMvpId;
-                    }
+                    if (selectedMvpId !== "NONE") gradingPayload.mvpId = selectedMvpId;
 
                     return { 
                         ...d, 
@@ -138,22 +131,15 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 return d;
             });
 
-            // Impact sur les membres 
+            // Impact Membres (Lucidité + MVP)
             let mvpName = "";
             let updatedMembers = agency.members.map(m => {
                 let newScore = m.individualScore;
-                
-                // 1. Bonus Lucidité (Pour tous)
-                if (calculation.lucidityBonus !== 0) {
-                    newScore = Math.min(100, Math.max(0, newScore + calculation.lucidityBonus));
-                }
-
-                // 2. Bonus MVP (Seulement pour l'élu)
+                if (calculation.lucidityBonus !== 0) newScore = Math.min(100, Math.max(0, newScore + calculation.lucidityBonus));
                 if (selectedMvpId !== "NONE" && m.id === selectedMvpId) {
-                    newScore = Math.min(100, newScore + 5); // +5 Score pour MVP
+                    newScore = Math.min(100, newScore + 5); 
                     mvpName = m.name;
                 }
-
                 return { ...m, individualScore: newScore };
             });
 
@@ -189,161 +175,192 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     };
 
     const getButtonClass = (btnQuality: string) => {
-        const base = "flex-1 py-4 rounded-xl font-bold border-2 transition-all flex flex-col items-center justify-center gap-1";
+        const base = "flex-1 py-4 rounded-xl font-bold border-2 transition-all flex flex-col items-center justify-center gap-1 active:scale-95";
         if (quality === btnQuality) {
-            if (btnQuality === 'A') return `${base} bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200 ring-offset-1`;
-            if (btnQuality === 'B') return `${base} bg-amber-50 border-amber-500 text-amber-700 ring-2 ring-amber-200 ring-offset-1`;
-            return `${base} bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200 ring-offset-1`;
+            if (btnQuality === 'A') return `${base} bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200 ring-offset-1 shadow-md`;
+            if (btnQuality === 'B') return `${base} bg-amber-50 border-amber-500 text-amber-700 ring-2 ring-amber-200 ring-offset-1 shadow-md`;
+            return `${base} bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200 ring-offset-1 shadow-md`;
         }
         return `${base} bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:bg-slate-50`;
     };
 
+    if (!isOpen) return null;
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Correction de Livrable">
-            <div className="space-y-6">
+        <div className="fixed inset-0 z-[60] flex flex-col md:flex-row bg-slate-900 md:bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+            
+            {/* --- GAUCHE : FORMULAIRE (35% width desktop, 100% mobile) --- */}
+            <div className="w-full md:w-[400px] lg:w-[450px] bg-white h-full shadow-2xl flex flex-col z-20 border-r border-slate-200">
                 
-                {/* FICHIER + LUCIDITÉ */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                {/* Header Form */}
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors flex items-center gap-1 text-sm font-bold">
+                        <ArrowLeft size={18}/> Retour
+                    </button>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{agency?.name || 'Agence'}</span>
+                </div>
+
+                {/* Scrollable Form Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* 1. INFO HEADER */}
                     <div>
-                        <h4 className="font-bold text-slate-900 text-lg">{item.deliverable.name}</h4>
-                        {item.deliverable.fileUrl ? (
-                            <a href={item.deliverable.fileUrl} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold text-sm hover:underline flex items-center gap-1">
-                                Voir le fichier rendu <ExternalLink size={12}/>
-                            </a>
-                        ) : (
-                            <span className="text-red-500 text-sm font-bold flex items-center gap-1"><AlertTriangle size={12}/> Pas de fichier</span>
+                        <h4 className="font-bold text-slate-900 text-xl leading-tight mb-1">{item.deliverable.name}</h4>
+                        
+                        {item.deliverable.selfAssessment && (
+                            <div className="inline-flex items-center gap-2 mt-2 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Auto-Eval</span>
+                                <span className={`text-sm font-black ${
+                                    item.deliverable.selfAssessment === 'A' ? 'text-emerald-600' :
+                                    item.deliverable.selfAssessment === 'B' ? 'text-amber-600' : 'text-red-600'
+                                }`}>
+                                    {item.deliverable.selfAssessment}
+                                </span>
+                            </div>
                         )}
                     </div>
-                    {item.deliverable.selfAssessment && (
-                        <div className="text-right">
-                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Auto-Eval</span>
-                            <span className={`text-lg font-black px-3 py-1 rounded-lg border ${
-                                item.deliverable.selfAssessment === 'A' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                item.deliverable.selfAssessment === 'B' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                                'bg-red-100 text-red-700 border-red-200'
-                            }`}>
-                                {item.deliverable.selfAssessment}
+
+                    {/* 2. DATES & DEADLINES */}
+                    <SubmissionInfo 
+                        deadline={item.deliverable.deadline}
+                        submissionDate={item.deliverable.submissionDate}
+                        daysLate={daysLate}
+                    />
+
+                    {/* 3. QUALITÉ DU RENDU */}
+                    <div>
+                        <div className="flex justify-between items-end mb-3">
+                            <label className="block text-sm font-bold text-slate-700">Qualité du rendu</label>
+                            <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+                                {quality === 'A' ? `+${scoringConfig.pointsA}` : quality === 'B' ? `+${scoringConfig.pointsB}` : '0'} VE
                             </span>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setQuality('A')} className={getButtonClass('A')}>
+                                <span className="text-xl font-black">A</span>
+                                <span className="text-[9px] uppercase opacity-80">Top</span>
+                            </button>
+                            <button onClick={() => setQuality('B')} className={getButtonClass('B')}>
+                                <span className="text-xl font-black">B</span>
+                                <span className="text-[9px] uppercase opacity-80">Ok</span>
+                            </button>
+                            <button onClick={() => setQuality('C')} className={getButtonClass('C')}>
+                                <span className="text-xl font-black">C</span>
+                                <span className="text-[9px] uppercase opacity-80">Non</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 4. MVP SELECTION */}
+                    {agency && agency.members.length > 0 && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                            <div className="flex justify-between items-start mb-2">
+                                <label className="text-xs font-bold text-amber-900 flex items-center gap-2">
+                                    <Crown size={14}/> Validation MVP (+5)
+                                </label>
+                                {suggestedMvpMember && (
+                                    <span className="text-[10px] bg-white border border-amber-200 px-2 py-1 rounded-full text-amber-700 font-medium">
+                                        Suggéré : {suggestedMvpMember.name}
+                                    </span>
+                                )}
+                            </div>
+                            <select 
+                                value={selectedMvpId} 
+                                onChange={(e) => setSelectedMvpId(e.target.value)}
+                                className="w-full p-2 rounded-lg border border-amber-200 bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                            >
+                                <option value="NONE">-- Aucun MVP --</option>
+                                {agency.members.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name} (+5 pts)</option>
+                                ))}
+                            </select>
                         </div>
                     )}
-                </div>
 
-                {/* INFO PARAMETRES SEMAINE */}
-                <div className="flex justify-center gap-4 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                    <span>A: +{scoringConfig.pointsA} VE</span>
-                    <span>B: +{scoringConfig.pointsB} VE</span>
-                    <span>Retard: -{scoringConfig.penaltyLatePerDay}/j</span>
-                </div>
-
-                {/* QUALITÉ DU RENDU */}
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-3">Qualité du rendu</label>
-                    <div className="flex gap-3">
-                        <button onClick={() => setQuality('A')} className={getButtonClass('A')}>
-                            <span className="text-lg">A</span>
-                            <span className="text-[10px] uppercase opacity-80">(Excellence)</span>
-                        </button>
-                        <button onClick={() => setQuality('B')} className={getButtonClass('B')}>
-                            <span className="text-lg">B</span>
-                            <span className="text-[10px] uppercase opacity-80">(Standard)</span>
-                        </button>
-                        <button onClick={() => setQuality('C')} className={getButtonClass('C')}>
-                            <span className="text-lg">C</span>
-                            <span className="text-[10px] uppercase opacity-80">(Rejet)</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* SECTION MVP (TOUTES AGENCES, MÊME SOLO) */}
-                {agency && agency.members.length > 0 && (
-                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                        <div className="flex justify-between items-start mb-2">
-                            <label className="text-xs font-bold text-amber-900 flex items-center gap-2">
-                                <Crown size={14}/> Validation MVP (Bonus +5)
-                            </label>
-                            {suggestedMvpMember && (
-                                <span className="text-[10px] bg-white border border-amber-200 px-2 py-1 rounded-full text-amber-700 font-medium">
-                                    Suggéré : {suggestedMvpMember.name}
-                                </span>
-                            )}
+                    {/* 5. PÉNALITÉS */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jours Retard</label>
+                            <div className="relative">
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    value={daysLate}
+                                    onChange={(e) => setDaysLate(Number(e.target.value))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                                {daysLate > 0 && <span className="absolute right-3 top-3.5 text-xs font-bold text-red-500">-{daysLate * scoringConfig.penaltyLatePerDay} pts</span>}
+                            </div>
                         </div>
-                        <select 
-                            value={selectedMvpId} 
-                            onChange={(e) => setSelectedMvpId(e.target.value)}
-                            className="w-full p-2 rounded-lg border border-amber-200 bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
-                        >
-                            <option value="NONE">-- Aucun MVP (+0 pts) --</option>
-                            {agency.members.map(m => (
-                                <option key={m.id} value={m.id}>{m.name} (+5 pts)</option>
-                            ))}
-                        </select>
-                        <p className="text-[10px] text-amber-700 mt-2">Le MVP recevra un bonus de +5 points sur son score individuel.</p>
+                        <div className="flex items-end">
+                            <label className={`w-full p-3 border-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all h-[50px] ${constraintBroken ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${constraintBroken ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300'}`}>
+                                    {constraintBroken && <Check size={12}/>}
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    checked={constraintBroken}
+                                    onChange={(e) => setConstraintBroken(e.target.checked)}
+                                    className="hidden"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold leading-none">Contrainte Brisée</span>
+                                    {constraintBroken && <span className="text-[9px] leading-none mt-0.5">-{scoringConfig.penaltyConstraint} pts</span>}
+                                </div>
+                            </label>
+                        </div>
                     </div>
-                )}
 
-                {/* PENALITÉS */}
-                <div className="grid grid-cols-2 gap-4">
+                    {/* 6. FEEDBACK */}
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Jours de Retard</label>
-                        <input 
-                            type="number" 
-                            min="0"
-                            value={daysLate}
-                            onChange={(e) => setDaysLate(Number(e.target.value))}
-                            className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Commentaire</label>
+                        <textarea 
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            className="w-full p-3 border border-slate-200 rounded-xl text-sm min-h-[100px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                            placeholder="Feedback constructif..."
                         />
                     </div>
-                    <div className="flex items-end">
-                        <label className={`w-full p-3 border-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${constraintBroken ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${constraintBroken ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300'}`}>
-                                {constraintBroken && <Check size={12}/>}
-                            </div>
-                            <input 
-                                type="checkbox" 
-                                checked={constraintBroken}
-                                onChange={(e) => setConstraintBroken(e.target.checked)}
-                                className="hidden"
-                            />
-                            <span className="text-sm font-bold">Contrainte non respectée</span>
-                        </label>
-                    </div>
                 </div>
 
-                {/* COMMENTAIRE */}
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Commentaire</label>
-                    <textarea 
-                        value={feedback}
-                        onChange={(e) => setFeedback(e.target.value)}
-                        className="w-full p-3 border border-slate-200 rounded-xl text-sm min-h-[80px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                        placeholder="Feedback constructif..."
-                    />
-                </div>
-
-                {/* FOOTER & CALCUL */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
-                    <div>
-                        <p className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            Impact VE Brut: 
-                            <span className={`text-xl ${calculation.finalVE >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                {calculation.finalVE > 0 ? '+' : ''}{calculation.finalVE}
-                            </span>
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                            Multiplicateur Perf: x{calculation.multiplier.toFixed(2)}
-                            {calculation.lucidityBonus > 0 && <span className="text-indigo-500 ml-1"> | Lucidité +{calculation.lucidityBonus}</span>}
-                        </p>
+                {/* Footer Action */}
+                <div className="p-4 border-t border-slate-200 bg-white sticky bottom-0">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                        <div className="text-xs text-slate-400">
+                            Multiplicateur: <span className="text-slate-600 font-bold">x{calculation.multiplier.toFixed(2)}</span>
+                            {calculation.lucidityBonus > 0 && <span className="text-indigo-500 ml-1 font-bold">(+ Lucidité)</span>}
+                        </div>
+                        <div className={`text-xl font-black ${calculation.finalVE >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {calculation.finalVE > 0 ? '+' : ''}{calculation.finalVE} VE
+                        </div>
                     </div>
-
                     <button 
                         onClick={handleValidate}
                         disabled={isSaving}
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-95"
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95"
                     >
                         {isSaving ? 'Enregistrement...' : <><Target size={18}/> Valider & Notifier</>}
                     </button>
                 </div>
             </div>
-        </Modal>
+
+            {/* --- DROITE : FILE PREVIEW (65% width) --- */}
+            <div className="flex-1 h-full bg-slate-950 relative hidden md:block">
+                <div className="absolute top-4 right-4 z-50">
+                    <button 
+                        onClick={onClose}
+                        className="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-md border border-white/10 transition-colors"
+                    >
+                        <X size={24}/>
+                    </button>
+                </div>
+                
+                {/* File Viewer Component */}
+                <FileViewer 
+                    url={item.deliverable.fileUrl} 
+                    type={item.deliverable.type}
+                    name={item.deliverable.name}
+                />
+            </div>
+        </div>
     );
 };

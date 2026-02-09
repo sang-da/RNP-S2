@@ -350,6 +350,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       
       let newWallet = wallet;
       let newDebt = debt;
+      let logEvent: GameEvent | null = null;
 
       if (type === 'TAKE') {
           // Capacité d'emprunt = (Score * 30) - Dette Actuelle
@@ -360,6 +361,16 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           // Emprunte 1000 -> Reçoit 1000, Dette monte de 1500
           newWallet += amount;
           newDebt += Math.floor(amount * 1.5);
+
+          logEvent = {
+              id: `loan-take-${Date.now()}`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'INFO', // On utilise INFO pour ne pas polluer les crises, mais c'est un event majeur
+              label: 'Prêt Étudiant Accordé',
+              deltaBudgetReal: 0,
+              description: `${student.name} emprunte ${amount} PiXi. Dette totale: ${newDebt}.`
+          };
+
       } else {
           // Repayment
           const repaymentAmount = Math.min(amount, debt); // On ne peut pas rembourser plus que la dette
@@ -367,13 +378,27 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           
           newWallet -= repaymentAmount;
           newDebt -= repaymentAmount;
+
+          logEvent = {
+              id: `loan-repay-${Date.now()}`,
+              date: new Date().toISOString().split('T')[0],
+              type: 'INFO',
+              label: 'Remboursement Anticipé',
+              deltaBudgetReal: 0,
+              description: `${student.name} rembourse ${repaymentAmount} PiXi. Reste dû: ${newDebt}.`
+          };
       }
 
       const updatedMembers = agency.members.map(m => 
           m.id === studentId ? { ...m, wallet: newWallet, loanDebt: newDebt } : m
       );
 
-      await updateDoc(doc(db, "agencies", agencyId), { members: updatedMembers });
+      // On update les membres ET on ajoute un log pour l'admin
+      await updateDoc(doc(db, "agencies", agencyId), { 
+          members: updatedMembers,
+          eventLog: logEvent ? [...agency.eventLog, logEvent] : agency.eventLog
+      });
+      
       toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
   };
 

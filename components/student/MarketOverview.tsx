@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Agency, Student } from '../../types';
+import { Agency, Student, WeekModule } from '../../types';
 import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
@@ -28,14 +29,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     const currentWeekNum = gameConfig.currentWeek;
 
     // INTEL LOGIC
-    const lockedWeeks = Object.values(weeks || INITIAL_WEEKS)
-        .filter(w => {
+    const lockedWeeks = (Object.values(weeks || INITIAL_WEEKS) as WeekModule[])
+        .filter((w: WeekModule) => {
             const weekNum = parseInt(w.id);
             const isGloballyVisible = w.isVisible;
             const isLocallyUnlocked = agency.progress && agency.progress[w.id] && agency.progress[w.id].isVisible === true;
             return weekNum > currentWeekNum && !isGloballyVisible && !isLocallyUnlocked;
         })
-        .sort((a,b) => parseInt(a.id) - parseInt(b.id));
+        .sort((a: WeekModule, b: WeekModule) => parseInt(a.id) - parseInt(b.id));
 
     const handleBuyIntel = async (weekId: string) => {
         const cost = 300; 

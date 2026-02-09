@@ -54,7 +54,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const cycleWeeks = useMemo(() => {
       return Object.values(activeWeekData)
           .filter((w: WeekModule) => w.cycleId === selectedCycle)
-          .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+          .sort((a: WeekModule, b: WeekModule) => parseInt(a.id) - parseInt(b.id));
   }, [activeWeekData, selectedCycle]);
 
   // 4. SEMAINE SÉLECTIONNÉE
