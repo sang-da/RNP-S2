@@ -1,12 +1,20 @@
 
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
 
+export interface BadgeReward {
+    score?: number;   // Bonus Note Individuelle
+    wallet?: number;  // Bonus Argent Personnel
+    ve?: number;      // Bonus VE Agence
+    budget?: number;  // Bonus Budget Agence
+}
+
 export interface Badge {
     id: string;
     label: string;
     description: string;
     icon: string;
     unlockedAt?: string;
+    rewards?: BadgeReward; // NOUVEAU
 }
 
 export interface CareerStep {

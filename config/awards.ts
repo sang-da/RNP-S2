@@ -4,16 +4,52 @@ import { Badge, CycleAwardDefinition, CycleType } from '../types';
 // --- BADGE DEFINITIONS ---
 export const BADGE_DEFINITIONS: Badge[] = [
     // PERFORMANCE
-    { id: 'legend_100', label: 'Légende', description: 'Première Agence à atteindre 100 VE. Le plafond de verre est brisé.', icon: 'crown' },
-    { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'trending-up' },
-    { id: 'survivor', label: 'Survivant', description: 'Avoir survécu à une dette critique sans faillite.', icon: 'shield' },
+    { 
+        id: 'legend_100', 
+        label: 'Légende', 
+        description: 'Première Agence à atteindre 100 VE. Le plafond de verre est brisé.', 
+        icon: 'crown',
+        rewards: { ve: 15, budget: 1000 } 
+    },
+    { 
+        id: 'wealthy', 
+        label: 'Licorne', 
+        description: 'Avoir dépassé 20 000 PiXi de trésorerie.', 
+        icon: 'trending-up',
+        rewards: { score: 5 } // Bonus Score pour chaque membre
+    },
+    { 
+        id: 'survivor', 
+        label: 'Survivant', 
+        description: 'Avoir survécu à une dette critique sans faillite.', 
+        icon: 'shield',
+        rewards: { score: 2 } 
+    },
     
     // SKILLS
-    { id: 'visionary', label: 'Visionnaire', description: '3 rendus consécutifs notés A.', icon: 'eye' },
-    { id: 'teamwork', label: 'Esprit de Corps', description: 'Moyenne évaluation par pairs > 4.5/5.', icon: 'users' },
-    { id: 'tech_wizard', label: 'Sorcier', description: 'MVP Technique désigné sur un rendu complexe.', icon: 'zap' },
+    { 
+        id: 'visionary', 
+        label: 'Visionnaire', 
+        description: '3 rendus consécutifs notés A.', 
+        icon: 'eye',
+        rewards: { score: 5, wallet: 500 }
+    },
+    { 
+        id: 'teamwork', 
+        label: 'Esprit de Corps', 
+        description: 'Moyenne évaluation par pairs > 4.5/5.', 
+        icon: 'users',
+        rewards: { score: 5 }
+    },
+    { 
+        id: 'tech_wizard', 
+        label: 'Tech Lead', // RENAMED FROM SORCIER
+        description: 'MVP Technique désigné sur un rendu complexe.', 
+        icon: 'zap',
+        rewards: { score: 5, wallet: 250 }
+    },
 
-    // S1 AWARDS (HISTORIQUE)
+    // S1 AWARDS (HISTORIQUE - Pas de rewards auto car déjà donnés au S1)
     { id: 's1_gold', label: 'Or S1', description: 'Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_silver', label: 'Argent S1', description: 'Vice-Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_bronze', label: 'Bronze S1', description: 'Podium Promotion Semestre 1', icon: 'medal' },

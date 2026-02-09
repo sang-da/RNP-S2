@@ -1,93 +1,196 @@
 
 import React, { useState, useMemo } from 'react';
-import { Agency, Badge } from '../types';
+import { Agency, Badge, GameEvent } from '../types';
 import { BADGE_DEFINITIONS } from '../config/awards';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
-import { Medal, Crown, Shield, Zap, Eye, Users, Star, TrendingUp, CheckCircle2, User, Building2, RefreshCw } from 'lucide-react';
+import { Modal } from './Modal';
+import { Medal, Crown, Shield, Zap, Eye, Users, Star, TrendingUp, CheckCircle2, User, Building2, RefreshCw, Gift, ArrowRight } from 'lucide-react';
 import { writeBatch, doc, db } from '../services/firebase';
 
 interface AdminBadgesProps {
     agencies: Agency[];
 }
 
+// Structure temporaire pour l'affichage dans la modale
+interface PendingAward {
+    targetId: string;
+    targetName: string;
+    type: 'AGENCY' | 'STUDENT';
+    badge: Badge;
+    reason: string;
+    agencyName?: string; // Pour les étudiants
+}
+
 export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
     const { toast, confirm } = useUI();
     const { updateAgency } = useGame();
+    
+    // UI State
     const [selectedBadge, setSelectedBadge] = useState<Badge>(BADGE_DEFINITIONS[0]);
     const [targetType, setTargetType] = useState<'AGENCY' | 'STUDENT'>('AGENCY');
     const [searchTarget, setSearchTarget] = useState('');
 
-    // --- 1. SCANNER AUTOMATIQUE ---
-    const handleAutoScan = async () => {
-        const confirmed = await confirm({
-            title: "Lancer le Scan des Trophées ?",
-            message: "Le système va analyser toutes les agences pour détecter :\n- Les 100 VE (Légende)\n- Les Trésoreries > 20k (Licorne)\n\nLes badges seront distribués automatiquement.",
-            confirmText: "Scanner & Distribuer"
-        });
+    // Scan State
+    const [isScanPreviewOpen, setIsScanPreviewOpen] = useState(false);
+    const [pendingAwards, setPendingAwards] = useState<PendingAward[]>([]);
 
-        if (!confirmed) return;
-
-        let awardedCount = 0;
-        const batch = writeBatch(db);
+    // --- 1. SIMULATION DU SCAN (LECTURE SEULE) ---
+    const handleSimulateScan = () => {
+        const detectedAwards: PendingAward[] = [];
 
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
-            let agencyUpdated = false;
-            let newAgencyBadges = [...(agency.badges || [])];
-            let newMembers = [...agency.members];
 
             // A. BADGE LÉGENDE (100 VE)
             if (agency.ve_current >= 100) {
-                const hasBadge = newAgencyBadges.some(b => b.id === 'legend_100');
+                const hasBadge = agency.badges?.some(b => b.id === 'legend_100');
                 if (!hasBadge) {
                     const def = BADGE_DEFINITIONS.find(b => b.id === 'legend_100');
                     if (def) {
-                        newAgencyBadges.push({ ...def, unlockedAt: new Date().toISOString().split('T')[0] });
-                        agencyUpdated = true;
-                        awardedCount++;
+                        detectedAwards.push({
+                            targetId: agency.id,
+                            targetName: agency.name,
+                            type: 'AGENCY',
+                            badge: def,
+                            reason: "A atteint 100 VE"
+                        });
                     }
                 }
             }
 
             // B. BADGE LICORNE (20k Budget)
-            // Note: Normalement géré dans la finance, mais double check ici pour les oublis
             if (agency.budget_real >= 20000) {
-                newMembers = newMembers.map(m => {
+                agency.members.forEach(m => {
                     const hasBadge = m.badges?.some(b => b.id === 'wealthy');
                     if (!hasBadge) {
                         const def = BADGE_DEFINITIONS.find(b => b.id === 'wealthy');
                         if (def) {
-                            awardedCount++;
-                            return { 
-                                ...m, 
-                                badges: [...(m.badges || []), { ...def, unlockedAt: new Date().toISOString().split('T')[0] }] 
-                            };
+                            detectedAwards.push({
+                                targetId: m.id,
+                                targetName: m.name,
+                                type: 'STUDENT',
+                                badge: def,
+                                reason: "Trésorerie Agence > 20k",
+                                agencyName: agency.name
+                            });
                         }
                     }
-                    return m;
-                });
-                if (newMembers !== agency.members) agencyUpdated = true;
-            }
-
-            if (agencyUpdated) {
-                const ref = doc(db, "agencies", agency.id);
-                batch.update(ref, { 
-                    badges: newAgencyBadges,
-                    members: newMembers 
                 });
             }
         });
 
-        if (awardedCount > 0) {
-            await batch.commit();
-            toast('success', `${awardedCount} nouveaux badges distribués !`);
+        if (detectedAwards.length === 0) {
+            toast('info', "Scan terminé. Aucun nouveau lauréat détecté.");
         } else {
-            toast('info', "Scan terminé. Aucun nouveau lauréat.");
+            setPendingAwards(detectedAwards);
+            setIsScanPreviewOpen(true);
         }
     };
 
-    // --- 2. ATTRIBUTION MANUELLE ---
+    // --- 2. EXÉCUTION RÉELLE (ÉCRITURE BATCH) ---
+    const executeDistribution = async () => {
+        if (pendingAwards.length === 0) return;
+
+        const batch = writeBatch(db);
+        const today = new Date().toISOString().split('T')[0];
+        
+        // On regroupe les updates par agence pour éviter d'écraser des données
+        // Map<AgencyId, AgencyObject>
+        const agencyUpdates = new Map<string, Agency>();
+
+        // On initialise la map avec les copies des agences concernées
+        pendingAwards.forEach(award => {
+            const agencyId = award.type === 'AGENCY' 
+                ? award.targetId 
+                : agencies.find(a => a.members.some(m => m.id === award.targetId))?.id;
+            
+            if (agencyId && !agencyUpdates.has(agencyId)) {
+                const original = agencies.find(a => a.id === agencyId);
+                if (original) agencyUpdates.set(agencyId, JSON.parse(JSON.stringify(original)));
+            }
+        });
+
+        // On applique les modifs sur les objets en mémoire
+        pendingAwards.forEach(award => {
+            const agencyId = award.type === 'AGENCY' 
+                ? award.targetId 
+                : agencies.find(a => a.members.some(m => m.id === award.targetId))?.id;
+            
+            if (!agencyId) return;
+            const agency = agencyUpdates.get(agencyId);
+            if (!agency) return;
+
+            const badgePayload = { ...award.badge, unlockedAt: today };
+            const rewards = award.badge.rewards || {};
+
+            if (award.type === 'AGENCY') {
+                // Add Badge
+                agency.badges.push(badgePayload);
+                
+                // Apply Rewards
+                if (rewards.ve) agency.ve_current += rewards.ve;
+                if (rewards.budget) agency.budget_real += rewards.budget;
+
+                // Log
+                agency.eventLog.push({
+                    id: `badge-auto-${Date.now()}-${Math.random()}`,
+                    date: today,
+                    type: 'INFO',
+                    label: `Trophée : ${award.badge.label}`,
+                    description: `Automatique : ${award.reason}. Bonus appliqués.`
+                });
+
+            } else {
+                // Student Update
+                agency.members = agency.members.map(m => {
+                    if (m.id === award.targetId) {
+                        let newScore = m.individualScore;
+                        let newWallet = m.wallet || 0;
+                        if (rewards.score) newScore = Math.min(100, newScore + rewards.score);
+                        if (rewards.wallet) newWallet += rewards.wallet;
+
+                        return {
+                            ...m,
+                            individualScore: newScore,
+                            wallet: newWallet,
+                            badges: [...(m.badges || []), badgePayload]
+                        };
+                    }
+                    return m;
+                });
+                
+                // Log (On en met un seul global pour éviter le spam si toute l'équipe l'a ?)
+                // Pour l'instant on met un log par badge pour la traçabilité
+                agency.eventLog.push({
+                    id: `badge-auto-${Date.now()}-${Math.random()}`,
+                    date: today,
+                    type: 'INFO',
+                    label: `Trophée : ${award.badge.label} (${award.targetName})`,
+                    description: `Automatique : ${award.reason}.`
+                });
+            }
+        });
+
+        // Conversion en Batch Firestore
+        agencyUpdates.forEach((updatedAgency, id) => {
+            const ref = doc(db, "agencies", id);
+            batch.set(ref, updatedAgency); // On utilise SET car on a récupéré l'objet entier
+        });
+
+        try {
+            await batch.commit();
+            toast('success', `${pendingAwards.length} badges distribués avec succès !`);
+            setIsScanPreviewOpen(false);
+            setPendingAwards([]);
+        } catch (error) {
+            console.error(error);
+            toast('error', "Erreur lors de la distribution.");
+        }
+    };
+
+    // --- 3. ATTRIBUTION MANUELLE (Inchangé mais utilise le new logic pour DRY ?) ---
+    // Pour l'instant on garde la logique manuelle séparée pour la simplicité du commit précédent
     const handleManualAward = async (targetId: string, isAgency: boolean) => {
         const agency = isAgency 
             ? agencies.find(a => a.id === targetId)
@@ -96,6 +199,9 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
         if (!agency) return;
 
         const badgePayload = { ...selectedBadge, unlockedAt: new Date().toISOString().split('T')[0] };
+        
+        let bonusText = "";
+        const rewards = selectedBadge.rewards || {};
 
         if (isAgency) {
             // Check doublon
@@ -103,11 +209,28 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                 toast('warning', "Cette agence a déjà ce badge.");
                 return;
             }
+
+            // Apply Agency Rewards
+            let newVE = agency.ve_current;
+            let newBudget = agency.budget_real;
+            
+            if (rewards.ve) { newVE += rewards.ve; bonusText += `+${rewards.ve} VE `; }
+            if (rewards.budget) { newBudget += rewards.budget; bonusText += `+${rewards.budget} PiXi `; }
+
             await updateAgency({
                 ...agency,
-                badges: [...agency.badges, badgePayload]
+                badges: [...agency.badges, badgePayload],
+                ve_current: newVE,
+                budget_real: newBudget,
+                eventLog: [...agency.eventLog, {
+                    id: `badge-manual-${Date.now()}`,
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'INFO',
+                    label: `Trophée : ${selectedBadge.label}`,
+                    description: `Badge décerné manuellement. ${bonusText}`
+                }]
             });
-            toast('success', `Badge ${selectedBadge.label} décerné à l'agence !`);
+            toast('success', `Badge ${selectedBadge.label} décerné à l'agence ! ${bonusText}`);
         } else {
             const member = agency.members.find(m => m.id === targetId);
             if (!member) return;
@@ -115,15 +238,41 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                 toast('warning', "Cet étudiant a déjà ce badge.");
                 return;
             }
-            const updatedMembers = agency.members.map(m => 
-                m.id === targetId ? { ...m, badges: [...(m.badges || []), badgePayload] } : m
-            );
-            await updateAgency({ ...agency, members: updatedMembers });
-            toast('success', `Badge ${selectedBadge.label} décerné à ${member.name} !`);
+
+            // Apply Student Rewards
+            const updatedMembers = agency.members.map(m => {
+                if (m.id === targetId) {
+                    let newScore = m.individualScore;
+                    let newWallet = m.wallet || 0;
+                    if (rewards.score) { newScore = Math.min(100, newScore + rewards.score); bonusText += `+${rewards.score} Score `; }
+                    if (rewards.wallet) { newWallet += rewards.wallet; bonusText += `+${rewards.wallet} PiXi `; }
+                    
+                    return { 
+                        ...m, 
+                        individualScore: newScore,
+                        wallet: newWallet,
+                        badges: [...(m.badges || []), badgePayload] 
+                    };
+                }
+                return m;
+            });
+
+            await updateAgency({ 
+                ...agency, 
+                members: updatedMembers,
+                eventLog: [...agency.eventLog, {
+                    id: `badge-manual-${Date.now()}`,
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'INFO',
+                    label: `Trophée : ${selectedBadge.label} (${member.name})`,
+                    description: `Badge décerné à ${member.name}. ${bonusText}`
+                }]
+            });
+            toast('success', `Badge décerné à ${member.name} ! ${bonusText}`);
         }
     };
 
-    // --- 3. HELPERS VISUELS ---
+    // --- 4. HELPERS VISUELS ---
     const getIcon = (iconName: string) => {
         switch(iconName) {
             case 'crown': return <Crown size={24}/>;
@@ -160,19 +309,71 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                         <div className="p-2 bg-yellow-100 rounded-xl text-yellow-600"><Medal size={32}/></div>
                         Salle des Trophées
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Gérez les badges, les récompenses et les titres honorifiques.</p>
+                    <p className="text-slate-500 text-sm mt-1">Gérez les badges et leurs récompenses associées.</p>
                 </div>
                 
                 <button 
-                    onClick={handleAutoScan}
+                    onClick={handleSimulateScan}
                     className="bg-slate-900 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2 transition-all"
                 >
                     <RefreshCw size={20}/> Scanner & Distribuer Auto
                 </button>
             </div>
 
+            {/* PREVIEW MODAL */}
+            <Modal isOpen={isScanPreviewOpen} onClose={() => setIsScanPreviewOpen(false)} title={`Résultat du Scan (${pendingAwards.length})`}>
+                <div className="space-y-6">
+                    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-xl text-sm text-indigo-900">
+                        <p>Voici les récompenses qui seront distribuées. Vérifiez la liste avant de valider.</p>
+                    </div>
+
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+                        {pendingAwards.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-4 p-3 bg-white border border-slate-200 rounded-xl">
+                                <div className="p-2 bg-yellow-100 text-yellow-700 rounded-lg">
+                                    {getIcon(item.badge.icon)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex justify-between">
+                                        <h4 className="font-bold text-slate-900 text-sm">{item.targetName}</h4>
+                                        <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">{item.type === 'AGENCY' ? 'AGENCE' : 'ÉTUDIANT'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        <span className="font-bold text-indigo-600">{item.badge.label}</span>
+                                        <span>• {item.reason}</span>
+                                    </div>
+                                    
+                                    {/* SHOW BONUS */}
+                                    <div className="flex gap-2 mt-1">
+                                        {item.badge.rewards?.ve && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">+{item.badge.rewards.ve} VE</span>}
+                                        {item.badge.rewards?.score && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">+{item.badge.rewards.score} Score</span>}
+                                        {item.badge.rewards?.budget && <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 rounded">+{item.badge.rewards.budget} PiXi</span>}
+                                        {item.badge.rewards?.wallet && <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 rounded">+{item.badge.rewards.wallet} PiXi</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-slate-100">
+                        <button 
+                            onClick={() => setIsScanPreviewOpen(false)}
+                            className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200"
+                        >
+                            Annuler
+                        </button>
+                        <button 
+                            onClick={executeDistribution}
+                            className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg flex items-center justify-center gap-2"
+                        >
+                            <CheckCircle2 size={18}/> Tout Valider
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
+                {/* ... (LEFT & RIGHT PANELS restent identiques à la version précédente) ... */}
                 {/* LEFT: BADGE LIST */}
                 <div className="lg:col-span-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto custom-scrollbar pr-2">
                     {BADGE_DEFINITIONS.map(badge => (
@@ -190,7 +391,11 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                             </div>
                             <div>
                                 <h4 className={`font-bold ${selectedBadge.id === badge.id ? 'text-indigo-900' : 'text-slate-700'}`}>{badge.label}</h4>
-                                <p className="text-xs text-slate-500 line-clamp-1">{badge.description}</p>
+                                <div className="flex gap-2 text-[10px] uppercase font-bold mt-1">
+                                    {badge.rewards?.score && <span className="text-emerald-600">+{badge.rewards.score} Score</span>}
+                                    {badge.rewards?.wallet && <span className="text-yellow-600">+{badge.rewards.wallet} PiXi</span>}
+                                    {badge.rewards?.ve && <span className="text-purple-600">+{badge.rewards.ve} VE</span>}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -202,7 +407,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                         
                         {/* BADGE PREVIEW */}
                         <div className="flex items-start gap-6 mb-8 border-b border-slate-100 pb-8">
-                            <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-yellow-100 to-amber-200 flex items-center justify-center text-yellow-700 shadow-inner border border-yellow-300">
+                            <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-yellow-100 to-amber-200 flex items-center justify-center text-yellow-700 shadow-inner border border-yellow-300 shrink-0">
                                 {React.cloneElement(getIcon(selectedBadge.icon) as React.ReactElement<any>, { size: 48 })}
                             </div>
                             <div className="flex-1">
@@ -210,7 +415,26 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                                     <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{selectedBadge.label}</h3>
                                     <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">ID: {selectedBadge.id}</span>
                                 </div>
-                                <p className="text-slate-600 text-lg leading-relaxed">{selectedBadge.description}</p>
+                                <p className="text-slate-600 text-lg leading-relaxed mb-4">{selectedBadge.description}</p>
+                                
+                                {/* REWARDS DISPLAY */}
+                                <div className="flex gap-3">
+                                    {selectedBadge.rewards?.score && (
+                                        <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-emerald-200 flex items-center gap-2">
+                                            <TrendingUp size={16}/> +{selectedBadge.rewards.score} Score Individuel
+                                        </div>
+                                    )}
+                                    {selectedBadge.rewards?.wallet && (
+                                        <div className="bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-yellow-200 flex items-center gap-2">
+                                            <Gift size={16}/> +{selectedBadge.rewards.wallet} PiXi (Wallet)
+                                        </div>
+                                    )}
+                                    {selectedBadge.rewards?.ve && (
+                                        <div className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-purple-200 flex items-center gap-2">
+                                            <TrendingUp size={16}/> +{selectedBadge.rewards.ve} VE (Agence)
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -263,7 +487,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                                             disabled={t.badges?.some((b: any) => b.id === selectedBadge.id)}
                                             className="px-3 py-1.5 bg-white border border-slate-300 text-slate-600 rounded-lg text-xs font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Donner
+                                            Donner (+Bonus)
                                         </button>
                                     </div>
                                 ))}
