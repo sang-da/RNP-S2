@@ -16,7 +16,7 @@ interface StudentEditModalProps {
 
 export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onClose, student, agency }) => {
     const { toast } = useUI();
-    const [classId, setClassId] = useState<'A' | 'B'>(student.classId);
+    const [classId, setClassId] = useState<'A' | 'B' | 'ALL'>(student.classId);
     const [name, setName] = useState(student.name);
     const [badges, setBadges] = useState<Badge[]>(student.badges || []);
     const [isSaving, setIsSaving] = useState(false);

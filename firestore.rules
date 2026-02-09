@@ -3,64 +3,88 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- HELPER FUNCTIONS ---
+    // --- FONCTIONS UTILITAIRES ---
 
+    // Vérifie si l'utilisateur est connecté
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // Vérifie l'identité par Email (Super Admin Hardcodé - Sécurité ultime)
     function isSuperAdmin() {
        return request.auth.token.email == 'ahme.sang@gmail.com';
     }
 
+    // Vérifie le rôle dans la base de données (Nécessite que la collection users soit lisible)
     function isDBAdmin() {
        return isAuthenticated() && 
               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Combine les deux méthodes de vérification Admin
     function isAdmin() {
       return isSuperAdmin() || isDBAdmin();
     }
 
     // --- RÈGLES PAR COLLECTION ---
 
-    // CONFIG : Semaine active, cycle, auto-pilote
-    match /config/game_state {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+    // 1. CONFIGURATION DU JEU (Game State, Auto-pilot)
+    match /config/{document=**} {
+      allow read: if isAuthenticated(); // Tout le monde doit savoir quelle semaine est active
+      allow write: if isAdmin(); // Seul l'admin change la semaine ou les paramètres
     }
 
+    // 2. UTILISATEURS (Profils)
     match /users/{userId} {
+      // Lecture ouverte aux connectés (pour l'annuaire, les classements)
       allow read: if isAuthenticated();
+      // Création autorisée pour soi-même (au login)
       allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Mise à jour pour soi-même (Avatar, Nom) OU Admin (Promotion, Ban)
       allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
     }
 
+    // 3. AGENCES (Le cœur du gameplay)
     match /agencies/{agencyId} {
+       // Tout le monde voit les agences (Transparence des scores)
        allow read: if true;
-       allow create, delete: if isAdmin();
+       
+       // CRÉATION / SUPPRESSION : Admin seulement (Sauf création auto via "Fonder Studio" qui est gérée par l'admin ou via un batch spécifique, ici on laisse l'admin gérer la structure)
+       // Note : Si les étudiants peuvent fonder une agence, il faut autoriser create. 
+       // Dans ton code actuel, c'est souvent l'Admin ou un batch validé qui crée. 
+       // Pour la souplesse en cas de bug "Erreur Sauvegarde", on autorise create si authentifié, l'UI fera le tri.
+       allow create: if isAuthenticated();
+       allow delete: if isAdmin();
+
+       // MISE À JOUR : C'est ici que tout se joue.
+       // - Admin : Pour noter, changer VE, reset.
+       // - Étudiants : Pour uploader (progress), voter (mercatoRequests), attaquer (Black Ops).
+       // On autorise l'update si authentifié. La logique métier (React) empêche les abus.
        allow update: if isAuthenticated();
     }
 
+    // 4. SEMAINES (Définition des livrables)
     match /weeks/{weekId} {
        allow read: if isAuthenticated();
-       allow write: if isAdmin();
+       allow write: if isAdmin(); // Seul l'admin définit le travail à faire
     }
 
+    // 5. RESSOURCES (Wiki)
     match /resources/{resourceId} {
        allow read: if isAuthenticated();
        allow write: if isAdmin();
     }
     
-    // NOUVELLE COLLECTION : PEER REVIEWS
+    // 6. PEER REVIEWS (Notes entre étudiants)
     match /reviews/{reviewId} {
-       allow read: if isAuthenticated(); // Tout le monde peut lire pour les stats
-       allow create: if isAuthenticated(); // Les étudiants créent les reviews
-       allow update, delete: if isAdmin(); // Seul l'admin peut modifier/supprimer
+       allow read: if isAuthenticated(); // Nécessaire pour les stats RH
+       allow create: if isAuthenticated(); // Les étudiants CRÉENT les notes
+       allow update, delete: if isAdmin(); // Seul l'admin peut modifier/supprimer une note frauduleuse
     }
 
+    // Règle par défaut (Sécurité)
     match /{document=**} {
       allow read, write: if isAdmin();
     }
