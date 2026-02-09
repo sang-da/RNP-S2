@@ -3,18 +3,25 @@ import { Badge, CycleAwardDefinition, CycleType } from '../types';
 
 // --- BADGE DEFINITIONS ---
 export const BADGE_DEFINITIONS: Badge[] = [
+    // PERFORMANCE
+    { id: 'legend_100', label: 'Légende', description: 'Première Agence à atteindre 100 VE. Le plafond de verre est brisé.', icon: 'crown' },
+    { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'trending-up' },
     { id: 'survivor', label: 'Survivant', description: 'Avoir survécu à une dette critique sans faillite.', icon: 'shield' },
+    
+    // SKILLS
     { id: 'visionary', label: 'Visionnaire', description: '3 rendus consécutifs notés A.', icon: 'eye' },
-    { id: 'wealthy', label: 'Licorne', description: 'Avoir dépassé 20 000 PiXi de trésorerie.', icon: 'crown' },
     { id: 'teamwork', label: 'Esprit de Corps', description: 'Moyenne évaluation par pairs > 4.5/5.', icon: 'users' },
-    // S1 AWARDS
+    { id: 'tech_wizard', label: 'Sorcier', description: 'MVP Technique désigné sur un rendu complexe.', icon: 'zap' },
+
+    // S1 AWARDS (HISTORIQUE)
     { id: 's1_gold', label: 'Or S1', description: 'Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_silver', label: 'Argent S1', description: 'Vice-Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_bronze', label: 'Bronze S1', description: 'Podium Promotion Semestre 1', icon: 'medal' },
+    
     // GROUP AWARDS
-    { id: 's1_gold_group', label: 'Agence Or S1', description: 'Meilleure Agence S1 (+200/sem)', icon: 'crown' },
-    { id: 's1_silver_group', label: 'Agence Argent S1', description: 'Top Agence S1 (+150/sem)', icon: 'crown' },
-    { id: 's1_bronze_group', label: 'Agence Bronze S1', description: 'Top Agence S1 (+100/sem)', icon: 'crown' },
+    { id: 's1_gold_group', label: 'Agence Or S1', description: 'Meilleure Agence S1 (+200/sem)', icon: 'star' },
+    { id: 's1_silver_group', label: 'Agence Argent S1', description: 'Top Agence S1 (+150/sem)', icon: 'star' },
+    { id: 's1_bronze_group', label: 'Agence Bronze S1', description: 'Top Agence S1 (+100/sem)', icon: 'star' },
 ];
 
 // --- GRANDS PRIX CYCLES ---

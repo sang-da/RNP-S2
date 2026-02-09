@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp, PieChart, HeartHandshake, Landmark, EyeOff, Contact } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, Settings, LogOut, Flame, CalendarRange, KeyRound, FolderOpen, MonitorPlay, X, Bot, TrendingUp, PieChart, HeartHandshake, Landmark, EyeOff, Contact, Medal } from 'lucide-react';
 
 interface AdminSidebarProps {
   activeView: string;
@@ -17,7 +18,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeView, onNaviga
     { id: 'OVERVIEW', label: 'Vue Globale', icon: <LayoutDashboard size={20} />, adminOnly: true },
     { id: 'ANALYTICS', label: 'Analytics & Data', icon: <PieChart size={20} />, adminOnly: true },
     { id: 'BANK', label: 'Banque Centrale', icon: <Landmark size={20} /> },
-    { id: 'STUDENT_TRACKER', label: 'Dossiers Étudiants', icon: <Contact size={20} /> }, // NEW
+    { id: 'STUDENT_TRACKER', label: 'Dossiers Étudiants', icon: <Contact size={20} /> },
+    { id: 'BADGES', label: 'Salle des Trophées', icon: <Medal size={20} /> }, // NOUVEAU LIEN
     { id: 'PEER_REVIEWS', label: 'Bilans RH', icon: <HeartHandshake size={20} /> },
     { id: 'MARKET', label: 'Marché Live', icon: <TrendingUp size={20} /> },
     { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: <Bot size={20} />, adminOnly: true },

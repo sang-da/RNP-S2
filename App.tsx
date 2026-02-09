@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -17,7 +18,8 @@ import { AdminAnalytics } from './components/AdminAnalytics';
 import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
 import { AdminBank } from './components/AdminBank'; 
 import { AdminBlackMarket } from './components/AdminBlackMarket';
-import { AdminStudentTracker } from './components/AdminStudentTracker'; // IMPORT
+import { AdminStudentTracker } from './components/AdminStudentTracker'; 
+import { AdminBadges } from './components/AdminBadges'; // NEW IMPORT
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { TheBackdoor } from './components/student/TheBackdoor'; 
@@ -28,7 +30,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Termi
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -165,6 +167,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
                     {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} />}
                     {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
+                    {adminView === 'BADGES' && <AdminBadges agencies={agencies} />}
 
                     {/* Vues réservées Admin Principal */}
                     {!isReadOnly && (
