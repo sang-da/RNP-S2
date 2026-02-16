@@ -26,6 +26,17 @@ export interface CareerStep {
     walletAtWeek: number;
 }
 
+export interface AuditResult {
+    concept_score: number;
+    viability_score: number;
+    strengths: string[];
+    weaknesses: string[];
+    verdict: string;
+    pivot_idea: string;
+    roast: string;
+    date: string; // Date de l'audit pour savoir s'il est périmé
+}
+
 export interface Student {
     id: string;
     name: string;
@@ -189,6 +200,7 @@ export interface Agency {
     branding?: { color: BrandColor; bannerUrl?: string };
     logoUrl?: string;
     badges: Badge[];
+    aiAudit?: AuditResult; // STOCKAGE DU RÉSULTAT
 }
 
 export interface PeerReview {

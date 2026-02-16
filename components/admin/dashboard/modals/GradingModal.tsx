@@ -50,6 +50,18 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
     }, [agency, item.weekId]);
 
+    // --- DEADLINE LOGIC (CALENDRIER) ---
+    // On récupère la date prévue dans le planning si la deadline n'est pas fixée dans le livrable
+    const scheduledDeadline = useMemo(() => {
+        if (!agency) return undefined;
+        const weekData = agency.progress[item.weekId];
+        if (!weekData) return undefined;
+
+        const schedule = agency.classId === 'A' ? weekData.schedule.classA : weekData.schedule.classB;
+        // On retourne la date du planning (ex: "2024-03-12")
+        return schedule?.date;
+    }, [agency, item.weekId]);
+
     // --- AUTO-FILL LOGIC ---
     useEffect(() => {
         if (item.deliverable) {
@@ -63,14 +75,17 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
             }
 
             // Calcul Automatique du Retard (Jours Ouvrables)
-            if (item.deliverable.submissionDate && item.deliverable.deadline) {
-                const late = calculateBusinessDaysLate(item.deliverable.deadline, item.deliverable.submissionDate);
+            // On utilise soit la deadline spécifique du livrable, soit la date du calendrier
+            const effectiveDeadline = item.deliverable.deadline || scheduledDeadline;
+
+            if (item.deliverable.submissionDate && effectiveDeadline) {
+                const late = calculateBusinessDaysLate(effectiveDeadline, item.deliverable.submissionDate);
                 setDaysLate(late);
             } else {
                 setDaysLate(0);
             }
         }
-    }, [item]);
+    }, [item, scheduledDeadline]);
 
     // --- CALCULATIONS ---
     const calculation = useMemo(() => {
@@ -221,7 +236,7 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
 
                     {/* 2. DATES & DEADLINES */}
                     <SubmissionInfo 
-                        deadline={item.deliverable.deadline}
+                        deadline={item.deliverable.deadline || scheduledDeadline}
                         submissionDate={item.deliverable.submissionDate}
                         daysLate={daysLate}
                     />
