@@ -3,37 +3,83 @@ import { Badge, CycleAwardDefinition, CycleType } from '../types';
 
 // --- BADGE DEFINITIONS ---
 export const BADGE_DEFINITIONS: Badge[] = [
-    // PERFORMANCE
+    // --- LÉGENDAIRES ---
     { 
         id: 'legend_100', 
-        label: 'Légende', 
-        description: 'Première Agence à atteindre 100 VE. Le plafond de verre est brisé.', 
+        label: 'Légende Vivante', 
+        description: 'Agence ayant atteint 100 VE. Le plafond de verre est brisé.', 
         icon: 'crown',
         rewards: { ve: 15, budget: 1000 } 
     },
     { 
+        id: 'score_100', 
+        label: 'Le Pionnier', 
+        description: 'Premier étudiant à atteindre le score parfait de 100/100.', 
+        icon: 'mountain',
+        rewards: { wallet: 1000 } 
+    },
+
+    // --- RICHESSE & ÉCONOMIE ---
+    { 
         id: 'wealthy', 
         label: 'Licorne', 
-        description: 'Avoir dépassé 20 000 PiXi de trésorerie.', 
+        description: 'Agence dépassant 20 000 PiXi de trésorerie.', 
         icon: 'trending-up',
-        rewards: { score: 5 } // Bonus Score pour chaque membre
+        rewards: { score: 5 }
     },
     { 
-        id: 'survivor', 
-        label: 'Survivant', 
-        description: 'Avoir survécu à une dette critique sans faillite.', 
-        icon: 'shield',
-        rewards: { score: 2 } 
+        id: 'tycoon', 
+        label: 'Magnat', 
+        description: 'Posséder plus de 5000 PiXi sur son Wallet personnel.', 
+        icon: 'gem',
+        rewards: { score: 2 }
     },
-    
-    // SKILLS
+    { 
+        id: 'investor', 
+        label: 'Business Angel', 
+        description: 'Avoir injecté du capital personnel pour sauver/aider son agence.', 
+        icon: 'briefcase',
+        rewards: { score: 5 }
+    },
+    { 
+        id: 'patron', 
+        label: 'Mécène', 
+        description: 'Avoir fait un don généreux à un collègue en difficulté.', 
+        icon: 'heart-handshake',
+        rewards: { karma: 20 }
+    },
+
+    // --- PERFORMANCE & TRAVAIL ---
     { 
         id: 'visionary', 
         label: 'Visionnaire', 
-        description: '3 rendus consécutifs notés A.', 
+        description: '3 rendus consécutifs notés A (Excellence).', 
         icon: 'eye',
         rewards: { score: 5, wallet: 500 }
     },
+    { 
+        id: 'stakhanov', 
+        label: 'Stakhanoviste', 
+        description: 'Avoir rendu tous les livrables du cycle en avance (Early Bird).', 
+        icon: 'clock',
+        rewards: { score: 5 }
+    },
+    { 
+        id: 'tech_wizard', 
+        label: 'Tech Lead', 
+        description: 'MVP Technique désigné sur un rendu complexe.', 
+        icon: 'zap',
+        rewards: { score: 5, wallet: 250 }
+    },
+    { 
+        id: 'pixel_perfect', 
+        label: 'Pixel Perfect', 
+        description: 'Aucun rejet ni retard sur un cycle entier.', 
+        icon: 'check-circle',
+        rewards: { ve: 5 }
+    },
+
+    // --- SOCIAL & RH ---
     { 
         id: 'teamwork', 
         label: 'Esprit de Corps', 
@@ -42,14 +88,53 @@ export const BADGE_DEFINITIONS: Badge[] = [
         rewards: { score: 5 }
     },
     { 
-        id: 'tech_wizard', 
-        label: 'Tech Lead', // RENAMED FROM SORCIER
-        description: 'MVP Technique désigné sur un rendu complexe.', 
-        icon: 'zap',
-        rewards: { score: 5, wallet: 250 }
+        id: 'headhunter', 
+        label: 'Chasseur de Têtes', 
+        description: 'Avoir recruté avec succès un talent externe.', 
+        icon: 'user-plus',
+        rewards: { wallet: 250 }
+    },
+    { 
+        id: 'diplomat', 
+        label: 'Diplomate', 
+        description: 'Avoir résolu un conflit interne ou évité un départ.', 
+        icon: 'flag',
+        rewards: { score: 3 }
     },
 
-    // S1 AWARDS (HISTORIQUE - Pas de rewards auto car déjà donnés au S1)
+    // --- RÉSILIENCE & SURVIE ---
+    { 
+        id: 'survivor', 
+        label: 'Survivant', 
+        description: 'Avoir survécu à une dette critique sans faillite.', 
+        icon: 'shield',
+        rewards: { score: 2 } 
+    },
+    { 
+        id: 'phoenix', 
+        label: 'Phénix', 
+        description: 'Remontada : Passer d\'un score < 40 à un score > 70.', 
+        icon: 'flame',
+        rewards: { score: 10 }
+    },
+
+    // --- GUERRE ÉCONOMIQUE (BLACK OPS) ---
+    { 
+        id: 'spy_master', 
+        label: 'Maître Espion', 
+        description: 'Avoir réussi 3 opérations de renseignement (Intel/Leak).', 
+        icon: 'glasses',
+        rewards: { wallet: 500 }
+    },
+    { 
+        id: 'shark', 
+        label: 'Requin', 
+        description: 'Avoir réussi une OPA (Fusion/Rachat) sur une autre agence.', 
+        icon: 'swords',
+        rewards: { ve: 10 }
+    },
+
+    // S1 AWARDS (HISTORIQUE)
     { id: 's1_gold', label: 'Or S1', description: 'Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_silver', label: 'Argent S1', description: 'Vice-Major de Promotion Semestre 1', icon: 'medal' },
     { id: 's1_bronze', label: 'Bronze S1', description: 'Podium Promotion Semestre 1', icon: 'medal' },

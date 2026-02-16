@@ -101,26 +101,14 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
                         walletAtWeek: member.wallet || 0
                     };
                     
-                    // Note : On ne peut pas faire un arrayUnion complexe sur des objets
-                    // On va écraser la liste 'careerPath' en ajoutant le nouvel élément.
-                    // Pour simplifier, dans un batch massif, on ne lit pas avant d'écrire.
-                    // On utilise donc arrayUnion de Firestore.
-                    // Attention: careerPath doit être un array dans User
                     const userRef = doc(db, "users", member.id);
-                    // @ts-ignore : firebase.firestore.FieldValue.arrayUnion
-                    // Comme on utilise la compat v8/v9 via le service wrapper, on va faire simple :
-                    // On ne met pas à jour l'historique dans le batch global 'agencies' pour ne pas exploser la limite.
-                    // On le fera dans une Cloud Function idéale, mais ici on le tente.
-                    // On suppose que le field existe.
-                    // LIMITATION : Firestore batch limit 500. Si bcp d'étudiants, ça peut casser.
-                    // Pour l'instant, on ignore l'écriture user dans ce batch pour la stabilité.
-                    // TODO: Créer un batch séparé pour les users.
+                    // On ignore l'écriture user dans ce batch pour la stabilité si limite batch atteinte
                 }
 
                 return { ...member, individualScore: finalScore, streak: newStreak, badges: memberBadges };
             });
 
-            // --- 3. CALCUL VE ---
+            // --- 3. CALCUL VE (AVEC TOLÉRANCE OVERCAP) ---
             let veAdjustment = 0;
             const budget = agency.budget_real;
             if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
@@ -131,7 +119,28 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
             }
 
             const veCap = calculateVECap(agency);
-            const finalVE = Math.min(Math.max(0, agency.ve_current + veAdjustment), veCap);
+            
+            // LOGIQUE OVERCAP :
+            // 1. On calcule la VE potentielle
+            let potentialVE = agency.ve_current + veAdjustment;
+            let finalVE = potentialVE;
+
+            // 2. Si on est en dessous du Cap, on applique le Cap (croissance organique bloquée)
+            if (agency.ve_current < veCap) {
+                finalVE = Math.min(potentialVE, veCap);
+            } 
+            // 3. Si on est DÉJÀ au dessus du Cap (grâce à des dividendes/bonus)
+            else {
+                // Si l'ajustement est positif (gain organique), on ne l'ajoute pas (le plafond bloque la croissance purement financière)
+                // MAIS on ne rabote pas le surplus existant.
+                if (veAdjustment > 0) {
+                    finalVE = agency.ve_current; // On garde le surplus, mais on ne monte pas plus via le budget
+                } 
+                // Si l'ajustement est négatif (dette), on perd de la VE normalement (le buffer sert à ça !)
+                else {
+                    finalVE = Math.max(0, potentialVE); 
+                }
+            }
 
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {

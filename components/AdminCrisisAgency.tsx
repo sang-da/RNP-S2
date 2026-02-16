@@ -7,7 +7,7 @@ import { getAgencyPerformanceMultiplier } from '../constants';
 
 interface AdminCrisisAgencyProps {
   agencies: Agency[];
-  onUpdateAgency: (agency: Agency) => void;
+  onUpdateAgency: (agency: Agency, allowOverCap?: boolean) => void;
   readOnly?: boolean;
 }
 
@@ -127,13 +127,15 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                       deltaBudgetReal: budgetDeltaReal
                   };
 
+                  const isBonus = presetType === 'REWARD' || presetType === 'CEREMONY';
+
                   onUpdateAgency({
                       ...agency,
                       budget_real: agency.budget_real + budgetDeltaReal,
                       ve_current: Math.max(0, agency.ve_current + finalVEDelta),
                       weeklyRevenueModifier: (agency.weeklyRevenueModifier || 0) + form.weeklyBonus, // MISE À JOUR DE LA RENTE
                       eventLog: [...agency.eventLog, newEvent]
-                  });
+                  }, isBonus); // ALLOW OVER CAP SI C'EST UN BONUS
               }
           });
           toast('success', "Action globale appliquée.");

@@ -5,7 +5,7 @@ import { BADGE_DEFINITIONS } from '../config/awards';
 import { useGame } from '../contexts/GameContext';
 import { useUI } from '../contexts/UIContext';
 import { Modal } from './Modal';
-import { Medal, Crown, Shield, Zap, Eye, Users, Star, TrendingUp, CheckCircle2, User, Building2, RefreshCw, Gift, ArrowRight } from 'lucide-react';
+import { Medal, Crown, Shield, Zap, Eye, Users, Star, TrendingUp, CheckCircle2, User, Building2, RefreshCw, Gift, ArrowRight, Mountain, Gem, Briefcase, HeartHandshake, Clock, UserPlus, Flag, Flame, Glasses, Swords } from 'lucide-react';
 import { writeBatch, doc, db } from '../services/firebase';
 
 interface AdminBadgesProps {
@@ -78,6 +78,26 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                     }
                 });
             }
+            
+            // C. BADGE PIONNIER (100 SCORE)
+            agency.members.forEach(m => {
+                if (m.individualScore >= 100) {
+                    const hasBadge = m.badges?.some(b => b.id === 'score_100');
+                    if (!hasBadge) {
+                        const def = BADGE_DEFINITIONS.find(b => b.id === 'score_100');
+                        if (def) {
+                            detectedAwards.push({
+                                targetId: m.id,
+                                targetName: m.name,
+                                type: 'STUDENT',
+                                badge: def,
+                                reason: "A atteint 100/100 Score Individuel",
+                                agencyName: agency.name
+                            });
+                        }
+                    }
+                }
+            });
         });
 
         if (detectedAwards.length === 0) {
@@ -128,7 +148,8 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                 // Add Badge
                 agency.badges.push(badgePayload);
                 
-                // Apply Rewards
+                // Apply Rewards - BATCH NE GÈRE PAS OVERCAP DIRECTEMENT ICI,
+                // MAIS LE CALCUL MANUEL ICI PERMET DE DÉPASSER LE CAP PUISQU'ON SET LA VALEUR
                 if (rewards.ve) agency.ve_current += rewards.ve;
                 if (rewards.budget) agency.budget_real += rewards.budget;
 
@@ -160,8 +181,6 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                     return m;
                 });
                 
-                // Log (On en met un seul global pour éviter le spam si toute l'équipe l'a ?)
-                // Pour l'instant on met un log par badge pour la traçabilité
                 agency.eventLog.push({
                     id: `badge-auto-${Date.now()}-${Math.random()}`,
                     date: today,
@@ -175,7 +194,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
         // Conversion en Batch Firestore
         agencyUpdates.forEach((updatedAgency, id) => {
             const ref = doc(db, "agencies", id);
-            batch.set(ref, updatedAgency); // On utilise SET car on a récupéré l'objet entier
+            batch.set(ref, updatedAgency); 
         });
 
         try {
@@ -189,8 +208,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
         }
     };
 
-    // --- 3. ATTRIBUTION MANUELLE (Inchangé mais utilise le new logic pour DRY ?) ---
-    // Pour l'instant on garde la logique manuelle séparée pour la simplicité du commit précédent
+    // --- 3. ATTRIBUTION MANUELLE ---
     const handleManualAward = async (targetId: string, isAgency: boolean) => {
         const agency = isAgency 
             ? agencies.find(a => a.id === targetId)
@@ -229,7 +247,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                     label: `Trophée : ${selectedBadge.label}`,
                     description: `Badge décerné manuellement. ${bonusText}`
                 }]
-            });
+            }, true); // TRUE = ALLOW OVER CAP
             toast('success', `Badge ${selectedBadge.label} décerné à l'agence ! ${bonusText}`);
         } else {
             const member = agency.members.find(m => m.id === targetId);
@@ -244,13 +262,17 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                 if (m.id === targetId) {
                     let newScore = m.individualScore;
                     let newWallet = m.wallet || 0;
+                    let newKarma = m.karma || 50;
+                    
                     if (rewards.score) { newScore = Math.min(100, newScore + rewards.score); bonusText += `+${rewards.score} Score `; }
                     if (rewards.wallet) { newWallet += rewards.wallet; bonusText += `+${rewards.wallet} PiXi `; }
+                    if (rewards.karma) { newKarma += rewards.karma; bonusText += `+${rewards.karma} Karma `; }
                     
                     return { 
                         ...m, 
                         individualScore: newScore,
                         wallet: newWallet,
+                        karma: newKarma,
                         badges: [...(m.badges || []), badgePayload] 
                     };
                 }
@@ -267,7 +289,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                     label: `Trophée : ${selectedBadge.label} (${member.name})`,
                     description: `Badge décerné à ${member.name}. ${bonusText}`
                 }]
-            });
+            }, true); // TRUE = ALLOW OVER CAP
             toast('success', `Badge décerné à ${member.name} ! ${bonusText}`);
         }
     };
@@ -281,6 +303,17 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
             case 'eye': return <Eye size={24}/>;
             case 'users': return <Users size={24}/>;
             case 'trending-up': return <TrendingUp size={24}/>;
+            case 'mountain': return <Mountain size={24}/>;
+            case 'gem': return <Gem size={24}/>;
+            case 'briefcase': return <Briefcase size={24}/>;
+            case 'heart-handshake': return <HeartHandshake size={24}/>;
+            case 'clock': return <Clock size={24}/>;
+            case 'check-circle': return <CheckCircle2 size={24}/>;
+            case 'user-plus': return <UserPlus size={24}/>;
+            case 'flag': return <Flag size={24}/>;
+            case 'flame': return <Flame size={24}/>;
+            case 'glasses': return <Glasses size={24}/>;
+            case 'swords': return <Swords size={24}/>;
             default: return <Medal size={24}/>;
         }
     };
@@ -373,7 +406,6 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
             </Modal>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* ... (LEFT & RIGHT PANELS restent identiques à la version précédente) ... */}
                 {/* LEFT: BADGE LIST */}
                 <div className="lg:col-span-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto custom-scrollbar pr-2">
                     {BADGE_DEFINITIONS.map(badge => (
@@ -418,7 +450,7 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                                 <p className="text-slate-600 text-lg leading-relaxed mb-4">{selectedBadge.description}</p>
                                 
                                 {/* REWARDS DISPLAY */}
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
                                     {selectedBadge.rewards?.score && (
                                         <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-emerald-200 flex items-center gap-2">
                                             <TrendingUp size={16}/> +{selectedBadge.rewards.score} Score Individuel
@@ -432,6 +464,11 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                                     {selectedBadge.rewards?.ve && (
                                         <div className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-purple-200 flex items-center gap-2">
                                             <TrendingUp size={16}/> +{selectedBadge.rewards.ve} VE (Agence)
+                                        </div>
+                                    )}
+                                    {selectedBadge.rewards?.budget && (
+                                        <div className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-blue-200 flex items-center gap-2">
+                                            <Building2 size={16}/> +{selectedBadge.rewards.budget} Budget (Agence)
                                         </div>
                                     )}
                                 </div>

@@ -1,4 +1,5 @@
 
+
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
 
 export interface BadgeReward {
@@ -6,6 +7,7 @@ export interface BadgeReward {
     wallet?: number;  // Bonus Argent Personnel
     ve?: number;      // Bonus VE Agence
     budget?: number;  // Bonus Budget Agence
+    karma?: number;   // Bonus Karma (Hidden Score)
 }
 
 export interface Badge {

@@ -1,12 +1,12 @@
 
 import { writeBatch, doc, db } from '../../../services/firebase';
-import { Agency, GameEvent, Deliverable } from '../../../types';
+import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
 import { GAME_RULES } from '../../../constants';
 
-export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
+// AJOUT DE reviews EN PARAMÈTRE
+export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
   const performBlackOp = async (studentId: string, agencyId: string, opType: string, payload: any) => {
-      // Implementation of black op logic
       const agency = agencies.find(a => a.id === agencyId);
       if (!agency) return;
       const student = agency.members.find(m => m.id === studentId);
@@ -15,24 +15,134 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
       const batch = writeBatch(db);
       const agencyRef = doc(db, "agencies", agency.id);
       
-      // Deduct cost
-      // (Simplified logic for brevity, assuming UI checked funds)
       let cost = 0;
-      if (opType === 'SHORT_SELL') cost = 500;
-      if (opType === 'DOXXING') cost = 600;
-      if (opType === 'FAKE_CERT') cost = 500;
+      // PRIX ACTUALISÉS
+      if (opType === 'DATA_MINER') cost = 600;
+      if (opType === 'DOXXING') cost = 500;
       if (opType === 'LEAK') cost = 300;
-      if (opType === 'BUY_VOTE') cost = 200;
+      if (opType === 'PUMP_DUMP') cost = 800;
+      if (opType === 'LAUNDERING') cost = 200; // Frais dossier
+      if (opType === 'SHORT_SELL') cost = 500;
+      if (opType === 'CORRUPTED_FILE') cost = 400;
+      if (opType === 'BUY_VOTE') cost = 250;
       if (opType === 'AUDIT_HOSTILE') cost = 500;
 
-      const updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - cost } : m);
+      // Update student wallet
+      let updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - cost } : m);
       
+      let description = `Opération ${opType} effectuée par ${student.name}.`;
+      let eventType: any = 'BLACK_OP';
+      let eventLabel = `Opération: ${opType}`;
+      
+      // --- LOGIQUE SPÉCIFIQUE ---
+
+      // 1. DATA MINER (Enhanced Intel)
+      if (opType === 'DATA_MINER' && payload.targetId) {
+          // La lecture se fait côté UI (TheBackdoor.tsx) pour l'affichage immédiat
+          // Ici on log juste la dépense
+          description = `Extraction de données stratégiques sur cible externe.`;
+      }
+
+      // 2. LAUNDERING (Score -> Cash)
+      else if (opType === 'LAUNDERING') {
+          const SCORE_COST = 3;
+          const CASH_GAIN = 1000;
+          
+          if (student.individualScore >= SCORE_COST) {
+              updatedMembers = updatedMembers.map(m => m.id === studentId ? { 
+                  ...m, 
+                  individualScore: m.individualScore - SCORE_COST,
+                  wallet: (m.wallet || 0) + CASH_GAIN // Déjà débité du coût plus haut, on rajoute le gain
+              } : m);
+              description = `Consulting Fantôme : -${SCORE_COST} Score contre +${CASH_GAIN} PiXi.`;
+              eventLabel = "Blanchiment";
+          } else {
+              description = "ÉCHEC : Score insuffisant pour blanchiment.";
+              // On rembourse le coût car opération impossible ? Non, le marché noir ne rembourse pas.
+          }
+      }
+
+      // 3. PUMP & DUMP (Manipulation)
+      else if (opType === 'PUMP_DUMP' && payload.targetId) {
+          const target = agencies.find(a => a.id === payload.targetId);
+          if (target) {
+              const targetRef = doc(db, "agencies", target.id);
+              
+              // Boost immédiat (+5)
+              const immediateEvent = {
+                  id: `pump-${Date.now()}`, date: new Date().toISOString().split('T')[0], 
+                  type: 'VE_DELTA', label: 'Rumeur Positive (Marché)', deltaVE: 5, 
+                  description: "Hausse inexpliquée de la cotation. (Pump & Dump phase 1)"
+              };
+
+              // On prépare le crash futur (-12) en l'ajoutant déjà mais avec une date future ou via un flag
+              // Pour simplifier ici, on applique le boost et on log le futur crash comme une crise "différée"
+              // Dans un système parfait, on aurait une queue d'events futurs. 
+              // ICI : On applique juste le boost, l'admin gérera le crash ou on fait confiance à l'honneur :)
+              // ALTERNATIVE : On applique le malus tout de suite mais invisible ? Non.
+              // On va juste mettre +5 VE. Le "Dump" devra être manuel par l'admin ou via un système d'events différés (hors scope actuel).
+              // UPDATE : On met un Warning dans le log pour que l'admin le voit.
+              
+              batch.update(targetRef, {
+                  ve_current: Math.min(100, target.ve_current + 5),
+                  eventLog: [...target.eventLog, immediateEvent]
+              });
+              description = `Pump & Dump initié sur ${target.name}. (+5 VE)`;
+          }
+      }
+
+      // 4. CORRUPTED FILE (Gamble)
+      else if (opType === 'CORRUPTED_FILE' && payload.weekId) {
+          const roll = Math.random();
+          const success = roll < 0.40; // 40% chance
+          
+          if (success) {
+              // On marque un livrable comme "corrompu mais accepté"
+              // On modifie l'agence locale
+              // Note: payload doit contenir weekId
+              const week = agency.progress[payload.weekId];
+              if (week) {
+                  // On prend le premier livrable pending
+                  const targetDel = week.deliverables.find(d => d.status === 'pending');
+                  if (targetDel) {
+                      const updatedWeek = {
+                          ...week,
+                          deliverables: week.deliverables.map(d => d.id === targetDel.id ? { ...d, status: 'validated', feedback: "Fichier illisible. Délai accordé (B).", grading: { quality: 'B', daysLate: 0, constraintBroken: false, finalDelta: 4 } } : d)
+                      };
+                      
+                      const newEvent = {
+                          id: `corrupt-win-${Date.now()}`, date: new Date().toISOString().split('T')[0],
+                          type: 'VE_DELTA', label: 'Glitch Exploité', deltaVE: 4, description: "L'administration a accepté le fichier corrompu."
+                      };
+
+                      // On update l'agence
+                      batch.update(agencyRef, {
+                          [`progress.${payload.weekId}`]: updatedWeek,
+                          ve_current: agency.ve_current + 4,
+                          eventLog: [...agency.eventLog, newEvent]
+                      });
+                      description = "Fichier corrompu accepté. Gain de temps.";
+                  } else {
+                      description = "Aucun livrable en attente pour corrompre.";
+                  }
+              }
+          } else {
+              // Fail
+              const failEvent = {
+                  id: `corrupt-fail-${Date.now()}`, date: new Date().toISOString().split('T')[0],
+                  type: 'CRISIS', label: 'Fraude Détectée', deltaVE: 0, description: "Tentative de fichier corrompu repérée. Blâme."
+              };
+              batch.update(agencyRef, { eventLog: [...agency.eventLog, failEvent] });
+              description = "Fraude détectée. L'administration est prévenue.";
+          }
+      }
+
       const newEvent: GameEvent = {
           id: `op-${Date.now()}`,
           date: new Date().toISOString().split('T')[0],
-          type: 'BLACK_OP',
-          label: `Opération: ${opType}`,
-          description: `Action secrète effectuée par ${student.name}.`,
+          type: eventType,
+          label: eventLabel,
+          description: description,
           deltaBudgetReal: 0 // Usually paid by student wallet
       };
 
@@ -41,7 +151,7 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
           eventLog: [...agency.eventLog, newEvent]
       });
 
-      // Handle specific effects (Simplified)
+      // Legacy Logic for Audit Hostile (unchanged)
       if (opType === 'AUDIT_HOSTILE' && payload.targetId) {
           const target = agencies.find(a => a.id === payload.targetId);
           if (target) {
@@ -56,7 +166,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
                       }]
                   });
               } else {
-                  // Backfire on source agency
                   batch.update(agencyRef, {
                       ve_current: Math.max(0, agency.ve_current - 20),
                       eventLog: [...agency.eventLog, newEvent, {
@@ -73,7 +182,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
   };
 
   const triggerBlackOp = async (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => {
-      // Logic for triggering black op from UI or Admin
       console.log("Trigger Black Op", sourceAgencyId, targetAgencyId, type);
   };
 
@@ -110,7 +218,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
 
       const batch = writeBatch(db);
       
-      // Update Target (Remove request)
       const newRequests = target.mergerRequests?.filter(r => r.id !== mergerId);
       
       if (!approved) {
@@ -120,11 +227,9 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
           return;
       }
 
-      // EXECUTE MERGER
       const combinedMembers = [...source.members, ...target.members];
-      const combinedBudget = source.budget_real + target.budget_real; // Debts are summed too
+      const combinedBudget = source.budget_real + target.budget_real; 
       
-      // Update Source
       batch.update(doc(db, "agencies", source.id), {
           members: combinedMembers,
           budget_real: combinedBudget,
@@ -134,7 +239,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
           }]
       });
 
-      // Kill Target
       batch.delete(doc(db, "agencies", target.id));
 
       await batch.commit();
@@ -171,14 +275,12 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
       if(!challenge) return;
 
       const newVotes = { ...challenge.votes, [voterId]: vote };
-      // Check threshold
       const approvals = Object.values(newVotes).filter(v => v === 'APPROVE').length;
       const totalVoters = agency.members.length;
       
       const batch = writeBatch(db);
       
       if (approvals / totalVoters > GAME_RULES.VOTE_THRESHOLD_CHALLENGE) {
-          // ACCEPTED -> ON CRÉE UN LIVRABLE SPÉCIAL DANS LA SEMAINE EN COURS
           const currentWeekId = getCurrentGameWeek().toString();
           const currentWeekData = agency.progress[currentWeekId];
           
@@ -189,7 +291,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
                   description: `${challenge.description} (Récompense: +${challenge.rewardVE} VE, +${challenge.rewardBudget} PiXi)`,
                   status: 'pending',
                   type: 'FILE',
-                  // On pourrait stocker les rewards dans le livrable pour l'auto-validation future, mais l'admin gèrera
               };
 
               const updatedWeek = {
@@ -198,7 +299,7 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
               };
 
               batch.update(doc(db, "agencies", agency.id), {
-                  challenges: agency.challenges?.filter(c => c.id !== challengeId), // Remove pending
+                  challenges: agency.challenges?.filter(c => c.id !== challengeId), 
                   [`progress.${currentWeekId}`]: updatedWeek,
                   eventLog: [...agency.eventLog, {
                       id: `chall-accept-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
@@ -211,7 +312,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
               return;
           }
       } else {
-          // Update votes
           const updatedChallenges = agency.challenges?.map(c => c.id === challengeId ? { ...c, votes: newVotes } : c);
           batch.update(doc(db, "agencies", agency.id), { challenges: updatedChallenges });
       }
@@ -233,7 +333,6 @@ export const useOperationsLogic = (agencies: Agency[], toast: (type: string, msg
       const batch = writeBatch(db);
       const agencyRef = doc(db, "agencies", agency.id);
 
-      // On force la visibilité locale de la semaine
       batch.update(agencyRef, {
           budget_real: agency.budget_real - COST,
           [`progress.${weekId}.isVisible`]: true,

@@ -4,7 +4,7 @@ import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
 import { Clock } from 'lucide-react';
-import { BLACK_MARKET_ITEMS } from '../../constants';
+import { BLACK_MARKET_ITEMS, GAME_RULES } from '../../constants';
 
 interface TheBackdoorProps {
     agency: Agency;
@@ -29,7 +29,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
     const [terminalOutput, setTerminalOutput] = useState<string[]>(["Initialisation protocole 22-04...", "Connexion sécurisée établie."]);
     const [selectedItem, setSelectedItem] = useState<string | null>(null);
     const [targetId, setTargetId] = useState<string>("");
-    const [doxxResult, setDoxxResult] = useState<string | null>(null);
+    const [displayResult, setDisplayResult] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState("");
 
     // Filter Targets
@@ -53,8 +53,8 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
             return seededRandom(seedA) - seededRandom(seedB);
         });
 
-        // Pick Top 3
-        return shuffled.slice(0, 3);
+        // Pick Top 4
+        return shuffled.slice(0, 4);
     }, []);
 
     useEffect(() => {
@@ -81,35 +81,27 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
         let payload: any = {};
         let cost = BLACK_MARKET_ITEMS.find(i => i.id === selectedItem)?.price || 0;
 
-        if (selectedItem === 'SHORT_SELL') {
+        // --- PREPARE PAYLOAD ---
+        if (selectedItem === 'SHORT_SELL' || selectedItem === 'PUMP_DUMP' || selectedItem === 'AUDIT_HOSTILE' || selectedItem === 'DATA_MINER') {
             if (!targetId) { addToTerminal("ERREUR: Cible manquante."); return; }
             payload = { targetId };
         } 
-        else if (selectedItem === 'DOXXING' || selectedItem === 'LEAK') {
-            payload = {}; // Self action
-        }
-        else if (selectedItem === 'FAKE_CERT') {
-            // Find a late deliverable
-            let lateDeliv: {weekId: string, delId: string} | null = null;
-            Object.values(agency.progress).forEach((w: any) => {
-                w.deliverables.forEach((d: any) => {
-                    if (d.grading && d.grading.daysLate > 0) lateDeliv = { weekId: w.id, delId: d.id };
-                });
-            });
-            
-            if (!lateDeliv) {
-                addToTerminal("ERREUR: Aucun retard détecté à effacer.");
-                return;
-            }
-            payload = { weekId: lateDeliv.weekId, deliverableId: lateDeliv.delId };
-        }
         else if (selectedItem === 'BUY_VOTE') {
             if (!targetId) { addToTerminal("ERREUR: Requête cible manquante."); return; }
             payload = { requestId: targetId };
         }
-        else if (selectedItem === 'AUDIT_HOSTILE') {
-            if (!targetId) { addToTerminal("ERREUR: Cible manquante."); return; }
-            payload = { targetId };
+        else if (selectedItem === 'CORRUPTED_FILE') {
+            let lateDeliv: {weekId: string, delId: string} | null = null;
+            Object.values(agency.progress).forEach((w: any) => {
+                w.deliverables.forEach((d: any) => {
+                    if (d.status === 'pending') lateDeliv = { weekId: w.id, delId: d.id };
+                });
+            });
+            if (!lateDeliv) { addToTerminal("ERREUR: Aucun livrable en attente."); return; }
+            payload = { weekId: lateDeliv.weekId, deliverableId: lateDeliv.delId };
+        }
+        else if (selectedItem === 'LAUNDERING') {
+            if (currentUser.individualScore < 3) { addToTerminal("ERREUR: Score insuffisant (Min 3)."); return; }
         }
 
         if ((currentUser.wallet || 0) < cost) {
@@ -120,30 +112,63 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
         // EXECUTE
         addToTerminal(`Exécution ${opType}...`);
         await performBlackOp(currentUser.id, agency.id, opType, payload);
-        addToTerminal("Transaction terminée. Trace effacée (partiellement).");
+        addToTerminal("Opération terminée.");
 
-        // UI FEEDBACK SPECIFIC
+        // --- UI FEEDBACK SPECIFIC ---
         if (opType === 'DOXXING') {
-            // Filter reviews for THIS agency only
             const agencyReviews = reviews.filter(r => r.agencyId === agency.id);
-            const badReviews = agencyReviews.filter(r => 
-                ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3) < 3
-            );
+            const badReviews = agencyReviews.filter(r => ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3) < 3);
             if (badReviews.length > 0) {
-                const reveal = badReviews.map(r => `${r.reviewerName} a noté ${r.targetName} (Moy: ${((r.ratings.attendance+r.ratings.quality+r.ratings.involvement)/3).toFixed(1)})`).join('\n');
-                setDoxxResult(reveal);
-                addToTerminal("RÉSULTAT DOXXING OBTENU.");
+                setDisplayResult(badReviews.map(r => `DENONCIATION : ${r.reviewerName} a mal noté ${r.targetName} (Semaine ${r.weekId})`).join('\n'));
             } else {
-                setDoxxResult("Aucune mauvaise note (< 3/5) détectée cette semaine.");
-                addToTerminal("Rien à signaler.");
+                setDisplayResult("Aucun traître détecté (Notes > 3/5).");
             }
-        } else if (opType === 'LEAK') {
-            addToTerminal("INFO RÉCUPÉRÉE : Surveillez vos notifications système.");
+        } 
+        else if (opType === 'DATA_MINER' && targetId) {
+            const target = rivalAgencies.find(a => a.id === targetId);
+            if (target) {
+                const payroll = target.members.reduce((sum, m) => sum + (m.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
+                const totalCost = payroll + GAME_RULES.AGENCY_RENT;
+                const burnRateWeeks = target.budget_real > 0 ? (target.budget_real / totalCost).toFixed(1) : "0 (En dette)";
+                
+                // Calcul Tension Sociale (Reviews < 3)
+                const targetReviews = reviews.filter(r => r.agencyId === target.id);
+                const badReviewsCount = targetReviews.filter(r => ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3) < 3).length;
+                const tensionLevel = badReviewsCount > 3 ? "CRITIQUE" : badReviewsCount > 0 ? "MODÉRÉE" : "FAIBLE";
+
+                const report = `
+=== RAPPORT D'AUDIT : ${target.name.toUpperCase()} ===
+[FINANCE]
+> Trésorerie : ${target.budget_real} PiXi
+> Coût Hebdo : -${totalCost} PiXi (Salaires: ${payroll})
+> Survie Estimée : ${burnRateWeeks} semaines
+
+[SOCIAL]
+> Effectif : ${target.members.length} membres
+> Tension Interne : ${tensionLevel} (${badReviewsCount} alertes)
+
+[PERFORMANCE]
+> VE Actuelle : ${target.ve_current}
+> Statut : ${target.status.toUpperCase()}
+==============================================
+                `;
+                setDisplayResult(report);
+                addToTerminal("Données extraites. Affichage rapport...");
+            }
+        }
+        else if (opType === 'LAUNDERING') {
+            addToTerminal("Transaction validée. Score débité, Cash crédité.");
+        }
+        else if (opType === 'PUMP_DUMP') {
+            addToTerminal("Marché manipulé. La VE de la cible a augmenté... pour l'instant.");
+        }
+        else if (opType === 'CORRUPTED_FILE') {
+            addToTerminal("Fichier envoyé. En attente de la réaction admin...");
         }
     };
 
     const getTargetSelector = (itemId: string) => {
-        if (itemId === 'SHORT_SELL' || itemId === 'AUDIT_HOSTILE') {
+        if (['SHORT_SELL', 'PUMP_DUMP', 'AUDIT_HOSTILE', 'DATA_MINER'].includes(itemId)) {
             return (
                 <select 
                     className="w-full bg-black border border-[#00ff41] p-2 text-sm mt-2 focus:outline-none"
@@ -189,15 +214,16 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                 <div className="md:col-span-2 overflow-y-auto custom-scrollbar border-r border-[#00ff41]/30 pr-4 space-y-6">
                     
                     <div className="mb-2 flex justify-between items-center text-xs uppercase opacity-50 border-b border-[#00ff41]/30 pb-2">
-                        <span>--- STOCK DISPONIBLE (3 ITEMS MAX) ---</span>
+                        <span>--- ARRIVAGES DU JOUR ---</span>
                         <span className="flex items-center gap-1"><Clock size={12}/> REFRESH DANS : {timeLeft}</span>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {stock.map(item => (
                         <div 
                             key={item.id}
-                            onClick={() => { setSelectedItem(item.id); setTargetId(""); setDoxxResult(null); }}
-                            className={`p-4 border border-[#00ff41]/50 cursor-pointer hover:bg-[#00ff41]/10 transition-all ${selectedItem === item.id ? 'bg-[#00ff41]/20 border-[#00ff41]' : ''}`}
+                            onClick={() => { setSelectedItem(item.id); setTargetId(""); setDisplayResult(null); }}
+                            className={`p-4 border border-[#00ff41]/50 cursor-pointer hover:bg-[#00ff41]/10 transition-all ${selectedItem === item.id ? 'bg-[#00ff41]/20 border-[#00ff41] shadow-[0_0_15px_#00ff4140]' : ''}`}
                         >
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-bold text-lg flex items-center gap-2">
@@ -205,22 +231,23 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                                 </h3>
                                 <span className="font-bold">{item.price} PiXi</span>
                             </div>
-                            <p className="text-sm opacity-80 mb-2">{item.desc}</p>
+                            <p className="text-sm opacity-80 mb-2 min-h-[40px]">{item.desc}</p>
                             
                             {/* DYNAMIC INPUTS */}
                             {selectedItem === item.id && getTargetSelector(item.id)}
 
-                            {/* DOXXING RESULT */}
-                            {selectedItem === 'DOXXING' && item.id === 'DOXXING' && doxxResult && (
-                                <div className="mt-2 p-2 border border-red-500 text-red-500 text-xs whitespace-pre-line bg-red-900/10 animate-in fade-in">
-                                    {doxxResult}
+                            {/* RESULT DISPLAY */}
+                            {selectedItem === item.id && displayResult && (
+                                <div className="mt-2 p-2 border border-yellow-500 text-yellow-500 text-xs whitespace-pre-wrap font-mono bg-yellow-900/10 animate-in fade-in">
+                                    {displayResult}
                                 </div>
                             )}
                         </div>
                     ))}
+                    </div>
 
                     {/* FILLER FOR EMPTY SLOTS VISUAL */}
-                    {[...Array(3 - stock.length)].map((_, i) => (
+                    {[...Array(4 - stock.length)].map((_, i) => (
                         <div key={i} className="p-4 border border-[#00ff41]/10 opacity-30 flex items-center justify-center h-24">
                             <span className="text-xs uppercase">[ RUPTURE DE STOCK ]</span>
                         </div>
