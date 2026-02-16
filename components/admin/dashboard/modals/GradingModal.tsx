@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Deliverable, GameEvent, WeekScoringConfig } from '../../../../types';
 import { useUI } from '../../../../contexts/UIContext';
+import { useGame } from '../../../../contexts/GameContext';
 import { getAgencyPerformanceMultiplier } from '../../../../constants';
 import { calculateBusinessDaysLate } from '../../../../utils/dateUtils';
 import { SubmissionInfo } from './grading/SubmissionInfo';
@@ -18,6 +19,7 @@ interface GradingModalProps {
 
 export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, item, agencies, onUpdateAgency }) => {
     const { toast } = useUI();
+    const { weeks } = useGame(); // Récupération du planning global (Source de vérité)
     
     // --- STATE ---
     const [quality, setQuality] = useState<'A' | 'B' | 'C'>('B');
@@ -50,17 +52,25 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         return { pointsA: 10, pointsB: 4, penaltyLatePerDay: 5, penaltyConstraint: 10, expectedTargetVE: 10 };
     }, [agency, item.weekId]);
 
-    // --- DEADLINE LOGIC (CALENDRIER) ---
-    // On récupère la date prévue dans le planning si la deadline n'est pas fixée dans le livrable
+    // --- DEADLINE LOGIC (CALENDRIER GLOBAL) ---
+    // On récupère la date prévue dans le planning GLOBAL (Admin) si la deadline n'est pas fixée dans le livrable.
+    // Cela assure que si l'admin change la date dans le calendrier, la correction s'adapte.
     const scheduledDeadline = useMemo(() => {
         if (!agency) return undefined;
-        const weekData = agency.progress[item.weekId];
-        if (!weekData) return undefined;
+        
+        // 1. Chercher dans la définition globale (Source de vérité)
+        const globalWeek = weeks[item.weekId];
+        
+        // 2. Fallback sur la copie locale de l'agence si le global n'est pas dispo (rare)
+        const localWeek = agency.progress[item.weekId];
+        
+        const referenceWeek = globalWeek || localWeek;
+        if (!referenceWeek) return undefined;
 
-        const schedule = agency.classId === 'A' ? weekData.schedule.classA : weekData.schedule.classB;
+        const schedule = agency.classId === 'A' ? referenceWeek.schedule.classA : referenceWeek.schedule.classB;
         // On retourne la date du planning (ex: "2024-03-12")
         return schedule?.date;
-    }, [agency, item.weekId]);
+    }, [agency, item.weekId, weeks]);
 
     // --- AUTO-FILL LOGIC ---
     useEffect(() => {
