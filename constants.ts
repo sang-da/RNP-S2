@@ -53,7 +53,7 @@ export const BLACK_MARKET_ITEMS = [
         label: 'Consulting Fantôme', 
         price: 200, // Coût transaction
         icon: Banknote, 
-        desc: "Vendez votre réputation. Echangez 3 points de votre Score contre 1000 PiXi (Cash) immédiatement.",
+        desc: "Vendez votre réputation. Echangez 5 points de votre Score contre 500 PiXi (Cash) immédiatement.",
         requiresTarget: false,
         category: 'FINANCE' 
     },

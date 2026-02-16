@@ -101,7 +101,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
             payload = { weekId: lateDeliv.weekId, deliverableId: lateDeliv.delId };
         }
         else if (selectedItem === 'LAUNDERING') {
-            if (currentUser.individualScore < 3) { addToTerminal("ERREUR: Score insuffisant (Min 3)."); return; }
+            if (currentUser.individualScore < 5) { addToTerminal("ERREUR: Score insuffisant (Min 5)."); return; }
         }
 
         if ((currentUser.wallet || 0) < cost) {

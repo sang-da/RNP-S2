@@ -45,8 +45,8 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
 
       // 2. LAUNDERING (Score -> Cash)
       else if (opType === 'LAUNDERING') {
-          const SCORE_COST = 3;
-          const CASH_GAIN = 1000;
+          const SCORE_COST = 5; // MODIFIÉ : Coût plus élevé
+          const CASH_GAIN = 500; // MODIFIÉ : Gain réduit
           
           if (student.individualScore >= SCORE_COST) {
               updatedMembers = updatedMembers.map(m => m.id === studentId ? { 
