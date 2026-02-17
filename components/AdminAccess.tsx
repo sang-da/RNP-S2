@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Database, UserX, Shield, XCircle, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock, LifeBuoy } from 'lucide-react';
+import { Search, Database, UserX, Shield, Trash2, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock, LifeBuoy } from 'lucide-react';
 import { collection, query, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db, getDoc } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 
@@ -163,33 +163,36 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       }
   };
 
-  const handleFullResetAccount = async (uid: string, displayName: string) => {
+  const handleKickUser = async (uid: string, displayName: string) => {
       if(readOnly) return;
       if (await confirm({ 
-          title: "Réinitialiser le compte ?", 
-          message: `L'utilisateur "${displayName}" sera déconnecté de tout profil étudiant et repassera en attente de validation.`, 
-          confirmText: "Réinitialiser", 
+          title: "Expulser l'utilisateur ?", 
+          message: `L'utilisateur "${displayName}" sera supprimé de la base de données et détaché de tout profil étudiant.\n\nIl devra se reconnecter pour réapparaître en attente.`, 
+          confirmText: "Expulser définitivement", 
           isDangerous: true 
       })) {
            try {
                const batch = writeBatch(db);
-               // Libérer le slot dans l'agence si nécessaire
+               // 1. Libérer le slot dans l'agence si nécessaire (Nettoyage Agence)
                agencies.forEach(agency => {
                    const member = agency.members.find(m => m.id === uid);
                    if (member) {
-                       const newMockId = `s-reset-${Date.now()}`;
+                       // On remplace le membre réel par un placeholder "offline" pour ne pas casser l'agence
+                       const newMockId = `s-kicked-${Date.now()}`;
                        const updatedMembers = agency.members.map(m => m.id === uid ? { ...m, id: newMockId, connectionStatus: 'offline' as const } : m);
                        batch.update(doc(db, "agencies", agency.id), { members: updatedMembers });
                    }
                });
                
-               batch.update(doc(db, "users", uid), { 
-                   role: 'pending', agencyId: null, linkedStudentId: null, studentProfileName: null
-               });
+               // 2. SUPPRIMER le document Utilisateur
+               batch.delete(doc(db, "users", uid));
                
                await batch.commit();
-               toast('success', "Le compte a été remis en attente.");
-           } catch (e) { toast('error', "Échec du reset."); }
+               toast('success', "Utilisateur expulsé et supprimé.");
+           } catch (e) { 
+               console.error(e);
+               toast('error', "Échec de l'expulsion."); 
+            }
       }
   };
 
@@ -295,7 +298,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
             </div>
         )}
 
-        <DuplicateAlerts duplicates={duplicates} onReset={handleFullResetAccount} />
+        <DuplicateAlerts duplicates={duplicates} onReset={handleKickUser} />
 
         <SupervisorsList users={allUsers} />
 
@@ -332,8 +335,8 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                 <button onClick={() => handlePromote(user.uid)} className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
                                     <Shield size={14}/> Prof / Staff
                                 </button>
-                                <button onClick={() => handleFullResetAccount(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                    <XCircle size={20}/>
+                                <button onClick={() => handleKickUser(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Expulser (Supprimer le compte)">
+                                    <Trash2 size={20}/>
                                 </button>
                             </div>
                         </div>
@@ -424,10 +427,10 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     <td className="p-4 text-right">
                                         {user.role !== 'admin' && !readOnly && (
                                             <button 
-                                                onClick={() => handleFullResetAccount(user.uid, user.displayName)}
+                                                onClick={() => handleKickUser(user.uid, user.displayName)}
                                                 className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all flex items-center gap-2 ml-auto shadow-sm"
                                             >
-                                                <RefreshCw size={12}/> Détacher
+                                                <Trash2 size={12}/> Expulser
                                             </button>
                                         )}
                                     </td>

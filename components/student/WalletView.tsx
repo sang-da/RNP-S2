@@ -67,14 +67,21 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
         const val = Number(amount);
         if(val <= 0) return;
 
-        const tax = Math.floor(val * GAME_RULES.INJECTION_TAX);
-        const netReceived = val - tax;
+        // CALCUL DE TAXE CUMULATIVE POUR L'AFFICHAGE (IDENTIQUE LOGIC BACKEND)
+        const previousInjection = student.cumulativeInjection || 0;
+        const newTotalInjection = previousInjection + val;
+        const totalTaxDue = Math.floor(newTotalInjection * GAME_RULES.INJECTION_TAX);
+        const previousTaxPaid = Math.floor(previousInjection * GAME_RULES.INJECTION_TAX);
+        
+        const currentTax = totalTaxDue - previousTaxPaid;
+        const netReceived = val - currentTax;
+        
         const newAgencyBudget = agency.budget_real + netReceived;
         const remaining = walletBalance - val;
 
         const confirmed = await confirm({
             title: "Confirmer l'Investissement",
-            message: `Vous allez injecter ${val} PiXi dans l'agence "${agency.name}".\n\n💰 Taxe (20%) : -${tax} PiXi\n✅ L'agence recevra : +${netReceived} PiXi\n🏦 Nouveau budget agence : ${newAgencyBudget} PiXi\n\nVotre nouveau solde perso : ${remaining} PiXi.\nÊtes-vous sûr ?`,
+            message: `Vous allez injecter ${val} PiXi.\n\n💰 Taxe (20% lissé) : -${currentTax} PiXi\n✅ L'agence recevra : +${netReceived} PiXi\n🏦 Nouveau budget agence : ${newAgencyBudget} PiXi\n\n(Taxe calculée sur le cumul de vos dons : ${previousInjection} + ${val} = ${newTotalInjection})`,
             confirmText: "Injecter le Capital",
             isDangerous: false 
         });
@@ -217,7 +224,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                                 </div>
                                 <h3 className="font-bold text-slate-900 text-lg">Investir dans l'Agence</h3>
                                 <p className="text-sm text-slate-500 mt-1">Injection de fonds personnels.</p>
-                                <p className="text-[10px] text-red-500 font-bold mt-2 uppercase">Taxe de transaction : {(GAME_RULES.INJECTION_TAX * 100)}%</p>
+                                <p className="text-[10px] text-red-500 font-bold mt-2 uppercase">Taxe : 20% (Lissée sur historique)</p>
                             </div>
                             <div className="mt-auto space-y-3">
                                 <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant brut" value={amount} onChange={e => setAmount(e.target.value)} />

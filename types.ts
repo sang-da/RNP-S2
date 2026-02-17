@@ -67,6 +67,7 @@ export interface Student {
     wallet: number;
     savings?: number;
     loanDebt?: number;
+    cumulativeInjection?: number; // NOUVEAU : Total des injections pour calcul taxe lissée
     karma?: number;
     streak?: number;
     classId: 'A' | 'B' | 'ALL';

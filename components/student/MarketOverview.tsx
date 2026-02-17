@@ -5,6 +5,7 @@ import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
 import { CycleObjective } from './dashboard/CycleObjective';
+import { AgencyStatusBoard } from './dashboard/AgencyStatusBoard'; // NOUVEAU
 import { BarChart2, Wallet, History, Lock, ScanEye } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
@@ -15,11 +16,12 @@ interface MarketOverviewProps {
     agency: Agency;
     allAgencies: Agency[];
     currentUser?: Student;
+    onUpdateAgency?: (agency: Agency) => void; // Optional for unassigned
 }
 
 type TabType = 'GRAPH' | 'WALLET' | 'HISTORY';
 
-export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies, currentUser }) => {
+export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies, currentUser, onUpdateAgency }) => {
     const { toast, confirm } = useUI();
     const { weeks, gameConfig, purchaseIntel } = useGame();
     const [activeTab, setActiveTab] = useState<TabType>('GRAPH');
@@ -60,10 +62,11 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     return (
         <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
             
-            {/* NEW: CYCLE OBJECTIVE HEADER */}
+            {/* HEADER : OBJECTIF + STATUS BOARD (Crises & Missions) */}
             {!isUnassigned && (
-                <div className="mb-6">
+                <div className="space-y-6 mb-6">
                     <CycleObjective />
+                    {onUpdateAgency && <AgencyStatusBoard agency={agency} onUpdateAgency={onUpdateAgency} />}
                 </div>
             )}
 

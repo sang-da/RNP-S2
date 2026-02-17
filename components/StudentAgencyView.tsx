@@ -126,7 +126,14 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
         {/* MAIN CONTENT AREA */}
         <div className="flex-1 mb-24 md:mb-8">
             {/* Market désormais accessible à tous (pour voir le graphe) */}
-            {activeTab === 'MARKET' && <MarketOverview agency={agency} allAgencies={allAgencies} currentUser={myMemberProfile} />}
+            {activeTab === 'MARKET' && (
+                <MarketOverview 
+                    agency={agency} 
+                    allAgencies={allAgencies} 
+                    currentUser={myMemberProfile} 
+                    onUpdateAgency={onUpdateAgency}
+                />
+            )}
             
             {activeTab === 'MISSIONS' && agency.id !== 'unassigned' && <MissionsView agency={agency} onUpdateAgency={onUpdateAgency} />}
             {activeTab === 'TEAM' && agency.id !== 'unassigned' && <TeamView agency={agency} onUpdateAgency={onUpdateAgency} />}

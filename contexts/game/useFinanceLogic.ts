@@ -211,7 +211,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           : m
       );
       
-      // LOG THE TRANSFER IN SOURCE AGENCY HISTORY TO TRACK IT
       const transferLog: GameEvent = {
           id: `tx-${Date.now()}`,
           date: new Date().toISOString().split('T')[0],
@@ -228,7 +227,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
 
       const updatedTargetMembers = targetAgency.members.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
       
-      // IF TARGET AGENCY IS DIFFERENT, LOG RECEIPT TOO
       if (sourceAgency.id !== targetAgency.id) {
           const receiptLog: GameEvent = {
               id: `tx-rx-${Date.now()}`,
@@ -260,13 +258,24 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           return;
       }
       
-      const tax = Math.floor(amount * GAME_RULES.INJECTION_TAX);
-      const netInjection = amount - tax;
+      // LOGIQUE TAXE CUMULATIVE
+      const previousInjection = student.cumulativeInjection || 0;
+      const newTotalInjection = previousInjection + amount;
+      
+      const totalTaxDue = Math.floor(newTotalInjection * GAME_RULES.INJECTION_TAX);
+      const previousTaxPaid = Math.floor(previousInjection * GAME_RULES.INJECTION_TAX);
+      
+      const currentTax = totalTaxDue - previousTaxPaid;
+      const netInjection = amount - currentTax;
 
       const batch = writeBatch(db);
       const updatedMembers = agency.members.map(m => 
           m.id === studentId 
-          ? { ...m, wallet: (m.wallet || 0) - amount } 
+          ? { 
+              ...m, 
+              wallet: (m.wallet || 0) - amount,
+              cumulativeInjection: newTotalInjection
+            } 
           : m
       );
       
@@ -275,9 +284,9 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           id: `inj-${Date.now()}`,
           date: today,
           type: 'INFO',
-          label: 'Injection Capital',
+          label: 'Injection Capital (Taxe Cumulative)',
           deltaBudgetReal: netInjection,
-          description: `${student.name} injecte ${amount} PiXi (Taxe: ${tax}).`
+          description: `${student.name} injecte ${amount} PiXi (Taxe ajustée: ${currentTax}).`
       };
 
       batch.update(doc(db, "agencies", agency.id), { 
@@ -286,7 +295,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           eventLog: [...agency.eventLog, newEvent] 
       });
       await batch.commit();
-      toast('success', `Injection: +${netInjection} PiXi (Taxe -${tax})`);
+      toast('success', `Injection: +${netInjection} PiXi (Taxe -${currentTax})`);
   };
 
   const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 
@@ -353,27 +362,23 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       let logEvent: GameEvent | null = null;
 
       if (type === 'TAKE') {
-          // Capacité d'emprunt = (Score * 30) - Dette Actuelle
           const maxCapacity = (student.individualScore * 30) - debt;
           if (amount > maxCapacity) { toast('error', `Capacité dépassée (Max: ${maxCapacity})`); return; }
           
-          // Cout du prêt = 50% d'intérêts immédiats
-          // Emprunte 1000 -> Reçoit 1000, Dette monte de 1500
           newWallet += amount;
           newDebt += Math.floor(amount * 1.5);
 
           logEvent = {
               id: `loan-take-${Date.now()}`,
               date: new Date().toISOString().split('T')[0],
-              type: 'INFO', // On utilise INFO pour ne pas polluer les crises, mais c'est un event majeur
+              type: 'INFO', 
               label: 'Prêt Étudiant Accordé',
               deltaBudgetReal: 0,
               description: `${student.name} emprunte ${amount} PiXi. Dette totale: ${newDebt}.`
           };
 
       } else {
-          // Repayment
-          const repaymentAmount = Math.min(amount, debt); // On ne peut pas rembourser plus que la dette
+          const repaymentAmount = Math.min(amount, debt); 
           if (repaymentAmount > wallet) { toast('error', 'Fonds insuffisants pour rembourser'); return; }
           
           newWallet -= repaymentAmount;
@@ -393,7 +398,6 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
           m.id === studentId ? { ...m, wallet: newWallet, loanDebt: newDebt } : m
       );
 
-      // On update les membres ET on ajoute un log pour l'admin
       await updateDoc(doc(db, "agencies", agencyId), { 
           members: updatedMembers,
           eventLog: logEvent ? [...agency.eventLog, logEvent] : agency.eventLog
@@ -402,5 +406,39 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
   };
 
-  return { processFinance, transferFunds, injectCapital, requestScorePurchase, handleTransactionRequest, manageSavings, manageLoan };
+  // NOUVEAU : FONCTION D'AMNISTIE
+  const wipeDebt = async (studentId: string, agencyId: string) => {
+      const agency = agencies.find(a => a.id === agencyId);
+      if (!agency) return;
+      const student = agency.members.find(m => m.id === studentId);
+      if (!student) return;
+
+      const debt = student.loanDebt || 0;
+      if (debt <= 0) {
+          toast('info', "Aucune dette à effacer.");
+          return;
+      }
+
+      const updatedMembers = agency.members.map(m => 
+          m.id === studentId ? { ...m, loanDebt: 0 } : m
+      );
+
+      const logEvent: GameEvent = {
+          id: `debt-wipe-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'INFO',
+          label: 'Amnistie Bancaire',
+          deltaBudgetReal: 0,
+          description: `La dette de ${student.name} (${debt} PiXi) a été annulée par l'administration.`
+      };
+
+      await updateDoc(doc(db, "agencies", agencyId), {
+          members: updatedMembers,
+          eventLog: [...agency.eventLog, logEvent]
+      });
+
+      toast('success', `Dette de ${student.name} effacée.`);
+  };
+
+  return { processFinance, transferFunds, injectCapital, requestScorePurchase, handleTransactionRequest, manageSavings, manageLoan, wipeDebt };
 };

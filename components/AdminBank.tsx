@@ -1,9 +1,11 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, GameEvent, Student } from '../types';
-import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank, Building2, CreditCard, AlertTriangle, ShieldCheck, MailWarning, Bell } from 'lucide-react';
+import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank, Building2, CreditCard, AlertTriangle, ShieldCheck, MailWarning, Bell, Eye, Eraser } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { doc, updateDoc, db, arrayUnion } from '../services/firebase';
+import { useGame } from '../contexts/GameContext'; // Add useGame import for wipeDebt
+import { Modal } from './Modal'; // Import Modal
 
 interface AdminBankProps {
     agencies: Agency[];
@@ -18,8 +20,12 @@ interface Debtor {
 
 export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
     const { toast, confirm } = useUI();
+    const { wipeDebt } = useGame(); // Import logic
     const [activeView, setActiveView] = useState<'GLOBAL' | 'DEBT'>('GLOBAL');
     
+    // MICRO VIEW STATE
+    const [focusedDebtor, setFocusedDebtor] = useState<Debtor | null>(null);
+
     // 1. CALCULS MACRO
     const stats = useMemo(() => {
         let totalAgencyCash = 0;
@@ -55,7 +61,7 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
             // On filtre pour ne garder que les logs financiers pertinents + LOANS
             const financialEvents = a.eventLog.filter(e => 
                 e.type === 'PAYROLL' || 
-                (e.type === 'INFO' && (e.label.includes('Virement') || e.label.includes('Injection') || e.label.includes('Prêt') || e.label.includes('Remboursement'))) ||
+                (e.type === 'INFO' && (e.label.includes('Virement') || e.label.includes('Injection') || e.label.includes('Prêt') || e.label.includes('Remboursement') || e.label.includes('Amnistie'))) ||
                 e.type === 'REVENUE'
             );
             
@@ -74,26 +80,20 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
             agency.members.forEach(student => {
                 if ((student.loanDebt || 0) > 0) {
                     // Calcul Solvabilité
-                    // Net Worth = (Wallet + Savings) - Debt
-                    // Si Net Worth > 0 : Solvable (AAA ou B)
-                    // Si Net Worth < 0 : Insolvable (C ou D)
-                    
                     const assets = (student.wallet || 0) + (student.savings || 0);
                     const debt = student.loanDebt || 0;
                     const netWorth = assets - debt;
                     
                     let score: 'AAA' | 'B' | 'C' | 'D' = 'B';
-                    
-                    if (netWorth >= debt) score = 'AAA'; // Peut rembourser 2x
-                    else if (netWorth >= 0) score = 'B'; // Peut rembourser juste
-                    else if (Math.abs(netWorth) < 500) score = 'C'; // Léger découvert
-                    else score = 'D'; // Critique
+                    if (netWorth >= debt) score = 'AAA'; 
+                    else if (netWorth >= 0) score = 'B'; 
+                    else if (Math.abs(netWorth) < 500) score = 'C'; 
+                    else score = 'D';
 
                     list.push({ student, agency, solvencyScore: score, netWorth });
                 }
             });
         });
-        // Tri par score de solvabilité (les plus risqués en premier D -> AAA)
         return list.sort((a,b) => {
             const map = { 'D': 0, 'C': 1, 'B': 2, 'AAA': 3 };
             return map[a.solvencyScore] - map[b.solvencyScore];
@@ -119,11 +119,24 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
             };
 
             const agencyRef = doc(db, "agencies", debtor.agency.id);
-            // On utilise arrayUnion pour ajouter proprement sans écraser si l'agence a bougé entre temps
-            await updateDoc(agencyRef, {
-                eventLog: arrayUnion(newEvent)
-            });
+            await updateDoc(agencyRef, { eventLog: arrayUnion(newEvent) });
             toast('success', `Rappel envoyé à ${debtor.student.name}`);
+        }
+    };
+
+    // ACTION : EFFACER DETTE
+    const handleWipeDebt = async () => {
+        if (!focusedDebtor) return;
+        const confirmed = await confirm({
+            title: "Amnistie Bancaire Totale ?",
+            message: `Vous allez annuler la dette de ${focusedDebtor.student.name} (${focusedDebtor.student.loanDebt} PiXi).\n\nCette action est irréversible et créera un précédent.`,
+            confirmText: "Effacer la dette",
+            isDangerous: true
+        });
+
+        if (confirmed) {
+            await wipeDebt(focusedDebtor.student.id, focusedDebtor.agency.id);
+            setFocusedDebtor(null); // Close modal
         }
     };
 
@@ -285,7 +298,7 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {debtors.map((d, idx) => (
-                                        <tr key={`${d.student.id}-${idx}`} className="hover:bg-slate-50 transition-colors">
+                                        <tr key={`${d.student.id}-${idx}`} className="hover:bg-slate-50 transition-colors group">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <img src={d.student.avatarUrl} className="w-8 h-8 rounded-full bg-slate-200"/>
@@ -301,12 +314,21 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                                                 {getSolvencyBadge(d.solvencyScore)}
                                             </td>
                                             <td className="p-4 text-right">
-                                                <button 
-                                                    onClick={() => handleSendReminder(d)}
-                                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-500 rounded-lg text-xs font-bold transition-all shadow-sm"
-                                                >
-                                                    <MailWarning size={14}/> Rappel
-                                                </button>
+                                                <div className="flex gap-2 justify-end">
+                                                    <button 
+                                                        onClick={() => setFocusedDebtor(d)}
+                                                        className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                        title="Voir Détails"
+                                                    >
+                                                        <Eye size={16}/>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleSendReminder(d)}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-500 rounded-lg text-xs font-bold transition-all shadow-sm"
+                                                    >
+                                                        <MailWarning size={14}/> Rappel
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -315,6 +337,65 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* MICRO VIEW MODAL (INSPECTOR) */}
+            {focusedDebtor && (
+                <Modal isOpen={!!focusedDebtor} onClose={() => setFocusedDebtor(null)} title="Inspection Financière (Micro)">
+                    <div className="space-y-6">
+                        {/* HEADER */}
+                        <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <img src={focusedDebtor.student.avatarUrl} className="w-16 h-16 rounded-full border-2 border-white shadow-sm" />
+                            <div>
+                                <h3 className="font-bold text-slate-900 text-lg">{focusedDebtor.student.name}</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase">{focusedDebtor.agency.name}</p>
+                                <div className="mt-2">{getSolvencyBadge(focusedDebtor.solvencyScore)}</div>
+                            </div>
+                        </div>
+
+                        {/* FINANCIAL GRID */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
+                                <p className="text-xs font-bold text-red-400 uppercase mb-1">Dette Totale</p>
+                                <p className="text-2xl font-black text-red-600">-{focusedDebtor.student.loanDebt} PiXi</p>
+                            </div>
+                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
+                                <p className="text-xs font-bold text-emerald-400 uppercase mb-1">Actifs Personnels</p>
+                                <p className="text-2xl font-black text-emerald-600">
+                                    {((focusedDebtor.student.wallet||0) + (focusedDebtor.student.savings||0))} PiXi
+                                </p>
+                                <p className="text-[10px] text-emerald-700">Wallet + Épargne</p>
+                            </div>
+                        </div>
+
+                        {/* AGENCY CONTEXT */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Building2 size={12}/> Santé de l'Agence</h4>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-600">Trésorerie:</span>
+                                <span className={`font-bold ${focusedDebtor.agency.budget_real < 0 ? 'text-red-500' : 'text-slate-900'}`}>{focusedDebtor.agency.budget_real} PiXi</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm mt-1">
+                                <span className="text-slate-600">VE:</span>
+                                <span className="font-bold text-indigo-600">{focusedDebtor.agency.ve_current}</span>
+                            </div>
+                        </div>
+
+                        {/* ACTION AMNISTIE */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <button 
+                                onClick={handleWipeDebt}
+                                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Eraser size={20}/>
+                                Amnistie Totale (Effacer la Dette)
+                            </button>
+                            <p className="text-center text-[10px] text-slate-400 mt-2">
+                                Attention : Cette action est définitive et enregistrée dans l'historique.
+                            </p>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );
