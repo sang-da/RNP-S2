@@ -28,6 +28,25 @@ export interface CareerStep {
     walletAtWeek: number;
 }
 
+export interface CareerHistoryItem {
+    id: string; // Pour manipulation unique
+    date: string;
+    weekId: string; // "S1", "S2"...
+    agencyName: string;
+    action: 'JOINED' | 'LEFT' | 'PROMOTED' | 'DEMOTED' | 'TRANSFER';
+    contextVE?: number;
+    reason?: string;
+}
+
+export interface StudentNote {
+    id: string;
+    date: string;
+    authorName: string;
+    content: string;
+    visibility: 'PRIVATE' | 'PUBLIC'; // PRIVATE = Staff only, PUBLIC = Visible par l'étudiant
+    type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+}
+
 export interface AuditResult {
     concept_score: number;
     viability_score: number;
@@ -53,7 +72,8 @@ export interface Student {
     classId: 'A' | 'B' | 'ALL';
     connectionStatus: 'online' | 'offline';
     badges?: Badge[];
-    history?: any[]; // Keep flexible
+    history?: CareerHistoryItem[]; // Now strictly typed
+    notes?: StudentNote[]; // NOUVEAU
     cvUrl?: string;
 }
 

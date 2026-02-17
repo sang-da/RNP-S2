@@ -116,12 +116,12 @@ const generateMockAgencies = (): Agency[] => {
         connectionStatus: 'offline',
         badges: studentBadges, // Liste des badges calculée
         history: individualAward ? [{
+            id: `hist-s1-${name.replace(/\s+/g, '_')}`,
             date: "2024-02-01",
-            agencyId: "system",
+            weekId: "S1",
             agencyName: "RNP Awards",
             action: "JOINED",
             contextVE: 0,
-            contextBudget: 0,
             reason: `Prix S1 (+${individualAward.amount} PiXi)`
         }] : []
       };

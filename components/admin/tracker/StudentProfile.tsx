@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Student, Agency, Deliverable, PeerReview } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History } from 'lucide-react';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 
@@ -17,6 +17,11 @@ interface StudentProfileProps {
 
 export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, timeline, behaviorStats, portfolio, chartData, gradeDistribution }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+    // On utilise l'historique manuel s'il existe, sinon le timeline calculé (fallback)
+    // Note: timeline est calculé via les reviews, history est manuel. On peut afficher les deux ou prioriser.
+    // Ici on affiche l'historique manuel en priorité pour le parcours.
+    const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
 
     return (
         <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
@@ -51,6 +56,25 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     <StatBox icon={<Star/>} label="Moy. Reçue" value={behaviorStats.avgReceived.toFixed(1)} sub="/5.0" color="bg-yellow-50 text-yellow-600"/>
                 </div>
             </div>
+
+            {/* NOTES PEDAGOGIQUES (NEW) */}
+            {student.notes && student.notes.length > 0 && (
+                <div className="bg-amber-50 p-6 rounded-3xl border border-amber-200 shadow-sm">
+                    <h4 className="font-bold text-amber-900 flex items-center gap-2 mb-4"><StickyNote size={20}/> Notes & Suivi Pédagogique</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {student.notes.sort((a,b) => b.date.localeCompare(a.date)).map(note => (
+                            <div key={note.id} className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm relative overflow-hidden">
+                                <div className={`absolute top-0 left-0 w-1 h-full ${note.visibility === 'PRIVATE' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
+                                <div className="flex justify-between items-start mb-2 pl-3">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{note.date} — {note.authorName}</span>
+                                    {note.visibility === 'PRIVATE' ? <Lock size={12} className="text-amber-400"/> : <Globe size={12} className="text-blue-400"/>}
+                                </div>
+                                <p className="text-sm text-slate-700 pl-3 leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ANALYTICS CHARTS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -123,14 +147,27 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-6"><History size={20}/> Parcours Hebdomadaire</h4>
-                        {timeline.length === 0 ? (
-                            <p className="text-slate-400 italic text-center py-8">Aucune donnée historique trouvée.</p>
-                        ) : (
+                        
+                        {/* PRIORITÉ À L'HISTORIQUE MANUEL S'IL EXISTE */}
+                        {displayHistory.length > 0 ? (
+                            <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
+                                {displayHistory.map(item => (
+                                    <div key={item.id} className="relative pl-12">
+                                        <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-slate-50 border-4 border-white shadow-sm flex items-center justify-center font-bold text-xs text-slate-500 z-10">
+                                            S{item.weekId}
+                                        </div>
+                                        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                            <h5 className="font-bold text-slate-900">{item.agencyName}</h5>
+                                            <p className="text-xs text-slate-500 font-bold uppercase mt-1">{item.action}</p>
+                                            {item.reason && <p className="text-sm text-slate-600 mt-2 italic">"{item.reason}"</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : timeline.length > 0 ? (
                             <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
                                 {timeline.map((step, idx) => {
                                     const avgReceived = step.reviewsReceived.length ? (step.reviewsReceived.reduce((a:any,b:any) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / step.reviewsReceived.length) : 0;
-                                    const avgGiven = step.reviewsGiven.length ? (step.reviewsGiven.reduce((a:any,b:any) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / step.reviewsGiven.length) : 0;
-
                                     return (
                                         <div key={step.weekId} className="relative pl-12">
                                             <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-slate-50 border-4 border-white shadow-sm flex items-center justify-center font-bold text-xs text-slate-500 z-10">
@@ -164,6 +201,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                     );
                                 })}
                             </div>
+                        ) : (
+                            <p className="text-slate-400 italic text-center py-8">Aucune donnée historique.</p>
                         )}
                     </div>
                 </div>
