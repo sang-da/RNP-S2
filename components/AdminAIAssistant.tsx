@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Agency, GameEvent } from '../types';
 import { askGroq } from '../services/groqService';
-import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal, Rocket, BrainCircuit, Target, AlertTriangle, Briefcase, Gavel, PenTool, Coins } from 'lucide-react';
+import { Sparkles, MessageSquare, Zap, Fingerprint, Send, Bot, Copy, RefreshCw, User, Terminal, Rocket, BrainCircuit, Target, AlertTriangle, Briefcase, Gavel, PenTool, Coins, MailWarning, MapPin } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
 import { GAME_RULES } from '../constants';
@@ -26,6 +26,15 @@ interface ProfilerResult {
     recommendation: string;
 }
 
+interface CrisisScenario {
+    title: string;
+    pitch: string;
+    email_object: string;
+    email_body: string;
+    constraints: string[];
+    ve_penalty: number;
+}
+
 export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) => {
     const { toast, confirm } = useUI();
     const { sendChallenge, updateAgency } = useGame();
@@ -39,8 +48,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
     // SCENARIO STATE
     const [targetAgencyId, setTargetAgencyId] = useState(agencies.filter(a => a.id !== 'unassigned')[0]?.id || "");
-    const [generatedContent, setGeneratedContent] = useState("");
-    const [generatedTitle, setGeneratedTitle] = useState(""); 
+    const [generatedCrisis, setGeneratedCrisis] = useState<CrisisScenario | null>(null);
     
     // CHALLENGE MODAL STATE
     const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
@@ -70,11 +78,12 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
             return {
                 name: a.name,
                 class: a.classId,
-                metrics: { ve: a.ve_current, cash: a.budget_real, burn_rate: netFlow },
+                metrics: { ve: a.ve_current, cash: a.budget_real, burn_rate: netFlow, members_count: memberCount },
                 project_identity: {
                     theme: a.projectDef.theme || "Non défini",
                     problem: a.projectDef.problem || "Non défini",
                     target: a.projectDef.target || "Non défini",
+                    location: a.projectDef.location || "Non défini", // Ajout Location
                     direction: a.projectDef.direction || "Non défini",
                     gesture: a.projectDef.gesture || "Non défini"
                 },
@@ -111,26 +120,80 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
     const handleGenerateCrisis = async () => {
         setLoading(true);
+        setGeneratedCrisis(null);
         const context = getRichContextData(targetAgencyId)[0];
         
-        const prompt = `Génère un scénario de CRISE ADMINISTRATIVE ou FINANCIÈRE pour l'agence "${context.name}".
-        Contexte : Ils ont ${context.metrics.cash} PiXi et une VE de ${context.metrics.ve}.
-        Si leur Cashflow est négatif, appuie là où ça fait mal.
-        Le ton doit être froid, administratif et urgent.
-        Format attendu : JSON { "title": "Titre Court", "description": "Texte explicatif" }
+        const prompt = `Génère un ÉVÉNEMENT MAJEUR (Scénario de Crise) pour l'agence "${context.name}" (Design d'Espace).
+        
+        CONTEXTE GÉOGRAPHIQUE & RÉALISTE :
+        - Ville : Cotonou, Bénin.
+        - Contexte : Urbanisme tropical, saison des pluies, enjeux politiques locaux, gentrification, décrets préfectoraux, coupures de courant (SBEE), inflation des matériaux importés.
+        
+        CONTEXTE AGENCE :
+        - Projet : "${context.project_identity.theme}" situé à "${context.project_identity.location}".
+        - Effectif : ${context.metrics.members_count} membres.
+        - Trésorerie : ${context.metrics.cash} PiXi.
+
+        TON OBJECTIF :
+        Tu es un "Game Master" sadique mais juste. Crée un événement narratif FORT qui change la donne du projet et force l'agence à sortir de sa zone de confort.
+        Cela doit ressembler à une nouvelle tombée au JT de 20h ou un mail urgent du client.
+
+        FORMAT ATTENDU (JSON STRICT) :
+        {
+            "title": "Titre Court & Claquant (ex: Décret Littoral 2026)",
+            "pitch": "Le contexte narratif (ex: Ce matin à 8h, la préfecture a annoncé...)",
+            "email_object": "Objet du mail urgent (ex: URGENCE - ARRÊT DU CHANTIER)",
+            "email_body": "Le corps du mail adressé à l'équipe. Ton professionnel, paniqué ou officiel. Doit contenir la mauvaise nouvelle.",
+            "constraints": [
+                "Une contrainte de pivot (ex: Changer de lieu, passer en architecture mobile...)",
+                "Une contrainte RH ou budgétaire (ex: Licencier 1 personne, Budget coupé de 50%...)"
+            ],
+            "ve_penalty": (Nombre entier négatif entre -5 et -20 selon la gravité)
+        }
         `;
 
         try {
-            const result = await askGroq(prompt, context, "Tu es un Auditeur Financier impitoyable. Tu réponds UNIQUEMENT en JSON.");
+            const result = await askGroq(prompt, context, "Tu es un Scénariste de Serious Game expert en contexte africain urbain. Tu réponds UNIQUEMENT en JSON.");
             const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
             const parsed = JSON.parse(jsonStr);
             
-            setGeneratedTitle(parsed.title);
-            setGeneratedContent(parsed.description);
-            // On ne met PAS à jour le challengeForm ici, c'est pour la crise directe
+            setGeneratedCrisis(parsed);
         } catch(e) {
-            setGeneratedContent("Erreur de format IA. Réessayez.");
+            console.error(e);
+            toast('error', "L'IA a trébuché. Réessayez.");
         } finally { setLoading(false); }
+    };
+
+    const handleExecuteCrisis = async () => {
+        if (!generatedCrisis || !targetAgencyId) return;
+        const agency = agencies.find(a => a.id === targetAgencyId);
+        if(!agency) return;
+
+        const isConfirmed = await confirm({
+            title: "Exécuter ce Scénario ?",
+            message: `Cela va impacter l'agence "${agency.name}" de ${generatedCrisis.ve_penalty} VE.\nL'événement sera inscrit dans l'historique.`,
+            confirmText: "DÉCLENCHER",
+            isDangerous: true
+        });
+
+        if (isConfirmed) {
+            const newEvent: GameEvent = {
+                id: `ai-crisis-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'CRISIS',
+                label: generatedCrisis.title,
+                description: `${generatedCrisis.pitch} [Voir mail]. Impact: ${generatedCrisis.ve_penalty} VE.`,
+                deltaVE: generatedCrisis.ve_penalty,
+                deltaBudgetReal: 0
+            };
+            
+            updateAgency({
+                ...agency,
+                ve_current: Math.max(0, agency.ve_current + generatedCrisis.ve_penalty),
+                eventLog: [...agency.eventLog, newEvent]
+            });
+            toast('success', "Scénario activé. À vous d'envoyer le mail !");
+        }
     };
 
     const handleGenerateCreativeForChallenge = async () => {
@@ -160,38 +223,6 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
         } catch(e) {
             toast('error', "L'IA n'a pas pu générer le challenge.");
         } finally { setIsWritingChallenge(false); }
-    };
-
-    const handleExecuteCrisis = async () => {
-        if (!generatedContent || !targetAgencyId) return;
-        const agency = agencies.find(a => a.id === targetAgencyId);
-        if(!agency) return;
-
-        const isConfirmed = await confirm({
-            title: "Exécuter la Crise ?",
-            message: `Vous allez infliger -10 VE à l'agence "${agency.name}" avec ce motif.\n\n"${generatedTitle}"`,
-            confirmText: "APPLIQUER LA SANCTION",
-            isDangerous: true
-        });
-
-        if (isConfirmed) {
-            const newEvent: GameEvent = {
-                id: `ai-crisis-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
-                type: 'CRISIS',
-                label: generatedTitle || "Crise IA",
-                description: generatedContent,
-                deltaVE: -10, // Valeur par défaut pour une crise IA
-                deltaBudgetReal: 0
-            };
-            
-            updateAgency({
-                ...agency,
-                ve_current: Math.max(0, agency.ve_current - 10),
-                eventLog: [...agency.eventLog, newEvent]
-            });
-            toast('success', "Crise IA appliquée avec succès.");
-        }
     };
 
     const handleAnalyzeProfile = async () => {
@@ -241,16 +272,12 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
     const handleSendChallenge = async () => {
         if (!targetAgencyId || !challengeForm.title || !challengeForm.description) return;
-        
-        // On envoie aussi les rewards
         await sendChallenge(targetAgencyId, challengeForm.title, challengeForm.description, challengeForm.rewardVE, challengeForm.rewardBudget);
-        
         setIsChallengeModalOpen(false);
         setChallengeForm({ title: '', description: '', rewardVE: 10, rewardBudget: 500 });
         toast('success', "Offre de mission envoyée !");
     };
 
-    // Helper pour reset le form quand on ouvre la modale
     const openChallengeModal = () => {
         setChallengeForm({ title: '', description: '', rewardVE: 10, rewardBudget: 500 });
         setIsChallengeModalOpen(true);
@@ -286,7 +313,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col relative">
                 
-                {/* MODE: ORACLE (CHAT) - Inchangé... */}
+                {/* MODE: ORACLE (CHAT) */}
                 {mode === 'ORACLE' && (
                     <div className="flex flex-col h-full">
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
@@ -334,18 +361,18 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                     </div>
                 )}
 
-                {/* MODES: GENERATORS */}
+                {/* MODES: GENERATORS (CRISIS & CREA) */}
                 {(mode === 'GENERATOR_CRISIS' || mode === 'GENERATOR_CREA') && (
                     <div className="flex flex-col h-full p-6">
                         <div className={`p-6 rounded-2xl mb-6 text-white shadow-lg flex flex-col md:flex-row gap-6 items-center ${mode === 'GENERATOR_CRISIS' ? 'bg-gradient-to-r from-red-900 to-slate-900' : 'bg-gradient-to-r from-purple-900 to-indigo-900'}`}>
                             <div className="flex-1">
                                 <h3 className="text-xl font-bold flex items-center gap-2 mb-2">
                                     {mode === 'GENERATOR_CRISIS' ? <AlertTriangle/> : <Sparkles/>}
-                                    {mode === 'GENERATOR_CRISIS' ? 'Générateur de Crise & Administration' : 'Directeur de Création Virtuel'}
+                                    {mode === 'GENERATOR_CRISIS' ? 'Générateur de Scénario (Game Master)' : 'Directeur de Création Virtuel'}
                                 </h3>
                                 <p className="text-sm opacity-80">
                                     {mode === 'GENERATOR_CRISIS' 
-                                        ? "Créez des incidents financiers ou administratifs basés sur la santé réelle de l'agence." 
+                                        ? "Générez un événement majeur contextuel (Décret, Météo, Social) pour challenger l'agence." 
                                         : "Générez des 'Missions Commandos' (Challenges) basées sur la réalité du projet de l'agence."}
                                 </p>
                             </div>
@@ -369,7 +396,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                                     className="px-6 py-3 bg-white text-slate-900 font-bold rounded-xl shadow-lg hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {loading ? <RefreshCw className="animate-spin" size={18}/> : <Zap size={18}/>}
-                                    Générer Crise
+                                    Créer le Chaos
                                 </button>
                             ) : (
                                 <button 
@@ -382,39 +409,80 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                             )}
                         </div>
 
-                        {/* RESULT AREA FOR CRISIS ONLY (CREA IS IN MODAL) */}
+                        {/* RESULT AREA FOR CRISIS ONLY */}
                         {mode === 'GENERATOR_CRISIS' && (
                             <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-6 relative overflow-y-auto shadow-inner">
-                                {generatedContent ? (
-                                    <div className="prose prose-slate max-w-none">
-                                        <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
-                                            <div className="flex-1">
-                                                {generatedTitle && <h4 className="text-xl font-bold text-slate-900 mb-2">{generatedTitle}</h4>}
-                                                <div className="text-sm leading-relaxed text-slate-700 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                                    {generatedContent}
+                                {generatedCrisis ? (
+                                    <div className="space-y-6">
+                                        
+                                        {/* HEADER DU SCENARIO */}
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">Scénario Actif</span>
+                                                    <span className="text-red-600 font-bold text-sm">Pénalité: {generatedCrisis.ve_penalty} VE</span>
                                                 </div>
+                                                <h2 className="text-2xl font-black text-slate-900 leading-tight">{generatedCrisis.title}</h2>
                                             </div>
-                                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
+                                            <div className="flex gap-2">
                                                 <button 
                                                     onClick={handleExecuteCrisis}
-                                                    className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+                                                    className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all active:scale-95"
                                                 >
-                                                    <Gavel size={18}/> DÉCLENCHER CETTE CRISE
-                                                </button>
-                                                
-                                                <button 
-                                                    onClick={() => { navigator.clipboard.writeText(`${generatedTitle}\n\n${generatedContent}`); toast('success', 'Copié !'); }} 
-                                                    className="px-4 py-2 bg-white hover:bg-indigo-50 border border-slate-300 text-slate-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-colors"
-                                                >
-                                                    <Copy size={14}/> Copier le texte
+                                                    <Gavel size={18}/> DÉCLENCHER
                                                 </button>
                                             </div>
                                         </div>
+
+                                        {/* LE PITCH NARRATIF */}
+                                        <div className="bg-white p-6 rounded-2xl border-l-4 border-slate-900 shadow-sm">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                <MapPin size={14}/> Le Pitch Narratif (Oral)
+                                            </h4>
+                                            <p className="text-lg text-slate-800 font-medium leading-relaxed italic">
+                                                "{generatedCrisis.pitch}"
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            {/* L'EMAIL À ENVOYER */}
+                                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
+                                                <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><MailWarning size={14}/> Message Officiel</span>
+                                                    <button 
+                                                        onClick={() => { navigator.clipboard.writeText(`OBJET: ${generatedCrisis.email_object}\n\n${generatedCrisis.email_body}`); toast('success', 'Email copié !'); }} 
+                                                        className="text-[10px] bg-white border border-slate-300 px-2 py-1 rounded hover:bg-indigo-50 text-slate-600 flex items-center gap-1 font-bold"
+                                                    >
+                                                        <Copy size={10}/> COPIER
+                                                    </button>
+                                                </div>
+                                                <div className="p-6 font-mono text-sm text-slate-700 bg-slate-50/50 flex-1">
+                                                    <p className="mb-4 font-bold text-slate-900">OBJET: {generatedCrisis.email_object}</p>
+                                                    <p className="whitespace-pre-wrap leading-relaxed">{generatedCrisis.email_body}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* LES NOUVELLES CONTRAINTES */}
+                                            <div className="bg-red-50 rounded-2xl border border-red-100 p-6 shadow-sm">
+                                                <h4 className="text-xs font-bold text-red-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                    <Target size={14}/> Nouvelles Règles du Jeu
+                                                </h4>
+                                                <ul className="space-y-3">
+                                                    {generatedCrisis.constraints.map((rule, idx) => (
+                                                        <li key={idx} className="flex gap-3 items-start text-sm text-red-900">
+                                                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                                                            <span className="font-medium">{rule}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center opacity-30">
                                         <Terminal size={48} className="mb-4"/>
-                                        <p className="font-bold">En attente de génération de crise...</p>
+                                        <p className="font-bold">En attente de génération...</p>
                                     </div>
                                 )}
                             </div>
@@ -431,7 +499,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                     </div>
                 )}
 
-                {/* MODE: PROFILER (VISUEL) - Inchangé... */}
+                {/* MODE: PROFILER (VISUEL) */}
                 {mode === 'PROFILER' && (
                     <div className="flex flex-col h-full p-6">
                         <div className="flex gap-4 mb-6">
