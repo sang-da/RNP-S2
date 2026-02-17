@@ -8,6 +8,7 @@ import { StudentEditModal } from './StudentEditModal';
 interface StudentProfileProps {
     student: Student;
     agency: Agency;
+    allAgencies: Agency[];
     timeline: any[];
     behaviorStats: any;
     portfolio: any[];
@@ -15,7 +16,7 @@ interface StudentProfileProps {
     gradeDistribution: any[];
 }
 
-export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, timeline, behaviorStats, portfolio, chartData, gradeDistribution }) => {
+export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, allAgencies, timeline, behaviorStats, portfolio, chartData, gradeDistribution }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
@@ -257,6 +258,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 onClose={() => setIsEditModalOpen(false)} 
                 student={student} 
                 agency={agency} 
+                allAgencies={allAgencies}
             />
         </div>
     );

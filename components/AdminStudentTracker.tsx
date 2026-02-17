@@ -267,6 +267,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                             <StudentProfile 
                                 student={targetStudent}
                                 agency={targetAgency}
+                                allAgencies={agencies}
                                 timeline={studentTimeline}
                                 behaviorStats={behaviorStats}
                                 portfolio={portfolio}

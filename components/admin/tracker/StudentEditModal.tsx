@@ -13,11 +13,12 @@ interface StudentEditModalProps {
     onClose: () => void;
     student: Student;
     agency: Agency;
+    allAgencies: Agency[];
 }
 
 type TabType = 'GENERAL' | 'HISTORY' | 'NOTES';
 
-export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onClose, student, agency }) => {
+export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onClose, student, agency, allAgencies }) => {
     const { toast } = useUI();
     const { userData } = useAuth();
     
@@ -206,7 +207,20 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
                                 <label className="text-[10px] font-bold uppercase text-slate-400">Ajouter une étape (Correction)</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <input type="text" placeholder="Semaine (ex: 3)" value={newHistoryWeek} onChange={e => setNewHistoryWeek(e.target.value)} className="p-2 rounded-lg border text-sm"/>
-                                    <input type="text" placeholder="Nom Agence" value={newHistoryAgency} onChange={e => setNewHistoryAgency(e.target.value)} className="p-2 rounded-lg border text-sm"/>
+                                    
+                                    {/* MODIFICATION : SELECT AU LIEU D'INPUT */}
+                                    <select 
+                                        value={newHistoryAgency} 
+                                        onChange={e => setNewHistoryAgency(e.target.value)} 
+                                        className="p-2 rounded-lg border text-sm bg-white"
+                                    >
+                                        <option value="">-- Agence --</option>
+                                        {allAgencies.filter(a => a.id !== 'unassigned').sort((a,b) => a.name.localeCompare(b.name)).map(a => (
+                                            <option key={a.id} value={a.name}>{a.name}</option>
+                                        ))}
+                                        <option value="Vivier / Chômage">Vivier / Chômage</option>
+                                    </select>
+
                                     <select value={newHistoryAction} onChange={e => setNewHistoryAction(e.target.value as any)} className="p-2 rounded-lg border text-sm bg-white">
                                         <option value="JOINED">Rejoint</option>
                                         <option value="LEFT">Quitte</option>
