@@ -150,7 +150,7 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                                 VE <HelpCircle size={10}/>
                             </div>
                             <div className={`text-3xl font-display font-bold leading-none ${isElite ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]' : (agency.ve_current >= 60 ? 'text-emerald-400' : 'text-amber-400')}`}>
-                                {agency.ve_current}
+                                {agency.ve_current.toFixed(1)}
                             </div>
                         </div>
                     </div>

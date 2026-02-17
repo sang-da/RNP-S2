@@ -5,18 +5,18 @@ import { MarketGraph } from '../MarketGraph';
 import { WalletView } from './WalletView';
 import { HistoryView } from './HistoryView';
 import { CycleObjective } from './dashboard/CycleObjective';
-import { AgencyStatusBoard } from './dashboard/AgencyStatusBoard'; // NOUVEAU
-import { BarChart2, Wallet, History, Lock, ScanEye } from 'lucide-react';
+import { AgencyStatusBoard } from './dashboard/AgencyStatusBoard'; 
+import { BarChart2, Wallet, History, Lock, ScanEye, Info } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
 import { Modal } from '../Modal';
-import { INITIAL_WEEKS } from '../../constants';
+import { INITIAL_WEEKS, MASCOTS } from '../../constants';
 
 interface MarketOverviewProps {
     agency: Agency;
     allAgencies: Agency[];
     currentUser?: Student;
-    onUpdateAgency?: (agency: Agency) => void; // Optional for unassigned
+    onUpdateAgency?: (agency: Agency) => void;
 }
 
 type TabType = 'GRAPH' | 'WALLET' | 'HISTORY';
@@ -29,6 +29,13 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
 
     const isUnassigned = agency.id === 'unassigned';
     const currentWeekNum = gameConfig.currentWeek;
+
+    // --- MASCOT SELECTION ---
+    const getMascot = () => {
+        if (agency.budget_real <= 0) return MASCOTS.MARKET_POOR;
+        if (agency.budget_real >= 5000) return MASCOTS.MARKET_RICH;
+        return MASCOTS.MARKET_STABLE;
+    };
 
     // INTEL LOGIC
     const lockedWeeks = (Object.values(weeks || INITIAL_WEEKS) as WeekModule[])
@@ -62,15 +69,33 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
     return (
         <div className="animate-in fade-in zoom-in duration-500 w-full pb-24 md:pb-0">
             
-            {/* HEADER : OBJECTIF + STATUS BOARD (Crises & Missions) */}
+            {/* HEADER : OBJECTIF + STATUS BOARD */}
             {!isUnassigned && (
                 <div className="space-y-6 mb-6">
-                    <CycleObjective />
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="flex-1">
+                            <CycleObjective />
+                        </div>
+                        {/* MASCOTTE CARD */}
+                        <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm flex items-center gap-4 relative overflow-hidden md:w-1/3">
+                            <div className="absolute top-0 right-0 w-20 h-full bg-gradient-to-l from-slate-100 to-transparent"></div>
+                            <img src={getMascot()} className="h-20 w-auto drop-shadow-md z-10 animate-bounce-slow" alt="Mascotte" />
+                            <div className="z-10">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Santé Financière</p>
+                                <p className={`text-2xl font-black ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-900'}`}>
+                                    {agency.budget_real.toLocaleString()} <span className="text-sm font-bold text-slate-400">px</span>
+                                </p>
+                                <div className={`text-xs font-bold px-2 py-0.5 rounded w-fit mt-1 ${agency.budget_real < 0 ? 'bg-red-100 text-red-600' : agency.budget_real > 5000 ? 'bg-yellow-100 text-yellow-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {agency.budget_real < 0 ? 'En Difficulté' : agency.budget_real > 5000 ? 'Prospère' : 'Stable'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     {onUpdateAgency && <AgencyStatusBoard agency={agency} onUpdateAgency={onUpdateAgency} />}
                 </div>
             )}
 
-            {/* MOBILE TABS (SUB-SLIDER) */}
+            {/* MOBILE TABS */}
             <div className="md:hidden flex gap-2 bg-slate-200 p-1 rounded-xl mb-4 overflow-x-auto no-scrollbar">
                 <button onClick={() => setActiveTab('GRAPH')} className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold whitespace-nowrap transition-colors flex items-center justify-center gap-2 ${activeTab === 'GRAPH' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
                     <BarChart2 size={16}/> Marché

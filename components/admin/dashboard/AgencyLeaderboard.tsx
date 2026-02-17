@@ -38,7 +38,7 @@ export const AgencyLeaderboard: React.FC<AgencyLeaderboardProps> = ({ activeAgen
                                 </div>
                             </div>
                             <div className="text-right">
-                                <span className="block font-display font-bold text-xl text-emerald-600">{agency.ve_current}</span>
+                                <span className="block font-display font-bold text-xl text-emerald-600">{agency.ve_current.toFixed(1)}</span>
                                 <span className="text-[10px] text-slate-400 font-bold uppercase">VE</span>
                             </div>
                         </div>
@@ -65,7 +65,7 @@ export const AgencyLeaderboard: React.FC<AgencyLeaderboardProps> = ({ activeAgen
                                 </div>
                             </div>
                             <div className="text-right">
-                                <span className="block font-display font-bold text-xl text-red-500">{agency.ve_current}</span>
+                                <span className="block font-display font-bold text-xl text-red-500">{agency.ve_current.toFixed(1)}</span>
                                 <span className="text-[10px] text-slate-400 font-bold uppercase">VE</span>
                             </div>
                         </div>

@@ -1,11 +1,12 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, GameEvent, Student } from '../types';
-import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank, Building2, CreditCard, AlertTriangle, ShieldCheck, MailWarning, Bell, Eye, Eraser } from 'lucide-react';
+import { Wallet, Landmark, TrendingUp, ArrowRightLeft, Users, PiggyBank, Building2, CreditCard, AlertTriangle, ShieldCheck, MailWarning, Bell, Eye, Eraser, Microscope } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { doc, updateDoc, db, arrayUnion } from '../services/firebase';
-import { useGame } from '../contexts/GameContext'; // Add useGame import for wipeDebt
-import { Modal } from './Modal'; // Import Modal
+import { useGame } from '../contexts/GameContext'; 
+import { Modal } from './Modal';
+import { BankMicroView } from './admin/bank/BankMicroView';
 
 interface AdminBankProps {
     agencies: Agency[];
@@ -20,8 +21,8 @@ interface Debtor {
 
 export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
     const { toast, confirm } = useUI();
-    const { wipeDebt } = useGame(); // Import logic
-    const [activeView, setActiveView] = useState<'GLOBAL' | 'DEBT'>('GLOBAL');
+    const { wipeDebt } = useGame();
+    const [activeView, setActiveView] = useState<'GLOBAL' | 'DEBT' | 'MICRO'>('GLOBAL');
     
     // MICRO VIEW STATE
     const [focusedDebtor, setFocusedDebtor] = useState<Debtor | null>(null);
@@ -161,66 +162,76 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                     <p className="text-slate-500 text-sm mt-1">Supervision de la masse monétaire et des risques de crédit.</p>
                 </div>
                 
-                <div className="flex bg-slate-100 p-1 rounded-xl">
+                <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto">
                     <button 
                         onClick={() => setActiveView('GLOBAL')}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${activeView === 'GLOBAL' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-400'}`}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'GLOBAL' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-400'}`}
                     >
                         <Building2 size={14}/> Vue Macro
                     </button>
                     <button 
                         onClick={() => setActiveView('DEBT')}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${activeView === 'DEBT' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'DEBT' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}
                     >
                         <AlertTriangle size={14}/> Observatoire Dette
                         {debtors.length > 0 && <span className="bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[9px]">{debtors.length}</span>}
                     </button>
+                    <button 
+                        onClick={() => setActiveView('MICRO')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'MICRO' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                    >
+                        <Microscope size={14}/> Audit Micro
+                    </button>
                 </div>
             </div>
 
-            {/* KPI CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Masse Monétaire (PIB)</p>
-                    <p className="text-3xl font-black">{stats.totalCash.toLocaleString()} PiXi</p>
-                    <div className="w-full bg-slate-700 h-1 mt-3 rounded-full overflow-hidden flex">
-                        <div className="bg-indigo-500 h-full" style={{width: `${(stats.agencyShare/stats.totalCash)*100}%`}}></div>
-                        <div className="bg-emerald-500 h-full" style={{width: `${(stats.studentShare/stats.totalCash)*100}%`}}></div>
+            {/* KPI CARDS (Only visible in GLOBAL or DEBT) */}
+            {activeView !== 'MICRO' && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Masse Monétaire (PIB)</p>
+                        <p className="text-3xl font-black">{stats.totalCash.toLocaleString()} PiXi</p>
+                        <div className="w-full bg-slate-700 h-1 mt-3 rounded-full overflow-hidden flex">
+                            <div className="bg-indigo-500 h-full" style={{width: `${(stats.agencyShare/stats.totalCash)*100}%`}}></div>
+                            <div className="bg-emerald-500 h-full" style={{width: `${(stats.studentShare/stats.totalCash)*100}%`}}></div>
+                        </div>
+                        <div className="flex justify-between text-[9px] mt-1 text-slate-400">
+                            <span>Agences ({(stats.agencyShare/stats.totalCash*100).toFixed(0)}%)</span>
+                            <span>Étudiants ({(stats.studentShare/stats.totalCash*100).toFixed(0)}%)</span>
+                        </div>
                     </div>
-                    <div className="flex justify-between text-[9px] mt-1 text-slate-400">
-                        <span>Agences ({(stats.agencyShare/stats.totalCash*100).toFixed(0)}%)</span>
-                        <span>Étudiants ({(stats.studentShare/stats.totalCash*100).toFixed(0)}%)</span>
-                    </div>
-                </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Wallet size={20}/></div>
-                        <p className="text-sm font-bold text-slate-500">Richesse Étudiante</p>
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Wallet size={20}/></div>
+                            <p className="text-sm font-bold text-slate-500">Richesse Étudiante</p>
+                        </div>
+                        <p className="text-2xl font-bold text-slate-900">{stats.studentShare.toLocaleString()}</p>
+                        <p className="text-xs text-slate-400">Moyenne: {stats.avgStudent} par tête</p>
                     </div>
-                    <p className="text-2xl font-bold text-slate-900">{stats.studentShare.toLocaleString()}</p>
-                    <p className="text-xs text-slate-400">Moyenne: {stats.avgStudent} par tête</p>
-                </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Building2 size={20}/></div>
-                        <p className="text-sm font-bold text-slate-500">Fonds Agences</p>
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Building2 size={20}/></div>
+                            <p className="text-sm font-bold text-slate-500">Fonds Agences</p>
+                        </div>
+                        <p className="text-2xl font-bold text-slate-900">{stats.agencyShare.toLocaleString()}</p>
                     </div>
-                    <p className="text-2xl font-bold text-slate-900">{stats.agencyShare.toLocaleString()}</p>
-                </div>
 
-                <div className={`p-5 rounded-2xl border shadow-sm transition-colors ${stats.debt > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-red-100 text-red-600 rounded-lg"><TrendingUp size={20}/></div>
-                        <p className="text-sm font-bold text-slate-500">Dette Globale</p>
+                    <div className={`p-5 rounded-2xl border shadow-sm transition-colors ${stats.debt > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-red-100 text-red-600 rounded-lg"><TrendingUp size={20}/></div>
+                            <p className="text-sm font-bold text-slate-500">Dette Globale</p>
+                        </div>
+                        <p className="text-2xl font-bold text-red-600">-{stats.debt.toLocaleString()}</p>
                     </div>
-                    <p className="text-2xl font-bold text-red-600">-{stats.debt.toLocaleString()}</p>
                 </div>
-            </div>
+            )}
 
             {/* CONTENT VIEW SWITCHER */}
-            {activeView === 'GLOBAL' ? (
+            {activeView === 'MICRO' ? (
+                <BankMicroView agencies={agencies} />
+            ) : activeView === 'GLOBAL' ? (
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4">
                     <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -339,9 +350,9 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                 </div>
             )}
 
-            {/* MICRO VIEW MODAL (INSPECTOR) */}
-            {focusedDebtor && (
-                <Modal isOpen={!!focusedDebtor} onClose={() => setFocusedDebtor(null)} title="Inspection Financière (Micro)">
+            {/* MICRO VIEW MODAL (INSPECTOR) - DEPRECATED HERE, MOVED TO MICRO VIEW TAB */}
+            {focusedDebtor && activeView !== 'MICRO' && (
+                <Modal isOpen={!!focusedDebtor} onClose={() => setFocusedDebtor(null)} title="Inspection Financière (Dette)">
                     <div className="space-y-6">
                         {/* HEADER */}
                         <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">

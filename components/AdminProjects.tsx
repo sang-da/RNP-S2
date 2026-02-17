@@ -194,7 +194,7 @@ export const AdminProjects: React.FC<AdminProjectsProps> = ({ agencies, onUpdate
                                     ) : <span className="text-slate-300 text-xs">-</span>}
                                 </td>
                                 <td className="p-3 text-right font-display font-bold text-slate-900">
-                                    {agency.ve_current}
+                                    {agency.ve_current.toFixed(1)}
                                 </td>
                                 <td className="p-3 text-right">
                                     <div className="flex justify-end gap-1">
