@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Deliverable, WeekModule, TransactionRequest, AIInsight } from '../types';
 import { collection, query, where, onSnapshot, db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
+import { useGame } from '../contexts/GameContext';
 
 // IMPORTS SUB-COMPONENTS
 import { ActionToolbar } from './admin/dashboard/ActionToolbar';
@@ -28,6 +29,11 @@ interface AdminDashboardProps {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSelectAgency, onUpdateAgency, onNavigate, readOnly }) => {
   const { toast } = useUI();
+  const { gameConfig } = useGame();
+  
+  // CHECK SPECIFIC WRITE PERMISSION FOR OVERVIEW IF SUPERVISOR
+  // Si readOnly est true (superviseur), on vérifie si l'accès écriture est accordé spécifiquement pour 'OVERVIEW'
+  const canWrite = !readOnly || (gameConfig.supervisorPermissions?.['OVERVIEW']?.canWrite === true);
   
   const [gradingItem, setGradingItem] = useState<{agencyId: string, weekId: string, deliverable: Deliverable} | null>(null);
   const [auditAgency, setAuditAgency] = useState<Agency | null>(null);
@@ -98,7 +104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
 
   // --- AI ACTION HANDLER ---
   const handleAIAction = (insight: AIInsight) => {
-      if(readOnly) return;
+      if(!canWrite) return;
       
       const targetAgency = agencies.find(a => a.id === insight.targetAgencyId);
       if(!targetAgency) return;
@@ -123,11 +129,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         setSelectedClass={setSelectedClass}
         onNavigate={onNavigate}
         onOpenControlPanel={() => setShowControlPanel(true)}
-        readOnly={readOnly}
+        readOnly={!canWrite}
       />
 
       {/* --- AI BRIEFING SECTION (NEW) --- */}
-      {!readOnly && (
+      {canWrite && (
           <AIBriefing agencies={activeAgencies} onApplyAction={handleAIAction} />
       )}
 
@@ -144,7 +150,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
             onNavigate={onNavigate}
             onSetGradingItem={setGradingItem}
             onSetAuditAgency={setAuditAgency}
-            readOnly={readOnly}
+            readOnly={!canWrite}
         />
 
         {/* --- CENTER COL: PERFORMANCE --- */}
@@ -159,7 +165,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
       </div>
 
       {/* MODALS */}
-      {gradingItem && !readOnly && (
+      {gradingItem && canWrite && (
           <GradingModal 
             isOpen={!!gradingItem} 
             onClose={() => setGradingItem(null)}
@@ -174,7 +180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
             agency={auditAgency} 
             onClose={() => setAuditAgency(null)} 
             onUpdateAgency={onUpdateAgency}
-            readOnly={readOnly}
+            readOnly={!canWrite}
           />
       )}
 

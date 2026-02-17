@@ -1,5 +1,4 @@
 
-
 export type BrandColor = 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'slate';
 
 export interface BadgeReward {
@@ -253,6 +252,14 @@ export interface WikiResource {
     date: string;
 }
 
+// NOUVEAU TYPE POUR LA CONFIG SUPERVISEUR
+export interface SupervisorPermissions {
+    [viewId: string]: {
+        visible: boolean; // Si faux, l'onglet disparait du menu
+        canWrite: boolean; // Si faux, mode lecture seule (readOnly=true)
+    };
+}
+
 export interface GameConfig {
     id: string;
     currentCycle: number;
@@ -260,6 +267,7 @@ export interface GameConfig {
     autoPilot: boolean;
     lastFinanceRun: string | null;
     lastPerformanceRun: string | null;
+    supervisorPermissions?: SupervisorPermissions; // AJOUTÉ
 }
 
 export interface AIInsight {

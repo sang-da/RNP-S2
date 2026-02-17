@@ -6,7 +6,8 @@ import { useUI } from '../contexts/UIContext';
 import { updateProfile } from '../services/firebase';
 import { auth } from '../services/firebase';
 import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2, Bell, FileSpreadsheet } from 'lucide-react';
-import { DataExportModal } from './admin/DataExportModal'; // IMPORT
+import { DataExportModal } from './admin/DataExportModal';
+import { SupervisorPermissions } from './admin/settings/SupervisorPermissions'; // IMPORT
 
 interface AdminSettingsProps {
     readOnly?: boolean;
@@ -14,13 +15,13 @@ interface AdminSettingsProps {
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
     const { userData, currentUser } = useAuth();
-    const { resetGame, agencies } = useGame(); // GET AGENCIES
+    const { resetGame, agencies } = useGame();
     const { confirm, toast } = useUI();
     
     const [displayName, setDisplayName] = useState(userData?.displayName || '');
     const [isSaving, setIsSaving] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
-    const [isExportModalOpen, setIsExportModalOpen] = useState(false); // MODAL STATE
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const handleUpdateProfile = async () => {
         if(readOnly) return;
@@ -84,102 +85,111 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
                 <p className="text-slate-500 text-sm mt-1">Gérez votre profil enseignant et les configurations système.</p>
             </div>
 
-            <div className="space-y-8 max-w-3xl">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 
-                {/* PROFILE CARD */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-                        <User size={20} className="text-indigo-500"/> Mon Profil Enseignant
-                    </h3>
-                    
-                    <div className="flex flex-col md:flex-row gap-6">
-                         <div className="shrink-0">
-                            <img src={userData?.photoURL || ''} className="w-24 h-24 rounded-full border-4 border-slate-50 bg-slate-100" />
-                         </div>
-                         <div className="flex-1 space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Non modifiable)</label>
-                                <input disabled value={userData?.email || ''} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 font-mono text-sm cursor-not-allowed"/>
+                {/* COLONNE GAUCHE : PROFIL & EXPORTS */}
+                <div className="space-y-8">
+                    {/* PROFILE CARD */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <User size={20} className="text-indigo-500"/> Mon Profil Enseignant
+                        </h3>
+                        
+                        <div className="flex flex-col md:flex-row gap-6">
+                            <div className="shrink-0">
+                                <img src={userData?.photoURL || ''} className="w-24 h-24 rounded-full border-4 border-slate-50 bg-slate-100" />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom d'affichage</label>
-                                <input 
-                                    value={displayName} 
-                                    onChange={e => setDisplayName(e.target.value)}
-                                    disabled={readOnly}
-                                    className={`w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                />
+                            <div className="flex-1 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Non modifiable)</label>
+                                    <input disabled value={userData?.email || ''} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 font-mono text-sm cursor-not-allowed"/>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom d'affichage</label>
+                                    <input 
+                                        value={displayName} 
+                                        onChange={e => setDisplayName(e.target.value)}
+                                        disabled={readOnly}
+                                        className={`w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    />
+                                </div>
+                                {!readOnly && (
+                                <div className="flex flex-wrap gap-2">
+                                    <button 
+                                        onClick={handleUpdateProfile}
+                                        disabled={isSaving}
+                                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                    >
+                                        {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
+                                        Enregistrer
+                                    </button>
+                                    <button 
+                                        onClick={handleTestNotification}
+                                        className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2"
+                                    >
+                                        <Bell size={18}/> Activer Notifs
+                                    </button>
+                                </div>
+                                )}
                             </div>
-                            {!readOnly && (
-                            <div className="flex flex-wrap gap-2">
-                                <button 
-                                    onClick={handleUpdateProfile}
-                                    disabled={isSaving}
-                                    className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                                >
-                                    {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
-                                    Enregistrer
-                                </button>
-                                <button 
-                                    onClick={handleTestNotification}
-                                    className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2"
-                                >
-                                    <Bell size={18}/> Activer Notifs
-                                </button>
-                            </div>
-                            )}
-                         </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* SECTION EXPORT */}
-                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
-                    <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2">
-                        <FileSpreadsheet size={20}/> Exports & Rapports
-                    </h3>
-                    <p className="text-sm text-emerald-700/80 mb-4">
-                        Générez des fichiers CSV contenant toutes les données brutes (Agences, Notes, Livrables, Historique) pour traitement dans Excel.
-                    </p>
-                    <button 
-                        onClick={() => setIsExportModalOpen(true)}
-                        className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
-                    >
-                        <FileSpreadsheet size={18}/> Exporter les données
-                    </button>
-                </div>
-
-                {/* DANGER ZONE */}
-                {!readOnly && (
-                <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                    <h3 className="font-bold text-red-800 mb-4 flex items-center gap-2">
-                        <AlertTriangle size={20}/> Zone Super Admin
-                    </h3>
-                    <p className="text-sm text-red-600/80 mb-6 max-w-xl">
-                        Ces actions sont irréversibles. Ne les utilisez qu'en cas de problème majeur (base de données corrompue ou démarrage d'un nouveau semestre).
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    {/* SECTION EXPORT */}
+                    <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                        <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                            <FileSpreadsheet size={20}/> Exports & Rapports
+                        </h3>
+                        <p className="text-sm text-emerald-700/80 mb-4">
+                            Générez des fichiers CSV contenant toutes les données brutes (Agences, Notes, Livrables, Historique) pour traitement dans Excel.
+                        </p>
                         <button 
-                            onClick={handleResetDB}
-                            disabled={isResetting}
-                            className="px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+                            onClick={() => setIsExportModalOpen(true)}
+                            className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
                         >
-                            {isResetting ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                            Réinitialiser la Base de Données
+                            <FileSpreadsheet size={18}/> Exporter les données
                         </button>
                     </div>
-                </div>
-                )}
 
-                {/* LOGOUT */}
-                <div className="pt-8 border-t border-slate-200">
-                     <button 
-                        onClick={() => auth.signOut()}
-                        className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold transition-colors"
-                     >
-                        <LogOut size={18}/> Se déconnecter
-                     </button>
+                    {/* DANGER ZONE */}
+                    {!readOnly && (
+                    <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                        <h3 className="font-bold text-red-800 mb-4 flex items-center gap-2">
+                            <AlertTriangle size={20}/> Zone Super Admin
+                        </h3>
+                        <p className="text-sm text-red-600/80 mb-6 max-w-xl">
+                            Ces actions sont irréversibles. Ne les utilisez qu'en cas de problème majeur (base de données corrompue ou démarrage d'un nouveau semestre).
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button 
+                                onClick={handleResetDB}
+                                disabled={isResetting}
+                                className="px-6 py-3 bg-white border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+                            >
+                                {isResetting ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
+                                Réinitialiser la Base de Données
+                            </button>
+                        </div>
+                    </div>
+                    )}
                 </div>
+
+                {/* COLONNE DROITE : PERMISSIONS */}
+                <div className="space-y-8">
+                    {!readOnly && <SupervisorPermissions />}
+                </div>
+
+            </div>
+
+            {/* LOGOUT */}
+            <div className="mt-8 pt-8 border-t border-slate-200">
+                    <button 
+                    onClick={() => auth.signOut()}
+                    className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold transition-colors"
+                    >
+                    <LogOut size={18}/> Se déconnecter
+                    </button>
             </div>
 
             {/* EXPORT MODAL */}

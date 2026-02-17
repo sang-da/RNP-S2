@@ -19,7 +19,7 @@ import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
 import { AdminBank } from './components/AdminBank'; 
 import { AdminBlackMarket } from './components/AdminBlackMarket';
 import { AdminStudentTracker } from './components/AdminStudentTracker'; 
-import { AdminBadges } from './components/AdminBadges'; // NEW IMPORT
+import { AdminBadges } from './components/AdminBadges'; 
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { TheBackdoor } from './components/student/TheBackdoor'; 
@@ -30,6 +30,7 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Termi
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
+// NOTE: Le type AdminViewType doit correspondre aux IDs dans adminMenu.ts
 type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES';
 
 const GameContainer: React.FC = () => {
@@ -42,7 +43,8 @@ const GameContainer: React.FC = () => {
     weeks,
     updateWeek,
     updateAgenciesList,
-    shuffleConstraints
+    shuffleConstraints,
+    gameConfig // Config pour les permissions
   } = useGame();
 
   const [adminView, setAdminView] = useState<AdminViewType>('OVERVIEW');
@@ -50,9 +52,11 @@ const GameContainer: React.FC = () => {
   const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR'>('NONE');
   const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
 
-  // Redirection initiale pour les superviseurs
+  // Redirection initiale pour les superviseurs (car OVERVIEW peut être caché)
   useEffect(() => {
     if (userData?.role === 'supervisor' && adminView === 'OVERVIEW') {
+      // On cherche la première vue visible dans la config
+      // Simplification : on redirige vers MARKET qui est souvent safe
       setAdminView('MARKET');
     }
   }, [userData]);
@@ -87,7 +91,13 @@ const GameContainer: React.FC = () => {
 
   // CAS 1 : ADMIN OU SUPERVISEUR
   if (userData?.role === 'admin' || userData?.role === 'supervisor') {
-      const isReadOnly = userData.role === 'supervisor';
+      const isSupervisor = userData.role === 'supervisor';
+      
+      // Determine effective ReadOnly status based on View Config
+      // Par défaut ReadOnly si superviseur, sauf si la config dit "canWrite: true" pour cette vue
+      const viewPermission = gameConfig.supervisorPermissions?.[adminView];
+      const hasWriteAccess = !isSupervisor || (viewPermission?.canWrite === true);
+      const isViewReadOnly = !hasWriteAccess;
 
       if (simulationMode !== 'NONE') {
           const exitSimulation = () => { setSimulationMode('NONE'); setSimulatedAgencyId(null); };
@@ -137,7 +147,7 @@ const GameContainer: React.FC = () => {
                     <ChevronRight size={14} className="text-slate-300"/><span className="text-slate-400 text-sm font-medium">Agences</span><ChevronRight size={14} className="text-slate-300"/><span className="text-indigo-700 text-sm font-bold bg-indigo-50 px-2 py-0.5 rounded-md">{agency.name}</span>
                  </div>
                  <div className="p-4 md:p-8">
-                    <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={isReadOnly ? () => {} : updateAgency} />
+                    <StudentAgencyView agency={agency} allAgencies={agencies} onUpdateAgency={isViewReadOnly ? () => {} : updateAgency} />
                  </div>
             </div>
         );
@@ -155,34 +165,33 @@ const GameContainer: React.FC = () => {
             />
             <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                 <NewsTicker />
-                {isReadOnly && <div className="bg-purple-600 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2"><Eye size={14}/> Mode Superviseur (Lecture Seule)</div>}
+                {isSupervisor && (
+                    <div className={`px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2 ${hasWriteAccess ? 'bg-amber-600 text-white' : 'bg-purple-600 text-white'}`}>
+                        {hasWriteAccess ? <EyeOff size={14}/> : <Eye size={14}/>} 
+                        {hasWriteAccess ? 'Mode Superviseur (Écriture Autorisée)' : 'Mode Superviseur (Lecture Seule)'}
+                    </div>
+                )}
                 <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
                     <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"><Menu size={24} /></button>
                     
-                    {/* Vues Communes Admin & Superviseur */}
+                    {/* ROUTING DES VUES AVEC INJECTION DU STATUT READONLY */}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
                     {adminView === 'BANK' && <AdminBank agencies={agencies} />}
                     {adminView === 'STUDENT_TRACKER' && <AdminStudentTracker agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
-                    {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
+                    {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} />}
-                    {adminView === 'SETTINGS' && <AdminSettings readOnly={isReadOnly} />}
+                    {adminView === 'SETTINGS' && <AdminSettings readOnly={isViewReadOnly} />}
                     {adminView === 'BADGES' && <AdminBadges agencies={agencies} />}
-
-                    {/* Vues réservées Admin Principal */}
-                    {!isReadOnly && (
-                      <>
-                        {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isReadOnly} />}
-                        {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
-                        {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
-                        {adminView === 'BLACK_MARKET' && <AdminBlackMarket />}
-                        {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
-                        {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isReadOnly} />}
-                        {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isReadOnly} />}
-                        {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isReadOnly} />}
-                        {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isReadOnly} />}
-                      </>
-                    )}
+                    {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isViewReadOnly} />}
+                    {adminView === 'ANALYTICS' && <AdminAnalytics agencies={agencies} />}
+                    {adminView === 'AI_ASSISTANT' && <AdminAIAssistant agencies={agencies} />}
+                    {adminView === 'BLACK_MARKET' && <AdminBlackMarket />}
+                    {adminView === 'ACCESS' && <AdminAccess agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isViewReadOnly} />}
+                    {adminView === 'SCHEDULE' && <AdminSchedule weeksData={weeks} onUpdateWeek={updateWeek} readOnly={isViewReadOnly} />}
+                    {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isViewReadOnly} />}
+                    {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
+                    {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isViewReadOnly} />}
                 </div>
             </div>
           </>
