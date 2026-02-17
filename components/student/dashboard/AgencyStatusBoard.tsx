@@ -127,17 +127,17 @@ export const AgencyStatusBoard: React.FC<AgencyStatusBoardProps> = ({ agency, on
 
                         <div className="space-y-3">
                             {specialDeliverables.slice(0, 2).map((item) => (
-                                <div key={item.del.id} className="group/item bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl p-3 transition-all flex items-center justify-between gap-3">
+                                <div key={item.del.id} className="group/item bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl p-3 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm text-slate-800 truncate">{item.del.name}</p>
-                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.del.description}</p>
+                                        <p className="font-bold text-sm text-slate-800 leading-tight mb-1">{item.del.name}</p>
+                                        <p className="text-xs text-slate-600 leading-relaxed">{item.del.description}</p>
                                     </div>
                                     <button 
                                         onClick={() => {
                                             setChecks({ naming: false, format: false, resolution: false, audio: false });
                                             setUploadTarget({ delId: item.del.id, weekId: item.weekId });
                                         }}
-                                        className="shrink-0 px-3 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-[10px] font-bold uppercase shadow-sm hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center gap-1.5"
+                                        className="shrink-0 w-full sm:w-auto px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-xs font-bold uppercase shadow-sm hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-1.5"
                                     >
                                         <Upload size={12}/> Dépôt
                                     </button>
