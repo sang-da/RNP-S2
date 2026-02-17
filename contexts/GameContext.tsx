@@ -8,7 +8,7 @@ import { doc, updateDoc, writeBatch, setDoc, deleteDoc, db, onSnapshot, getDoc }
 // IMPORT SUB-HOOKS
 import { useGameSync } from './game/useGameSync';
 import { useFinanceLogic } from './game/useFinanceLogic';
-import { useGameMechanics } from './game/useGameMechanics';
+import { useGameMechanics } from './game/mechanics/useGameMechanics';
 
 interface GameContextType {
   agencies: Agency[];

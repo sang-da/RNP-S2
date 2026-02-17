@@ -30,15 +30,27 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         const anomalies: string[] = [];
         const agencyReviews = allReviews.filter(r => r.agencyId === agency.id);
         
+        // 1. Notes suspectes (trop hautes)
         if (agencyReviews.length > 2) {
             const averageScore = agencyReviews.reduce((acc, r) => 
                 acc + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / agencyReviews.length;
             if (averageScore > 4.8) anomalies.push("Notes Suspectes");
         }
+
+        // 2. Karma Critique (Comportement toxique ou triche détectée)
+        // On considère qu'un Karma < 30 est un signal d'alarme (Base 50)
+        const lowKarmaMembers = agency.members.filter(m => (m.karma || 50) < 30);
+        if (lowKarmaMembers.length > 0) {
+            anomalies.push(`Karma Critique (${lowKarmaMembers.length})`);
+        }
+
+        // 3. Problèmes Financiers
         if (agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD) anomalies.push("FAILLITE !!!");
         else if (agency.budget_real < 0) anomalies.push("Dette (Gel Salaire)");
         
+        // 4. Inactivité
         if (agency.eventLog.length < 2) anomalies.push("Inactivité détectée");
+        
         return anomalies;
     };
 
