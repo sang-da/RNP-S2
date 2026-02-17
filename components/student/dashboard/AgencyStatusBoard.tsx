@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Agency, Deliverable } from '../../../types';
 import { useGame } from '../../../contexts/GameContext';
-import { AlertTriangle, Flame, Rocket, ArrowRight, Upload, CheckCircle2, Clock } from 'lucide-react';
+import { AlertTriangle, Flame, Rocket, ArrowRight, Upload, CheckCircle2, Clock, TrendingDown, Wallet } from 'lucide-react';
 import { UploadModal } from '../missions/UploadModal';
 import { useSubmissionLogic } from '../missions/useSubmissionLogic';
 import { useUI } from '../../../contexts/UIContext';
@@ -21,20 +21,16 @@ export const AgencyStatusBoard: React.FC<AgencyStatusBoardProps> = ({ agency, on
     const lastCrisis = useMemo(() => {
         if (!agency.eventLog || agency.eventLog.length === 0) return null;
         const crisis = [...agency.eventLog].reverse().find(e => e.type === 'CRISIS');
-        
-        // On ne montre que si c'est "récent" (ex: même semaine ou moins de 7j). 
-        // Ici on simplifie : si c'est la dernière entrée majeure.
-        if (crisis) return crisis;
-        return null;
+        // On affiche toujours la dernière crise pour garder l'historique visible, 
+        // ou on pourrait filtrer par date si besoin.
+        return crisis || null;
     }, [agency.eventLog]);
 
-    // 2. DÉTECTION MISSIONS SPÉCIALES (Challenges acceptés ou livrables dynamiques)
+    // 2. DÉTECTION MISSIONS SPÉCIALES
     const specialDeliverables = useMemo(() => {
         const specials: { del: Deliverable, weekId: string }[] = [];
-        // On scanne les semaines actives pour trouver les livrables "spéciaux" (ceux dont l'ID commence par d_special_)
         Object.values(agency.progress).forEach((week: any) => {
             week.deliverables.forEach((d: Deliverable) => {
-                // Condition : C'est une mission spéciale, elle est en attente ou rejetée
                 if (d.id.startsWith('d_special_') && (d.status === 'pending' || d.status === 'rejected')) {
                     specials.push({ del: d, weekId: week.id });
                 }
@@ -53,91 +49,110 @@ export const AgencyStatusBoard: React.FC<AgencyStatusBoardProps> = ({ agency, on
 
     const handleFileSelected = async (file: File) => {
         if (!file || !uploadTarget) return;
-        setUploadTarget(null); // Close modal immediately
+        setUploadTarget(null);
         await handleFileUpload(file, uploadTarget.delId, uploadTarget.weekId, selfAssessment, nominatedMvp);
     };
 
     if (!lastCrisis && specialDeliverables.length === 0) return null;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4 duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-4 duration-500 mb-8">
             
-            {/* BLOC 1 : DERNIÈRE CRISE (Si active) */}
+            {/* CARTE 1 : DERNIÈRE CRISE (Design "Alerte Pro") */}
             {lastCrisis ? (
-                <div className="bg-red-600 text-white rounded-3xl p-6 shadow-xl shadow-red-900/20 relative overflow-hidden flex flex-col justify-between">
-                    <div className="absolute -right-6 -top-6 opacity-10">
-                        <Flame size={120} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className="bg-white/20 backdrop-blur px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 border border-white/20">
-                                <AlertTriangle size={10} className="fill-white text-red-600"/> Alerte
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative group hover:shadow-md transition-shadow">
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>
+                    <div className="p-5 flex-1">
+                        <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-2 text-red-600">
+                                <AlertTriangle size={20} className="animate-pulse"/>
+                                <h3 className="font-bold text-sm uppercase tracking-wide">Dernier Incident</h3>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                {lastCrisis.date}
                             </span>
-                            <span className="text-xs font-bold text-red-100 opacity-80">{lastCrisis.date}</span>
                         </div>
-                        <h3 className="text-xl font-display font-bold leading-tight mb-2">{lastCrisis.label}</h3>
-                        <p className="text-sm text-red-50 leading-relaxed font-medium bg-red-800/30 p-3 rounded-xl border border-red-500/30">
-                            {lastCrisis.description}
-                        </p>
-                    </div>
-                    {/* Impact Summary */}
-                    <div className="mt-4 flex gap-3 text-xs font-bold">
-                        {lastCrisis.deltaVE !== 0 && (
-                            <span className="bg-white text-red-600 px-2 py-1 rounded shadow-sm">{lastCrisis.deltaVE} VE</span>
-                        )}
-                        {lastCrisis.deltaBudgetReal !== 0 && (
-                            <span className="bg-red-800 text-white px-2 py-1 rounded shadow-sm border border-red-700">
-                                {lastCrisis.deltaBudgetReal} PiXi
-                            </span>
-                        )}
+                        
+                        <h4 className="font-display font-bold text-lg text-slate-900 mb-2 leading-tight">
+                            {lastCrisis.label}
+                        </h4>
+                        
+                        <div className="bg-red-50/50 p-3 rounded-xl border border-red-100 mb-4">
+                            <p className="text-sm text-slate-700 leading-relaxed italic">
+                                "{lastCrisis.description}"
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-auto">
+                            {lastCrisis.deltaVE !== 0 && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    <TrendingDown size={14} className="text-red-500"/>
+                                    {lastCrisis.deltaVE > 0 ? '+' : ''}{lastCrisis.deltaVE} VE
+                                </span>
+                            )}
+                            {lastCrisis.deltaBudgetReal !== 0 && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    <Wallet size={14} className="text-red-500"/>
+                                    {lastCrisis.deltaBudgetReal} PiXi
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
-            ) : (
-                // Placeholder invisible pour garder la grille (optionnel, ici on laisse null si pas de crise)
-                <div className="hidden md:block"></div> 
-            )}
+            ) : <div className="hidden md:block"></div>}
 
-            {/* BLOC 2 : MISSIONS SPÉCIALES (Commandos) */}
+            {/* CARTE 2 : MISSIONS COMMANDOS (Design "Opportunité") */}
             {specialDeliverables.length > 0 && (
-                <div className="bg-indigo-600 text-white rounded-3xl p-6 shadow-xl shadow-indigo-900/20 relative overflow-hidden flex flex-col">
-                    <div className="absolute -right-6 -top-6 opacity-10">
-                        <Rocket size={120} />
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative group hover:shadow-md transition-shadow">
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600"></div>
+                    <div className="absolute right-0 top-0 p-6 opacity-5 pointer-events-none">
+                        <Rocket size={100} className="text-indigo-600"/>
                     </div>
-                    
-                    <div className="relative z-10 mb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-white/20 backdrop-blur px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 border border-white/20">
-                                <Rocket size={10} className="fill-white text-indigo-600"/> Opérations Spéciales
+
+                    <div className="p-5 flex-1 z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-2 text-indigo-600">
+                                <div className="p-1.5 bg-indigo-100 rounded-lg">
+                                    <Rocket size={16}/>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm uppercase tracking-wide">Missions Spéciales</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium">Livrables prioritaires hors-cycle</p>
+                                </div>
+                            </div>
+                            <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm shadow-indigo-200">
+                                {specialDeliverables.length} Active{specialDeliverables.length > 1 ? 's' : ''}
                             </span>
                         </div>
-                        <h3 className="text-xl font-display font-bold leading-tight">Missions Prioritaires</h3>
-                    </div>
 
-                    <div className="space-y-3 relative z-10 flex-1">
-                        {specialDeliverables.slice(0, 2).map((item) => (
-                            <div key={item.del.id} className="bg-white/10 border border-white/10 rounded-xl p-3 flex justify-between items-center hover:bg-white/20 transition-colors group">
-                                <div className="flex-1 min-w-0 pr-2">
-                                    <p className="font-bold text-sm truncate">{item.del.name}</p>
-                                    <p className="text-[10px] text-indigo-200 line-clamp-1 opacity-80">{item.del.description}</p>
+                        <div className="space-y-3">
+                            {specialDeliverables.slice(0, 2).map((item) => (
+                                <div key={item.del.id} className="group/item bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl p-3 transition-all flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm text-slate-800 truncate">{item.del.name}</p>
+                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.del.description}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setChecks({ naming: false, format: false, resolution: false, audio: false });
+                                            setUploadTarget({ delId: item.del.id, weekId: item.weekId });
+                                        }}
+                                        className="shrink-0 px-3 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-[10px] font-bold uppercase shadow-sm hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center gap-1.5"
+                                    >
+                                        <Upload size={12}/> Dépôt
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => {
-                                        setChecks({ naming: false, format: false, resolution: false, audio: false });
-                                        setUploadTarget({ delId: item.del.id, weekId: item.weekId });
-                                    }}
-                                    className="bg-white text-indigo-700 p-2 rounded-lg shadow-sm hover:scale-105 transition-all flex items-center gap-1 text-[10px] font-bold uppercase"
-                                >
-                                    <Upload size={14}/> Dépôt
-                                </button>
+                            ))}
+                        </div>
+
+                        {specialDeliverables.length > 2 && (
+                            <div className="mt-3 text-center border-t border-slate-100 pt-2">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest cursor-help" title="Voir l'onglet Missions">
+                                    + {specialDeliverables.length - 2} autres missions
+                                </span>
                             </div>
-                        ))}
+                        )}
                     </div>
-                    
-                    {specialDeliverables.length > 2 && (
-                        <p className="text-center text-[10px] opacity-60 mt-2 font-bold uppercase">
-                            + {specialDeliverables.length - 2} autres missions dans l'onglet Missions
-                        </p>
-                    )}
                 </div>
             )}
 

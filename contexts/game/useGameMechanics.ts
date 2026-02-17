@@ -1,4 +1,3 @@
-
 import { doc, updateDoc, db } from '../../services/firebase';
 import { Agency, PeerReview } from '../../types';
 import { calculateVECap, CONSTRAINTS_POOL } from '../../constants';
@@ -10,9 +9,9 @@ import { sanitizeForFirestore } from '../../utils/firestore';
 // On reçoit maintenant 'reviews' dans le hook
 export const useGameMechanics = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
-  // On passe les reviews à la logique de performance
+  // On passe les reviews à la logique de performance ET operations
   const { processPerformance } = usePerformanceLogic(agencies, reviews, toast, getCurrentGameWeek);
-  const operations = useOperationsLogic(agencies, toast, getCurrentGameWeek);
+  const operations = useOperationsLogic(agencies, reviews, toast, getCurrentGameWeek);
   const { submitMercatoVote } = useVotingLogic(agencies, toast);
 
   const updateAgency = async (updatedAgency: Agency) => {
