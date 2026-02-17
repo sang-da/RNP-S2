@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Student, Agency, Deliverable, PeerReview } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe } from 'lucide-react';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 
@@ -18,9 +18,6 @@ interface StudentProfileProps {
 export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, timeline, behaviorStats, portfolio, chartData, gradeDistribution }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    // On utilise l'historique manuel s'il existe, sinon le timeline calculé (fallback)
-    // Note: timeline est calculé via les reviews, history est manuel. On peut afficher les deux ou prioriser.
-    // Ici on affiche l'historique manuel en priorité pour le parcours.
     const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
 
     return (
@@ -35,25 +32,31 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                         <h3 className="text-2xl font-bold text-slate-900">{student.name}</h3>
                         <div className="flex items-center justify-center gap-2 mt-1">
                             <span className="inline-block bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-500">{student.role}</span>
-                            
-                            <button 
-                                onClick={() => setIsEditModalOpen(true)}
-                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition-colors hover:bg-slate-50 ${
-                                    student.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-purple-50 text-purple-600 border-purple-200'
-                                }`}
-                            >
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${
+                                student.classId === 'A' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-purple-50 text-purple-600 border-purple-200'
+                            }`}>
                                 CLASSE {student.classId}
-                                <Settings size={10} className="ml-1"/>
-                            </button>
+                            </span>
                         </div>
                     </div>
                 </div>
                 
-                <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                    <StatBox icon={<TrendingUp/>} label="Score Actuel" value={student.individualScore} sub="/100" color="bg-indigo-50 text-indigo-600"/>
-                    <StatBox icon={<Wallet/>} label="Fortune Perso" value={student.wallet} sub="PiXi" color="bg-emerald-50 text-emerald-600"/>
-                    <StatBox icon={<Building2/>} label="Agence Actuelle" value={agency.name} sub="" color="bg-blue-50 text-blue-600"/>
-                    <StatBox icon={<Star/>} label="Moy. Reçue" value={behaviorStats.avgReceived.toFixed(1)} sub="/5.0" color="bg-yellow-50 text-yellow-600"/>
+                <div className="flex-1 w-full">
+                    <div className="flex justify-end mb-4">
+                        <button 
+                            onClick={() => setIsEditModalOpen(true)}
+                            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95"
+                        >
+                            <FileCog size={16}/> Gérer le Dossier
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <StatBox icon={<TrendingUp/>} label="Score Actuel" value={student.individualScore} sub="/100" color="bg-indigo-50 text-indigo-600"/>
+                        <StatBox icon={<Wallet/>} label="Fortune Perso" value={student.wallet} sub="PiXi" color="bg-emerald-50 text-emerald-600"/>
+                        <StatBox icon={<Building2/>} label="Agence Actuelle" value={agency.name} sub="" color="bg-blue-50 text-blue-600"/>
+                        <StatBox icon={<Star/>} label="Moy. Reçue" value={behaviorStats.avgReceived.toFixed(1)} sub="/5.0" color="bg-yellow-50 text-yellow-600"/>
+                    </div>
                 </div>
             </div>
 
@@ -148,7 +151,6 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-6"><History size={20}/> Parcours Hebdomadaire</h4>
                         
-                        {/* PRIORITÉ À L'HISTORIQUE MANUEL S'IL EXISTE */}
                         {displayHistory.length > 0 ? (
                             <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
                                 {displayHistory.map(item => (

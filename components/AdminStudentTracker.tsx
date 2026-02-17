@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agency, Student, Deliverable, PeerReview } from '../types';
-import { User } from 'lucide-react';
+import { User, Search, Filter, Users } from 'lucide-react';
 import { TrackerStats } from './admin/tracker/TrackerStats';
 import { StudentProfile } from './admin/tracker/StudentProfile';
 import { useGame } from '../contexts/GameContext';
@@ -12,9 +12,13 @@ interface AdminStudentTrackerProps {
 
 export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agencies }) => {
     const { reviews: globalReviews } = useGame();
-    const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+    
+    // UI State
+    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [classFilter, setClassFilter] = useState<'ALL' | 'A' | 'B'>('ALL');
 
-    // --- 1. LISTE GLOBALE DES ÉTUDIANTS ---
+    // --- 1. LISTE GLOBALE DES ÉTUDIANTS (Flattened) ---
     const allStudents = useMemo(() => {
         const list: (Student & { currentAgencyName: string, currentAgencyId: string })[] = [];
         agencies.forEach(a => {
@@ -23,7 +27,17 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         return list.sort((a,b) => a.name.localeCompare(b.name));
     }, [agencies]);
 
-    // --- 2. ANALYTICS MACRO (MATRICE PROMO) ---
+    // --- 2. FILTRAGE POUR LA SIDEBAR ---
+    const filteredStudents = useMemo(() => {
+        return allStudents.filter(s => {
+            const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                  s.currentAgencyName.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesClass = classFilter === 'ALL' || s.classId === classFilter;
+            return matchesSearch && matchesClass;
+        });
+    }, [allStudents, searchTerm, classFilter]);
+
+    // --- 3. ANALYTICS MACRO (MATRICE PROMO) ---
     const globalStats = useMemo(() => {
         if (allStudents.length === 0) return null;
         const totalStudents = allStudents.length;
@@ -37,38 +51,37 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         return { totalStudents, avgScore, avgWealth, countA, countB, top3 };
     }, [allStudents]);
 
-    const targetStudent = allStudents.find(s => s.id === selectedStudentId);
-    const targetAgency = agencies.find(a => a.id === targetStudent?.currentAgencyId);
+    // --- 4. DATA SELECTIONNÉE ---
+    const targetStudent = useMemo(() => 
+        allStudents.find(s => s.id === selectedStudentId) || null
+    , [allStudents, selectedStudentId]);
 
-    // --- 3. RECONSTRUCTION DE L'HISTORIQUE (TIMELINE) ---
+    const targetAgency = useMemo(() => 
+        agencies.find(a => a.id === targetStudent?.currentAgencyId) || null
+    , [agencies, targetStudent]);
+
+    // --- 5. RECONSTRUCTION HISTORIQUE (MEMOIZED) ---
     const studentTimeline = useMemo(() => {
         if (!targetStudent) return [];
         const timelineMap: Record<string, { weekId: string; agencyName: string; reviewsReceived: PeerReview[]; reviewsGiven: PeerReview[]; }> = {};
 
-        // On utilise les reviews globales
         globalReviews.forEach(r => {
             if (r.targetId === targetStudent.id || r.reviewerId === targetStudent.id) {
-                // Trouver l'agence de cette review
                 const reviewAgency = agencies.find(a => a.id === r.agencyId);
                 const agencyName = reviewAgency ? reviewAgency.name : 'Agence Inconnue';
 
                 if (!timelineMap[r.weekId]) {
                     timelineMap[r.weekId] = { weekId: r.weekId, agencyName: agencyName, reviewsReceived: [], reviewsGiven: [] };
                 }
-                
-                // On met à jour le nom de l'agence si nécessaire (la dernière review est souvent la bonne)
                 if (reviewAgency) timelineMap[r.weekId].agencyName = agencyName;
-
                 if (r.targetId === targetStudent.id) timelineMap[r.weekId].reviewsReceived.push(r);
                 if (r.reviewerId === targetStudent.id) timelineMap[r.weekId].reviewsGiven.push(r);
             }
         });
-
-        // Add history from user profile/agency logs if needed? For now just reviews provide weekly context.
         return Object.values(timelineMap).sort((a, b) => parseInt(b.weekId) - parseInt(a.weekId));
     }, [targetStudent, agencies, globalReviews]);
 
-    // --- 4. ANALYSE COMPORTEMENTALE (SOFT SKILLS) ---
+    // --- 6. SOFT SKILLS ---
     const behaviorStats = useMemo(() => {
         if (!studentTimeline.length) return { avgGiven: 0, avgReceived: 0, radarData: [] };
         let countReceived = 0;
@@ -96,7 +109,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         return { avgReceived, radarData };
     }, [studentTimeline]);
 
-    // --- 5. PORTFOLIO & ANALYTICS PRODUCTION ---
+    // --- 7. PORTFOLIO & PRODUCTION ---
     const { portfolio, chartData, gradeDistribution } = useMemo(() => {
         if (!targetStudent) return { portfolio: [], chartData: [], gradeDistribution: [] };
         const works: any[] = [];
@@ -153,8 +166,8 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
     }, [targetStudent, agencies, studentTimeline]);
 
     return (
-        <div className="animate-in fade-in pb-20">
-            <div className="mb-8">
+        <div className="animate-in fade-in pb-20 h-[calc(100vh-100px)] flex flex-col">
+            <div className="mb-6 shrink-0">
                 <h2 className="text-3xl font-display font-bold text-slate-900 flex items-center gap-3">
                     <div className="p-2 bg-slate-800 rounded-xl text-white"><User size={32}/></div>
                     Dossier Étudiant & Analytique
@@ -162,39 +175,115 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                 <p className="text-slate-500 text-sm mt-1">Analyse 360° : Comportement, Production et Trajectoire.</p>
             </div>
 
-            <TrackerStats globalStats={globalStats} />
-
-            {/* SELECTOR */}
-            <div className="mb-8 p-1 bg-slate-200 rounded-2xl flex items-center gap-4 max-w-2xl shadow-inner">
-                <div className="px-4 font-bold text-slate-500 uppercase text-xs">Rechercher :</div>
-                <select 
-                    className="flex-1 p-3 rounded-xl border-none font-bold bg-white focus:ring-2 focus:ring-indigo-500 shadow-sm outline-none cursor-pointer hover:bg-slate-50 transition-colors text-slate-900"
-                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                    value={selectedStudentId}
-                >
-                    <option value="">-- Sélectionner un dossier --</option>
-                    {allStudents.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} (Classe {s.classId}) - {s.currentAgencyName}</option>
-                    ))}
-                </select>
+            <div className="shrink-0 mb-6">
+                <TrackerStats globalStats={globalStats} />
             </div>
 
-            {targetStudent && targetAgency ? (
-                <StudentProfile 
-                    student={targetStudent}
-                    agency={targetAgency}
-                    timeline={studentTimeline}
-                    behaviorStats={behaviorStats}
-                    portfolio={portfolio}
-                    chartData={chartData}
-                    gradeDistribution={gradeDistribution}
-                />
-            ) : (
-                <div className="text-center py-20 bg-slate-100 rounded-3xl border-2 border-dashed border-slate-300">
-                    <User size={48} className="mx-auto text-slate-300 mb-4"/>
-                    <p className="text-slate-500 font-bold">Sélectionnez un étudiant pour ouvrir son dossier.</p>
+            {/* SPLIT VIEW LAYOUT */}
+            <div className="flex-1 flex gap-6 overflow-hidden min-h-0">
+                
+                {/* --- LEFT SIDEBAR : SEARCH & LIST --- */}
+                <div className="w-1/3 md:w-[320px] bg-white rounded-3xl border border-slate-200 flex flex-col shadow-sm">
+                    {/* Search Header */}
+                    <div className="p-4 border-b border-slate-100 space-y-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
+                            <input 
+                                type="text" 
+                                placeholder="Rechercher..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            {['ALL', 'A', 'B'].map((c) => (
+                                <button 
+                                    key={c}
+                                    onClick={() => setClassFilter(c as any)}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        classFilter === c 
+                                        ? 'bg-slate-800 text-white' 
+                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {c === 'ALL' ? 'Tous' : `Cl. ${c}`}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Scrollable List */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        {filteredStudents.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 text-xs italic">Aucun étudiant trouvé.</div>
+                        ) : (
+                            filteredStudents.map(student => {
+                                const isSelected = student.id === selectedStudentId;
+                                return (
+                                    <button 
+                                        key={student.id} 
+                                        onClick={() => setSelectedStudentId(student.id)}
+                                        className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all ${
+                                            isSelected 
+                                            ? 'bg-indigo-600 text-white shadow-md' 
+                                            : 'hover:bg-slate-50 text-slate-700'
+                                        }`}
+                                    >
+                                        <div className="relative">
+                                            <img src={student.avatarUrl} className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white/20" />
+                                            {student.individualScore >= 80 && (
+                                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full border-2 border-white"></div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-sm truncate">{student.name}</p>
+                                            <p className={`text-[10px] truncate ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                                {student.currentAgencyName}
+                                            </p>
+                                        </div>
+                                        {/* Score Badge */}
+                                        <div className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                                            isSelected 
+                                            ? 'bg-white/20 text-white' 
+                                            : student.individualScore < 50 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {student.individualScore}
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                    <div className="p-3 border-t border-slate-100 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        {filteredStudents.length} Étudiants
+                    </div>
                 </div>
-            )}
+
+                {/* --- RIGHT PANEL : PROFILE --- */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                    {targetStudent && targetAgency ? (
+                        <div key={targetStudent.id} className="animate-in fade-in slide-in-from-right-4 duration-300">
+                            <StudentProfile 
+                                student={targetStudent}
+                                agency={targetAgency}
+                                timeline={studentTimeline}
+                                behaviorStats={behaviorStats}
+                                portfolio={portfolio}
+                                chartData={chartData}
+                                gradeDistribution={gradeDistribution}
+                            />
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-400">
+                            <Users size={64} className="mb-4 opacity-20"/>
+                            <p className="font-bold text-lg">Sélectionnez un dossier</p>
+                            <p className="text-sm">Utilisez la liste à gauche pour naviguer.</p>
+                        </div>
+                    )}
+                </div>
+
+            </div>
         </div>
     );
 };
