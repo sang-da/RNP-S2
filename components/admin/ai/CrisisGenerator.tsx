@@ -1,10 +1,12 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Agency, GameEvent, Deliverable } from '../../../types';
 import { askGroq } from '../../../services/groqService';
 import { useUI } from '../../../contexts/UIContext';
 import { useGame } from '../../../contexts/GameContext';
-import { AlertTriangle, RefreshCw, Gavel, MapPin, MailWarning, Copy, Target, Send, ArrowUp, Zap } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Gavel, MapPin, MailWarning, Copy, Target, Send, ArrowUp, Zap, Eye, CheckCircle2 } from 'lucide-react';
 import { ContextSelector } from './ContextSelector';
+import { Modal } from '../../Modal';
 
 interface CrisisGeneratorProps {
     agencies: Agency[];
@@ -26,12 +28,13 @@ interface CrisisScenario {
 }
 
 export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) => {
-    const { toast, confirm } = useUI();
+    const { toast } = useUI();
     const { updateAgency } = useGame();
     
     const [targetAgencyId, setTargetAgencyId] = useState(agencies.filter(a => a.id !== 'unassigned')[0]?.id || "");
     const [generatedCrisis, setGeneratedCrisis] = useState<CrisisScenario | null>(null);
     const [loading, setLoading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
     
     // Chat & Context
     const [refinementInput, setRefinementInput] = useState("");
@@ -117,16 +120,6 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
         }
 
         try {
-            // On envoie l'historique complet pour garder le fil
-            const messages = [
-                { role: "system", content: systemPrompt },
-                ...chatHistory.map(m => ({ role: m.role as any, content: m.content })),
-                { role: "user", content: userPrompt }
-            ];
-
-            // Note: askGroq simple ne suffit pas pour l'historique, on refait un fetch manuel ou on adapte le service.
-            // Pour simplifier ici, on utilise askGroq en mode "One Shot" avec tout le contexte dans le prompt si l'historique est court,
-            // ou on passe par le service modifié si disponible. Ici je concatène pour la sécurité.
             const fullPromptForOneShot = `${systemPrompt}\n\nHISTORIQUE:\n${chatHistory.map(m => m.role + ": " + m.content).join('\n')}\n\nUSER: ${userPrompt}`;
             
             const result = await askGroq(fullPromptForOneShot, {}, "Tu es un Game Master JSON.");
@@ -149,7 +142,7 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
         }
     };
 
-    const handleApplyCrisis = async () => {
+    const handleExecute = async () => {
         if (!generatedCrisis || !targetAgency) return;
 
         // Calcul des impacts réels
@@ -162,37 +155,29 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
             if (imp.type === 'VE_FIXED') veDelta += imp.value;
             if (imp.type === 'BUDGET_FIXED') budgetDelta += imp.value;
             if (imp.type === 'BUDGET_PERCENT') budgetDelta += Math.floor(targetAgency.budget_real * (imp.value / 100));
-            // Salary Freeze et Firing Risk sont purement narratifs/loggés ici, l'admin doit agir manuellement pour le firing
         });
 
-        const isConfirmed = await confirm({
-            title: "Déclencher ce Scénario ?",
-            message: `Agence: ${targetAgency.name}\n${description}`,
-            confirmText: "VALIDER",
-            isDangerous: true
+        const newEvent: GameEvent = {
+            id: `crisis-${Date.now()}`,
+            date: new Date().toISOString().split('T')[0],
+            type: 'CRISIS',
+            label: generatedCrisis.title,
+            description: description,
+            deltaVE: veDelta,
+            deltaBudgetReal: budgetDelta
+        };
+
+        updateAgency({
+            ...targetAgency,
+            ve_current: Math.max(0, targetAgency.ve_current + veDelta),
+            budget_real: targetAgency.budget_real + budgetDelta,
+            eventLog: [...targetAgency.eventLog, newEvent]
         });
-
-        if (isConfirmed) {
-            const newEvent: GameEvent = {
-                id: `crisis-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
-                type: 'CRISIS',
-                label: generatedCrisis.title,
-                description: description,
-                deltaVE: veDelta,
-                deltaBudgetReal: budgetDelta
-            };
-
-            updateAgency({
-                ...targetAgency,
-                ve_current: Math.max(0, targetAgency.ve_current + veDelta),
-                budget_real: targetAgency.budget_real + budgetDelta,
-                eventLog: [...targetAgency.eventLog, newEvent]
-            });
-            toast('success', "Crise déclenchée avec succès.");
-            setGeneratedCrisis(null);
-            setChatHistory([]);
-        }
+        
+        toast('success', "Crise déclenchée avec succès.");
+        setGeneratedCrisis(null);
+        setChatHistory([]);
+        setShowPreview(false);
     };
 
     return (
@@ -231,8 +216,6 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
                             selectedDeliverableIds={selectedDeliverableIds}
                             onToggleDeliverable={toggleDeliverable}
                         />
-                        
-                        {/* CHAT HISTORY */}
                         <div className="space-y-3">
                             {chatHistory.map((msg, i) => (
                                 <div key={i} className={`p-3 rounded-lg text-xs ${msg.role === 'user' ? 'bg-indigo-100 text-indigo-900 ml-4' : 'bg-white border border-slate-200 mr-4'}`}>
@@ -242,15 +225,13 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
                             ))}
                         </div>
                     </div>
-
-                    {/* INPUT REFINEMENT */}
                     <div className="p-3 border-t border-slate-200 bg-white">
                         <form onSubmit={(e) => { e.preventDefault(); if(generatedCrisis) handleGenerateOrRefine(true); }} className="relative">
                             <input 
                                 type="text" 
                                 value={refinementInput}
                                 onChange={e => setRefinementInput(e.target.value)}
-                                placeholder={generatedCrisis ? "Ajuster (ex: 'Moins de budget, plus de VE')..." : "Générez d'abord une crise..."}
+                                placeholder={generatedCrisis ? "Ajuster (ex: 'Moins de budget')..." : "Générez d'abord une crise..."}
                                 disabled={!generatedCrisis || loading}
                                 className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
                             />
@@ -276,17 +257,17 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
                                     <h2 className="text-2xl font-black text-slate-900 leading-tight">{generatedCrisis.title}</h2>
                                 </div>
                                 <button 
-                                    onClick={handleApplyCrisis}
+                                    onClick={() => setShowPreview(true)}
                                     className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all active:scale-95"
                                 >
-                                    <Gavel size={18}/> APPLIQUER
+                                    <Eye size={18}/> APERÇU & ENVOI
                                 </button>
                             </div>
 
                             {/* PITCH */}
                             <div className="bg-white p-6 rounded-2xl border-l-4 border-slate-900 shadow-sm">
                                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <MapPin size={14}/> Pitch Narratif
+                                    <MapPin size={14}/> Pitch Narratif (Pour le Prof)
                                 </h4>
                                 <p className="text-lg text-slate-800 font-medium leading-relaxed italic">
                                     "{generatedCrisis.pitch}"
@@ -321,23 +302,6 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
                                     </ul>
                                 </div>
                             </div>
-
-                            {/* EMAIL */}
-                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-                                <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                                    <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><MailWarning size={14}/> Email Officiel</span>
-                                    <button 
-                                        onClick={() => { navigator.clipboard.writeText(`OBJET: ${generatedCrisis.email_object}\n\n${generatedCrisis.email_body}`); toast('success', 'Copié !'); }} 
-                                        className="text-[10px] bg-white border border-slate-300 px-2 py-1 rounded hover:bg-indigo-50 text-slate-600 flex items-center gap-1 font-bold"
-                                    >
-                                        <Copy size={10}/> COPIER
-                                    </button>
-                                </div>
-                                <div className="p-6 font-mono text-sm text-slate-700 bg-slate-50/30">
-                                    <p className="mb-4 font-bold text-slate-900">OBJET: {generatedCrisis.email_object}</p>
-                                    <p className="whitespace-pre-wrap leading-relaxed">{generatedCrisis.email_body}</p>
-                                </div>
-                            </div>
                         </div>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center opacity-30">
@@ -347,6 +311,63 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
                     )}
                 </div>
             </div>
+
+            {/* PREVIEW MODAL (STUDENT VIEW) */}
+            <Modal isOpen={showPreview} onClose={() => setShowPreview(false)} title="Aperçu : Ce que verront les étudiants">
+                {generatedCrisis && (
+                    <div className="space-y-6">
+                        <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center mb-4">
+                            <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-2">Notification Système</p>
+                            <div className="flex items-center justify-center gap-2 text-red-600 font-black text-xl">
+                                <AlertTriangle size={24}/> ALERTE PRIORITAIRE
+                            </div>
+                        </div>
+
+                        {/* FAKE EMAIL CARD */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+                            <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                                        <MailWarning size={20}/>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-red-500 font-bold uppercase">Message Officiel</p>
+                                        <p className="font-bold text-slate-900 text-sm">{generatedCrisis.email_object}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-6 font-mono text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/30">
+                                {generatedCrisis.email_body}
+                            </div>
+                        </div>
+
+                        {/* IMPACT SUMMARY FOR STUDENT */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {generatedCrisis.impacts.map((imp, idx) => (
+                                <div key={idx} className="bg-red-50 border border-red-100 p-3 rounded-xl flex items-center gap-3">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <span className="text-xs font-bold text-red-900">{imp.label}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-4 pt-4 border-t border-slate-100">
+                            <button 
+                                onClick={() => setShowPreview(false)} 
+                                className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            >
+                                Modifier
+                            </button>
+                            <button 
+                                onClick={handleExecute} 
+                                className="flex-2 w-full py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200 flex items-center justify-center gap-2 transition-transform active:scale-95"
+                            >
+                                <Gavel size={20}/> CONFIRMER ET ENVOYER
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 };
