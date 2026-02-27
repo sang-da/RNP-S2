@@ -23,6 +23,7 @@ import { AdminBadges } from './components/AdminBadges';
 import { LandingPage } from './components/LandingPage';
 import { WaitingScreen } from './components/WaitingScreen';
 import { TheBackdoor } from './components/student/TheBackdoor'; 
+import { StudentSpecialSimulation } from './components/admin/StudentSpecialSimulation';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -49,7 +50,7 @@ const GameContainer: React.FC = () => {
 
   const [adminView, setAdminView] = useState<AdminViewType>('OVERVIEW');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR'>('NONE');
+  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR' | 'STUDENT_SPECIAL'>('NONE');
   const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
 
   // Redirection initiale pour les superviseurs (car OVERVIEW peut être caché)
@@ -108,7 +109,9 @@ const GameContainer: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <EyeOff size={20}/>
                         <span className="font-bold text-sm uppercase tracking-wide">
-                            {simulationMode === 'BACKDOOR' ? 'Aperçu Isolé : The Backdoor (22-04)' : 'Mode Simulation Étudiant'}
+                            {simulationMode === 'BACKDOOR' ? 'Aperçu Isolé : The Backdoor (22-04)' : 
+                             simulationMode === 'STUDENT_SPECIAL' ? 'Simulateur d\'Interfaces Spéciales' :
+                             'Mode Simulation Étudiant'}
                         </span>
                       </div>
                       <button onClick={exitSimulation} className="bg-white text-red-600 hover:bg-red-50 px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm">Quitter</button>
@@ -131,6 +134,12 @@ const GameContainer: React.FC = () => {
                                 onClose={exitSimulation} 
                              />
                         </div>
+                    )}
+
+                    {simulationMode === 'STUDENT_SPECIAL' && (
+                        <StudentSpecialSimulation 
+                            onClose={exitSimulation}
+                        />
                     )}
                   </div>
               </div>
@@ -180,7 +189,15 @@ const GameContainer: React.FC = () => {
                     {adminView === 'STUDENT_TRACKER' && <AdminStudentTracker agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
-                    {adminView === 'VIEWS' && <AdminViews agencies={agencies} onSimulateWaitingRoom={() => setSimulationMode('WAITING')} onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} />}
+                    {adminView === 'VIEWS' && (
+                        <AdminViews 
+                            agencies={agencies} 
+                            onSimulateWaitingRoom={() => setSimulationMode('WAITING')} 
+                            onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} 
+                            onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} 
+                            onSimulateSpecial={() => setSimulationMode('STUDENT_SPECIAL')}
+                        />
+                    )}
                     {adminView === 'SETTINGS' && <AdminSettings readOnly={isViewReadOnly} />}
                     {adminView === 'BADGES' && <AdminBadges agencies={agencies} />}
                     {adminView === 'OVERVIEW' && <AdminDashboard agencies={agencies} onSelectAgency={selectAgency} onShuffleConstraints={shuffleConstraints} onUpdateAgency={updateAgency} onProcessWeek={() => {}} onNavigate={(view: string) => setAdminView(view as AdminViewType)} readOnly={isViewReadOnly} />}

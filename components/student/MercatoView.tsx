@@ -20,12 +20,13 @@ interface MercatoViewProps {
   allAgencies: Agency[];
   onUpdateAgency: (agency: Agency) => void;
   onUpdateAgencies: (agencies: Agency[]) => void;
+  currentUserOverride?: Student;
 }
 
 // Limite CV : 5 Mo
 const MAX_CV_SIZE = 5 * 1024 * 1024;
 
-export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies }) => {
+export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies, currentUserOverride }) => {
   const { toast } = useUI();
   const { submitMercatoVote, getCurrentGameWeek, proposeMerger, finalizeMerger } = useGame();
   const { currentUser: authUser } = useAuth();
@@ -43,7 +44,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isUploadingCV, setIsUploadingCV] = useState(false);
 
-  const currentUser = agency.members.find(m => m.id === authUser?.uid);
+  const currentUser = currentUserOverride || agency.members.find(m => m.id === authUser?.uid);
 
   const availableAgencies = allAgencies.filter(a => a.id !== 'unassigned' && a.classId === currentUser?.classId);
   const unemployedAgency = allAgencies.find(a => a.id === 'unassigned');

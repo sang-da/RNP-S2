@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ShieldCheck, UserCog, MoreVertical, Star, ShieldAlert } from 'lucide-react';
-import { UserProfile } from '../AdminAccess';
+import { UserProfile } from '../../AdminAccess';
 
 interface SupervisorsListProps {
     users: UserProfile[];

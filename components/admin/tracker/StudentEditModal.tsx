@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Modal } from '../../Modal';
 import { Student, Agency, Badge, CareerHistoryItem, StudentNote } from '../../../types';
-import { Save, Link2, ShieldAlert, History, Medal, Plus, X, Trash2, StickyNote, PenTool, Lock, Globe, MessageSquare } from 'lucide-react';
+import { Save, Link2, ShieldAlert, History, Medal, Plus, X, Trash2, StickyNote, PenTool, Lock, Globe, MessageSquare, AlertTriangle } from 'lucide-react';
 import { doc, updateDoc, db } from '../../../services/firebase';
 import { useUI } from '../../../contexts/UIContext';
 import { BADGE_DEFINITIONS } from '../../../constants';
@@ -19,7 +19,7 @@ interface StudentEditModalProps {
 type TabType = 'GENERAL' | 'HISTORY' | 'NOTES';
 
 export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onClose, student, agency, allAgencies }) => {
-    const { toast } = useUI();
+    const { toast, confirm } = useUI();
     const { userData } = useAuth();
     
     // UI State
@@ -95,6 +95,40 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
         setNewHistoryAgency("");
     };
     const handleDeleteHistory = (itemId: string) => setHistory(history.filter(h => h.id !== itemId));
+
+    // --- DELETE STUDENT ---
+    const handleDeleteStudent = async () => {
+        const confirmed = await confirm({
+            title: `Supprimer ${student.name} ?`,
+            message: "Cette action retirera l'étudiant de l'agence.\nS'il est lié à un compte utilisateur, ce compte sera détaché mais pas supprimé.",
+            confirmText: "SUPPRIMER DÉFINITIVEMENT",
+            isDangerous: true
+        });
+
+        if (!confirmed) return;
+
+        try {
+            // 1. Update Agency (Remove Member)
+            const updatedMembers = agency.members.filter(m => m.id !== student.id);
+            await updateDoc(doc(db, "agencies", agency.id), { members: updatedMembers });
+
+            // 2. Unlink User (if applicable)
+            if (isLinked) {
+                await updateDoc(doc(db, "users", student.id), { 
+                    role: 'pending', 
+                    agencyId: null, 
+                    linkedStudentId: null,
+                    studentProfileName: null
+                });
+            }
+
+            toast('success', "Profil étudiant supprimé.");
+            onClose();
+        } catch (error) {
+            console.error(error);
+            toast('error', "Erreur lors de la suppression.");
+        }
+    };
 
     // --- SAVE ---
     const handleSave = async () => {
@@ -192,6 +226,19 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
                                     <button onClick={handleAddBadge} disabled={!selectedBadgeId} className="p-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors"><Plus size={20}/></button>
                                 </div>
                             </div>
+
+                            {/* DANGER ZONE */}
+                            <div className="border-t border-slate-100 pt-6 mt-6">
+                                <button 
+                                    onClick={handleDeleteStudent}
+                                    className="w-full py-3 border-2 border-red-100 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 hover:border-red-300 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={18}/> Supprimer ce profil étudiant
+                                </button>
+                                <p className="text-center text-[10px] text-red-400 mt-2">
+                                    Attention : Action irréversible.
+                                </p>
+                            </div>
                         </div>
                     )}
 
@@ -208,7 +255,7 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
                                 <div className="grid grid-cols-3 gap-2">
                                     <input type="text" placeholder="Semaine (ex: 3)" value={newHistoryWeek} onChange={e => setNewHistoryWeek(e.target.value)} className="p-2 rounded-lg border text-sm"/>
                                     
-                                    {/* MODIFICATION : SELECT AU LIEU D'INPUT */}
+                                    {/* SELECT AGENCY */}
                                     <select 
                                         value={newHistoryAgency} 
                                         onChange={e => setNewHistoryAgency(e.target.value)} 

@@ -166,9 +166,9 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
   const handleKickUser = async (uid: string, displayName: string) => {
       if(readOnly) return;
       if (await confirm({ 
-          title: "Expulser l'utilisateur ?", 
-          message: `L'utilisateur "${displayName}" sera supprimé de la base de données et détaché de tout profil étudiant.\n\nIl devra se reconnecter pour réapparaître en attente.`, 
-          confirmText: "Expulser définitivement", 
+          title: "Supprimer l'utilisateur ?", 
+          message: `L'utilisateur "${displayName}" sera DÉFINITIVEMENT supprimé de la base de données.\n\nS'il est lié à un étudiant, le profil étudiant deviendra "Offline" dans l'agence.`, 
+          confirmText: "SUPPRIMER (Irréversible)", 
           isDangerous: true 
       })) {
            try {
@@ -188,10 +188,10 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                batch.delete(doc(db, "users", uid));
                
                await batch.commit();
-               toast('success', "Utilisateur expulsé et supprimé.");
+               toast('success', "Utilisateur supprimé.");
            } catch (e) { 
                console.error(e);
-               toast('error', "Échec de l'expulsion."); 
+               toast('error', "Échec de la suppression."); 
             }
       }
   };
@@ -286,12 +286,20 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     <p className="text-xs opacity-70">{u.email}</p>
                                 </div>
                             </div>
-                            <button 
-                                onClick={() => handleRescueOrphan(u)}
-                                className="px-4 py-2 bg-white text-red-600 font-bold text-xs rounded-lg hover:bg-red-50 transition-colors shadow-sm"
-                            >
-                                Repêcher (Vivier)
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleRescueOrphan(u)}
+                                    className="px-3 py-2 bg-white text-emerald-600 font-bold text-xs rounded-lg hover:bg-emerald-50 transition-colors shadow-sm"
+                                >
+                                    Repêcher
+                                </button>
+                                <button 
+                                    onClick={() => handleKickUser(u.uid, u.displayName)}
+                                    className="px-3 py-2 bg-red-800 text-white font-bold text-xs rounded-lg hover:bg-red-900 transition-colors shadow-sm"
+                                >
+                                    Supprimer
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -335,7 +343,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                 <button onClick={() => handlePromote(user.uid)} className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
                                     <Shield size={14}/> Prof / Staff
                                 </button>
-                                <button onClick={() => handleKickUser(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Expulser (Supprimer le compte)">
+                                <button onClick={() => handleKickUser(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Supprimer le compte">
                                     <Trash2 size={20}/>
                                 </button>
                             </div>
@@ -430,7 +438,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                                 onClick={() => handleKickUser(user.uid, user.displayName)}
                                                 className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all flex items-center gap-2 ml-auto shadow-sm"
                                             >
-                                                <Trash2 size={12}/> Expulser
+                                                <Trash2 size={12}/> Supprimer
                                             </button>
                                         )}
                                     </td>

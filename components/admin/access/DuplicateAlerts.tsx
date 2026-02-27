@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AlertTriangle, UserX, Trash2, RefreshCw } from 'lucide-react';
-import { UserProfile } from '../AdminAccess';
+import { UserProfile } from '../../AdminAccess';
 
 interface DuplicateAlertsProps {
     duplicates: { studentName: string, accounts: UserProfile[] }[];
