@@ -1,6 +1,5 @@
 
 import express from "express";
-import "express-async-errors";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import multer from "multer";
