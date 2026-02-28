@@ -23,20 +23,23 @@ async function startServer() {
 
   // Transcription endpoint (Whisper + LLM Post-processing)
   app.post("/api/transcribe", upload.single("file"), async (req, res) => {
+    console.log("[SERVER] Transcription request received");
     try {
       if (!req.file) {
+        console.error("[SERVER] No file in request");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
       const { reviewerName, targetName, agencyName } = req.body;
+      console.log("[SERVER] Context:", { reviewerName, targetName, agencyName });
 
       const apiKey = process.env.VITE_GROQ_API_KEY;
       if (!apiKey) {
-        console.error("VITE_GROQ_API_KEY is missing from process.env");
-        return res.status(500).json({ error: "VITE_GROQ_API_KEY is not configured" });
+        console.error("[SERVER] VITE_GROQ_API_KEY is missing from process.env");
+        return res.status(500).json({ error: "VITE_GROQ_API_KEY is not configured on server" });
       }
-      console.log("VITE_GROQ_API_KEY found, proceeding with transcription...");
 
+      console.log("[SERVER] Calling Groq Whisper...");
       // 1. WHISPER TRANSCRIPTION
       const whisperFormData = new FormData();
       whisperFormData.append("file", req.file.buffer, {
@@ -55,13 +58,19 @@ async function startServer() {
             ...whisperFormData.getHeaders(),
             Authorization: `Bearer ${apiKey}`,
           },
+          timeout: 30000 // 30s timeout
         }
       );
 
       const rawText = whisperResponse.data.text;
+      console.log("[SERVER] Whisper raw text:", rawText);
 
+      if (!rawText || rawText.trim().length < 2) {
+        return res.json({ text: "", raw: "" });
+      }
+
+      console.log("[SERVER] Calling Groq Llama for cleanup...");
       // 2. LLM POST-PROCESSING (Best Practice: Clean & Professionalize)
-      // On s'inspire de la logique Admin (System Prompt + Context)
       const llmResponse = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
@@ -91,21 +100,24 @@ async function startServer() {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 30000
         }
       );
 
       const cleanedText = llmResponse.data.choices[0].message.content;
+      console.log("[SERVER] Cleaned text:", cleanedText);
 
       res.json({ 
         text: cleanedText,
         raw: rawText
       });
     } catch (error: any) {
-      console.error("Transcription error:", error.response?.data || error.message);
+      const errorData = error.response?.data || error.message;
+      console.error("[SERVER] Transcription error:", errorData);
       res.status(500).json({ 
         error: "Failed to transcribe audio", 
-        details: error.response?.data || error.message 
+        details: errorData 
       });
     }
   });

@@ -151,7 +151,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                 reviewer={currentUser}
                 target={reviewMode}
                 weekId={currentWeek.toString()}
-                agencyId={agency.id} // IMPORTANT
+                agencyId={agency.id}
+                agencyName={agency.name}
                 onClose={() => setReviewMode(null)}
                 onSubmit={handlePeerReview}
             />
@@ -226,11 +227,12 @@ interface PeerReviewFormProps {
     target: Student;
     weekId: string;
     agencyId: string;
+    agencyName: string;
     onClose: () => void;
     onSubmit: (review: PeerReview) => void;
 }
 
-const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekId, agencyId, onClose, onSubmit }) => {
+const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekId, agencyId, agencyName, onClose, onSubmit }) => {
     const [attendance, setAttendance] = useState(3);
     const [quality, setQuality] = useState(3);
     const [involvement, setInvolvement] = useState(3);
@@ -276,25 +278,29 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
         setIsTranscribing(true);
         try {
             const formData = new FormData();
-            formData.append('file', blob, 'recording.webm');
+            // IMPORTANT: Append fields BEFORE the file to ensure req.body is populated in all environments
             formData.append('reviewerName', reviewer.name);
             formData.append('targetName', target.name);
-            formData.append('agencyName', agency.name);
+            formData.append('agencyName', agencyName);
+            formData.append('file', blob, 'recording.webm');
 
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Transcription failed');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || errorData.error || 'Transcription failed');
+            }
 
             const data = await response.json();
             if (data.text) {
                 setComment(prev => prev ? `${prev} ${data.text}` : data.text);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Transcription error:", err);
-            setError("Erreur lors de la transcription vocale.");
+            setError(err.message || "Erreur lors de la transcription vocale.");
         } finally {
             setIsTranscribing(false);
         }
@@ -350,30 +356,32 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                             className={`w-full p-4 rounded-2xl border ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'} text-sm min-h-[120px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-white shadow-inner transition-all`} 
                         />
                         
-                        {/* Overlay for recording state */}
-                        {(isRecording || isTranscribing) && (
-                            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center z-10 animate-in fade-in zoom-in duration-200">
-                                {isRecording ? (
-                                    <>
-                                        <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white animate-pulse mb-4 shadow-lg shadow-red-500/30">
-                                            <Mic size={32} />
-                                        </div>
-                                        <p className="text-red-600 font-bold text-sm animate-pulse">Enregistrement en cours...</p>
-                                        <button 
-                                            onClick={stopRecording}
-                                            className="mt-4 px-6 py-2 bg-slate-900 text-white rounded-full text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-2"
-                                        >
-                                            <Square size={14} /> Arrêter l'enregistrement
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center text-white animate-spin mb-4">
-                                            <Loader2 size={32} />
-                                        </div>
-                                        <p className="text-indigo-600 font-bold text-sm">Transcription par Whisper...</p>
-                                    </>
-                                )}
+                        {/* Improved Recording UI */}
+                        {isRecording && (
+                            <div className="absolute bottom-3 left-3 right-3 bg-red-600 text-white p-3 rounded-xl flex items-center justify-between shadow-lg animate-in slide-in-from-bottom-2 duration-300 z-20">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex gap-1">
+                                        {[1,2,3].map(i => (
+                                            <div key={i} className="w-1 h-4 bg-white rounded-full animate-bounce" style={{ animationDelay: `${i * 0.1}s` }} />
+                                        ))}
+                                    </div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest">Enregistrement...</span>
+                                </div>
+                                <button 
+                                    onClick={stopRecording}
+                                    className="bg-white text-red-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-red-50 transition-colors shadow-sm"
+                                >
+                                    Terminer
+                                </button>
+                            </div>
+                        )}
+
+                        {isTranscribing && (
+                            <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center z-10 animate-in fade-in duration-200">
+                                <div className="flex flex-col items-center gap-3 bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
+                                    <Loader2 size={32} className="text-indigo-600 animate-spin" />
+                                    <p className="text-indigo-600 font-bold text-sm">Analyse par l'IA...</p>
+                                </div>
                             </div>
                         )}
 
@@ -385,7 +393,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                                 className="absolute bottom-4 right-4 p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100 flex items-center gap-2 group-hover:scale-105"
                             >
                                 <Mic size={18} />
-                                <span className="text-xs font-bold">Dicter mon feedback</span>
+                                <span className="text-xs font-bold">Dicter</span>
                             </button>
                         )}
                     </div>
