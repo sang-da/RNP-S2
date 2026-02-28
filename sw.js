@@ -1,78 +1,22 @@
-// Service Worker pour RNP Manager
-const CACHE_NAME = 'rnp-manager-v1';
-const urlsToCache = [
-  '/',
-  '/index.html'
-];
-
-// Installation du SW
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
-  );
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
 });
 
-// Activation et nettoyage des vieux caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
+          return caches.delete(cacheName);
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
 });
 
-// Interception des requêtes (Offline First strategy pour les assets statiques)
-self.addEventListener('fetch', (event) => {
-  // On ne cache pas les requêtes API/Firebase pour l'instant pour éviter les soucis de données
-  if (event.request.url.includes('firestore') || event.request.url.includes('googleapis')) {
-      return;
-  }
-
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
-});
-
-// Écoute des Notifications Push
-self.addEventListener('push', function(event) {
-  const data = event.data ? event.data.json() : { title: 'RNP Manager', body: 'Nouvelle notification' };
-  
-  // Utilisation de PiXi_Cloud pour l'icône de notification (cohérence App)
-  const options = {
-    body: data.body,
-    icon: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png',
-    badge: 'https://raw.githubusercontent.com/sang-da/svg/main/PiXi_Cloud.png',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: '2'
-    }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-// Clic sur la notification
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  event.waitUntil(
-    clients.openWindow('/')
-  );
+self.addEventListener('fetch', (e) => {
+  // Bypass cache completely
+  e.respondWith(fetch(e.request));
 });

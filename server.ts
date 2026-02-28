@@ -21,37 +21,86 @@ async function startServer() {
   const storage = multer.memoryStorage();
   const upload = multer({ storage });
 
-  // Transcription endpoint
+  // Transcription endpoint (Whisper + LLM Post-processing)
   app.post("/api/transcribe", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
+      const { reviewerName, targetName, agencyName } = req.body;
+
       const apiKey = process.env.VITE_GROQ_API_KEY;
       if (!apiKey) {
+        console.error("VITE_GROQ_API_KEY is missing from process.env");
         return res.status(500).json({ error: "VITE_GROQ_API_KEY is not configured" });
       }
+      console.log("VITE_GROQ_API_KEY found, proceeding with transcription...");
 
-      const formData = new FormData();
-      formData.append("file", req.file.buffer, {
+      // 1. WHISPER TRANSCRIPTION
+      const whisperFormData = new FormData();
+      whisperFormData.append("file", req.file.buffer, {
         filename: "audio.webm",
         contentType: req.file.mimetype,
       });
-      formData.append("model", "whisper-large-v3");
+      whisperFormData.append("model", "whisper-large-v3-turbo");
+      whisperFormData.append("language", "fr");
+      whisperFormData.append("prompt", `Feedback de ${reviewerName || 'un étudiant'} pour ${targetName || 'son collègue'} dans l'agence ${agencyName || 'de design'}.`);
 
-      const response = await axios.post(
+      const whisperResponse = await axios.post(
         "https://api.groq.com/openai/v1/audio/transcriptions",
-        formData,
+        whisperFormData,
         {
           headers: {
-            ...formData.getHeaders(),
+            ...whisperFormData.getHeaders(),
             Authorization: `Bearer ${apiKey}`,
           },
         }
       );
 
-      res.json(response.data);
+      const rawText = whisperResponse.data.text;
+
+      // 2. LLM POST-PROCESSING (Best Practice: Clean & Professionalize)
+      // On s'inspire de la logique Admin (System Prompt + Context)
+      const llmResponse = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { 
+              role: "system", 
+              content: `Tu es un assistant expert en communication pédagogique. Ta mission est de nettoyer une transcription audio de feedback entre étudiants. 
+              CONTEXTE : ${reviewerName || 'Un étudiant'} évalue ${targetName || 'son collègue'} au sein de l'agence ${agencyName || 'RNP'}.
+              
+              DIRECTIVES :
+              1. Supprime les hésitations (euh, bah, alors, etc.).
+              2. Corrige la ponctuation et la grammaire.
+              3. Rends le texte fluide et professionnel tout en conservant scrupuleusement le sens et le ton original.
+              4. Si le ton est critique, garde-le mais rends-le constructif.
+              5. Retourne UNIQUEMENT le texte corrigé, sans introduction ni conclusion.` 
+            },
+            { 
+              role: "user", 
+              content: `Voici la transcription brute à nettoyer : "${rawText}"` 
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 1024
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const cleanedText = llmResponse.data.choices[0].message.content;
+
+      res.json({ 
+        text: cleanedText,
+        raw: rawText
+      });
     } catch (error: any) {
       console.error("Transcription error:", error.response?.data || error.message);
       res.status(500).json({ 

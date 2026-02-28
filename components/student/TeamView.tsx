@@ -277,6 +277,9 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
         try {
             const formData = new FormData();
             formData.append('file', blob, 'recording.webm');
+            formData.append('reviewerName', reviewer.name);
+            formData.append('targetName', target.name);
+            formData.append('agencyName', agency.name);
 
             const response = await fetch('/api/transcribe', {
                 method: 'POST',

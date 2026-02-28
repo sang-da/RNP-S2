@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if(currentUser && userData) await attemptAutoHeal(currentUser, userData);
         }
     }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
