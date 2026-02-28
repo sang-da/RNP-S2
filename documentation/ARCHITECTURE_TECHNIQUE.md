@@ -20,7 +20,7 @@
 | **Build Tool** | Vite | Compilation rapide et Hot Module Replacement (HMR). |
 | **Styling** | Tailwind CSS | Styling utilitaire pour une UI cohérente et rapide. |
 | **Backend (BaaS)** | Firebase (v8/v9 Compat) | Base de données (Firestore), Auth, Storage. |
-| **IA** | Groq API (Llama 3) | Assistant virtuel pour l'analyse financière et la génération de scénarios. |
+| **IA** | Groq API (Llama 3 + Whisper) | Assistant virtuel pour l'analyse financière, la génération de scénarios et la transcription vocale (Client-side). |
 | **State Management** | React Context API | Gestion de l'état global et injection des dépendances. |
 
 ---

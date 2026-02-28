@@ -224,6 +224,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
   );
 };
 
+import { useVoiceDictation } from '@/hooks/useVoiceDictation';
+
 interface PeerReviewFormProps {
     reviewer: Student;
     target: Student;
@@ -239,89 +241,37 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
     const [quality, setQuality] = useState(3);
     const [involvement, setInvolvement] = useState(3);
     const [comment, setComment] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [isTranscribing, setIsTranscribing] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
 
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            const chunks: Blob[] = [];
-
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunks.push(e.data);
-            };
-
-            recorder.onstop = async () => {
-                const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-                await transcribeAudio(audioBlob);
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            recorder.start();
-            setMediaRecorder(recorder);
-            setIsRecording(true);
-        } catch (err) {
-            console.error("Error accessing microphone:", err);
-            setError("Impossible d'accéder au micro.");
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            setIsRecording(false);
-        }
-    };
-
-    const transcribeAudio = async (blob: Blob) => {
-        setIsTranscribing(true);
-        try {
-            // 1. Transcribe with Whisper (Client-side directly to Groq)
-            const promptContext = `Feedback de ${reviewer.name} pour ${target.name} dans l'agence ${agencyName}.`;
-            const rawText = await transcribeAudioWithGroq(blob, promptContext);
-
-            if (!rawText || rawText.trim() === '') {
-                throw new Error("Aucune parole détectée.");
-            }
-
-            // 2. Clean and professionalize with Llama (Client-side directly to Groq)
-            const systemPrompt = `Tu es un assistant RH professionnel. 
+    const {
+        isRecording,
+        isTranscribing,
+        error: dictationError,
+        startRecording,
+        stopRecording,
+        clearError
+    } = useVoiceDictation({
+        onTranscriptionComplete: (text) => {
+            setComment(prev => prev ? `${prev}\n\n${text}` : text);
+        },
+        promptContext: `Feedback de ${reviewer.name} pour ${target.name} dans l'agence ${agencyName}.`,
+        systemPrompt: `Tu es un assistant RH professionnel. 
             Ton rôle est de nettoyer et de professionnaliser une transcription audio de feedback entre étudiants.
             - Corrige les erreurs de transcription (ex: "euh", "bah", hésitations).
             - Améliore la syntaxe et la clarté tout en gardant le sens exact.
             - Garde le ton constructif.
             - Ne rajoute pas d'informations qui ne sont pas dans l'audio.
-            - Renvoie UNIQUEMENT le texte corrigé, sans introduction ni conclusion.`;
-
-            const contextData = {
-                reviewer: reviewer.name,
-                target: target.name,
-                agency: agencyName
-            };
-
-            const cleanedText = await askGroq(
-                `Voici la transcription brute à nettoyer :\n"${rawText}"`, 
-                contextData, 
-                systemPrompt
-            );
-
-            if (cleanedText) {
-                setComment(prev => prev ? `${prev}\n\n${cleanedText}` : cleanedText);
-            }
-        } catch (err: any) {
-            console.error("Transcription error:", err);
-            setError(err.message || "Erreur lors de la transcription vocale avec Groq.");
-        } finally {
-            setIsTranscribing(false);
+            - Renvoie UNIQUEMENT le texte corrigé, sans introduction ni conclusion.`,
+        contextData: {
+            reviewer: reviewer.name,
+            target: target.name,
+            agency: agencyName
         }
-    };
+    });
 
     const handleSubmit = () => {
         if (comment.trim().length < 10) {
-            setError("La justification doit faire au moins 10 caractères.");
+            setFormError("La justification doit faire au moins 10 caractères.");
             return;
         }
 
@@ -341,6 +291,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
     };
 
     const isCommentValid = comment.trim().length >= 10;
+    const displayError = formError || dictationError;
 
     return (
         <Modal isOpen={true} onClose={onClose} title={`Évaluation Hebdo (Sem ${weekId}): ${target.name}`}>
@@ -364,9 +315,9 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                     <div className="relative group">
                         <textarea 
                             value={comment} 
-                            onChange={e => { setComment(e.target.value); if(error) setError(null); }} 
+                            onChange={e => { setComment(e.target.value); if(displayError) { setFormError(null); clearError(); } }} 
                             placeholder="Pourquoi cette note ? Justifiez l'investissement de votre collègue..."
-                            className={`w-full p-4 rounded-2xl border ${error ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'} text-sm min-h-[120px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-white shadow-inner transition-all`} 
+                            className={`w-full p-4 rounded-2xl border ${displayError ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200'} text-sm min-h-[120px] focus:ring-2 focus:ring-indigo-500 outline-none resize-none bg-white shadow-inner transition-all`} 
                         />
                         
                         {/* Improved Recording UI */}
@@ -410,7 +361,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
                             </button>
                         )}
                     </div>
-                    {error && <p className="text-[10px] text-red-500 font-bold mt-1 animate-pulse">{error}</p>}
+                    {displayError && <p className="text-[10px] text-red-500 font-bold mt-1 animate-pulse">{displayError}</p>}
                 </div>
                 <button 
                     onClick={handleSubmit} 
