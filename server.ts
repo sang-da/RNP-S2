@@ -1,5 +1,6 @@
 
 import express from "express";
+import "express-async-errors";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import multer from "multer";
@@ -33,10 +34,10 @@ async function startServer() {
       const { reviewerName, targetName, agencyName } = req.body;
       console.log("[SERVER] Context:", { reviewerName, targetName, agencyName });
 
-      const apiKey = process.env.VITE_GROQ_API_KEY;
+      const apiKey = process.env.VITE_GROQ_API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        console.error("[SERVER] VITE_GROQ_API_KEY is missing from process.env");
-        return res.status(500).json({ error: "VITE_GROQ_API_KEY is not configured on server" });
+        console.error("[SERVER] No API Key found in process.env");
+        return res.status(500).json({ error: "No API Key configured on server" });
       }
 
       console.log("[SERVER] Calling Groq Whisper...");
@@ -44,7 +45,7 @@ async function startServer() {
       const whisperFormData = new FormData();
       whisperFormData.append("file", req.file.buffer, {
         filename: "audio.webm",
-        contentType: req.file.mimetype,
+        contentType: req.file.mimetype || "audio/webm",
       });
       whisperFormData.append("model", "whisper-large-v3-turbo");
       whisperFormData.append("language", "fr");
@@ -56,9 +57,9 @@ async function startServer() {
         {
           headers: {
             ...whisperFormData.getHeaders(),
-            Authorization: `Bearer ${apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
           },
-          timeout: 30000 // 30s timeout
+          timeout: 30000
         }
       );
 
@@ -120,6 +121,11 @@ async function startServer() {
         details: errorData 
       });
     }
+  });
+
+  // API 404 handler
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.originalUrl}` });
   });
 
   // Vite middleware for development
