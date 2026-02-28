@@ -123,3 +123,38 @@ export const askGroq = async (prompt: string, contextData: any, systemRole: stri
         throw error;
     }
 };
+
+// --- NOUVELLE FONCTION POUR LA TRANSCRIPTION AUDIO (WHISPER) ---
+export const transcribeAudioWithGroq = async (audioBlob: Blob, promptContext: string = ""): Promise<string> => {
+    if (!GROQ_KEY || GROQ_KEY.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    try {
+        const formData = new FormData();
+        formData.append("file", audioBlob, "audio.webm");
+        formData.append("model", "whisper-large-v3-turbo");
+        formData.append("language", "fr");
+        if (promptContext) {
+            formData.append("prompt", promptContext);
+        }
+
+        const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${GROQ_KEY}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+        return data.text;
+
+    } catch (error) {
+        console.error("Groq Transcription Failed", error);
+        throw error;
+    }
+};

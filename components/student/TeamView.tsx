@@ -9,6 +9,8 @@ import { useGame } from '../../contexts/GameContext';
 import { SoloPanel } from './team/SoloPanel';
 import { doc, setDoc, db } from '../../services/firebase'; // Direct Write for Reviews
 
+import { transcribeAudioWithGroq, askGroq } from '../../services/groqService';
+
 interface TeamViewProps {
   agency: Agency;
   onUpdateAgency: (agency: Agency) => void;
@@ -277,30 +279,41 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
     const transcribeAudio = async (blob: Blob) => {
         setIsTranscribing(true);
         try {
-            const formData = new FormData();
-            // IMPORTANT: Append fields BEFORE the file to ensure req.body is populated in all environments
-            formData.append('reviewerName', reviewer.name);
-            formData.append('targetName', target.name);
-            formData.append('agencyName', agencyName);
-            formData.append('file', blob, 'recording.webm');
+            // 1. Transcribe with Whisper (Client-side directly to Groq)
+            const promptContext = `Feedback de ${reviewer.name} pour ${target.name} dans l'agence ${agencyName}.`;
+            const rawText = await transcribeAudioWithGroq(blob, promptContext);
 
-            const response = await fetch('/api/transcribe', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.details || errorData.error || 'Transcription failed');
+            if (!rawText || rawText.trim() === '') {
+                throw new Error("Aucune parole détectée.");
             }
 
-            const data = await response.json();
-            if (data.text) {
-                setComment(prev => prev ? `${prev} ${data.text}` : data.text);
+            // 2. Clean and professionalize with Llama (Client-side directly to Groq)
+            const systemPrompt = `Tu es un assistant RH professionnel. 
+            Ton rôle est de nettoyer et de professionnaliser une transcription audio de feedback entre étudiants.
+            - Corrige les erreurs de transcription (ex: "euh", "bah", hésitations).
+            - Améliore la syntaxe et la clarté tout en gardant le sens exact.
+            - Garde le ton constructif.
+            - Ne rajoute pas d'informations qui ne sont pas dans l'audio.
+            - Renvoie UNIQUEMENT le texte corrigé, sans introduction ni conclusion.`;
+
+            const contextData = {
+                reviewer: reviewer.name,
+                target: target.name,
+                agency: agencyName
+            };
+
+            const cleanedText = await askGroq(
+                `Voici la transcription brute à nettoyer :\n"${rawText}"`, 
+                contextData, 
+                systemPrompt
+            );
+
+            if (cleanedText) {
+                setComment(prev => prev ? `${prev}\n\n${cleanedText}` : cleanedText);
             }
         } catch (err: any) {
             console.error("Transcription error:", err);
-            setError(err.message || "Erreur lors de la transcription vocale.");
+            setError(err.message || "Erreur lors de la transcription vocale avec Groq.");
         } finally {
             setIsTranscribing(false);
         }
