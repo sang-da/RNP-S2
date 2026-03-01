@@ -51,6 +51,22 @@ export const ContentForm: React.FC<ContentFormProps> = ({ contentForm, setConten
         });
     };
 
+    const handleMissingReviewPenaltyChange = (field: string, value: any) => {
+        if (!contentForm.scoring) return;
+        const currentPenalty = contentForm.scoring.missingReviewPenalty || { enabled: false, amount: 0, type: 'VE' };
+        
+        setContentForm({
+            ...contentForm,
+            scoring: {
+                ...contentForm.scoring,
+                missingReviewPenalty: {
+                    ...currentPenalty,
+                    [field]: value
+                }
+            }
+        });
+    };
+
     const handleDeliverableChange = (index: number, field: keyof Deliverable, value: any) => {
         const newDeliverables = [...contentForm.deliverables];
         newDeliverables[index] = { ...newDeliverables[index], [field]: value };
@@ -116,6 +132,50 @@ export const ContentForm: React.FC<ContentFormProps> = ({ contentForm, setConten
                                 className="w-full p-2 bg-white/5 border border-white/10 rounded-xl text-center font-bold text-red-400 focus:ring-2 focus:ring-indigo-500"
                             />
                         </div>
+                    </div>
+
+                    {/* PENALITE PEER REVIEW */}
+                    <div className="mt-6 pt-6 border-t border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={16} className="text-orange-400"/>
+                                <h5 className="font-bold text-sm text-slate-200">Pénalité Peer Review Manquante</h5>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={contentForm.scoring.missingReviewPenalty?.enabled || false}
+                                    onChange={(e) => handleMissingReviewPenaltyChange('enabled', e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        
+                        {(contentForm.scoring.missingReviewPenalty?.enabled) && (
+                            <div className="grid grid-cols-2 gap-4 bg-white/5 p-4 rounded-xl">
+                                <div>
+                                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Montant</label>
+                                    <input 
+                                        type="number" 
+                                        value={contentForm.scoring.missingReviewPenalty?.amount || 0} 
+                                        onChange={(e) => handleMissingReviewPenaltyChange('amount', Number(e.target.value))}
+                                        className="w-full p-2 bg-slate-800 border border-white/10 rounded-xl text-center font-bold text-orange-400 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Type</label>
+                                    <select 
+                                        value={contentForm.scoring.missingReviewPenalty?.type || 'VE'} 
+                                        onChange={(e) => handleMissingReviewPenaltyChange('type', e.target.value)}
+                                        className="w-full p-2 bg-slate-800 border border-white/10 rounded-xl text-center font-bold text-white focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="VE">VE (Agence)</option>
+                                        <option value="score">Note (Individuel)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

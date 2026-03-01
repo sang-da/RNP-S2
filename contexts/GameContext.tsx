@@ -92,7 +92,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [gameConfig.currentWeek]);
   
   // On passe 'reviews' aux mécaniques pour les calculs de perf
-  const mechanics = useGameMechanics(agencies, reviews, toast, getCurrentGameWeek);
+  const mechanics = useGameMechanics(agencies, reviews, weeks, toast, getCurrentGameWeek);
 
   // 0. SYNC CONFIG
   useEffect(() => {

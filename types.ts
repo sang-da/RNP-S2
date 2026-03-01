@@ -118,6 +118,11 @@ export interface WeekScoringConfig {
     penaltyLatePerDay: number;
     penaltyConstraint: number;
     expectedTargetVE: number;
+    missingReviewPenalty?: {
+        enabled: boolean;
+        amount: number;
+        type: 'VE' | 'score';
+    };
 }
 
 export interface WeekModule {

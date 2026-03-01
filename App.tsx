@@ -27,7 +27,7 @@ import { StudentSpecialSimulation } from './components/admin/StudentSpecialSimul
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Terminal } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Terminal, LayoutDashboard, Briefcase, Flame } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
@@ -61,19 +61,6 @@ const GameContainer: React.FC = () => {
       setAdminView('MARKET');
     }
   }, [userData]);
-
-  const touchStart = useRef(0);
-  const touchEnd = useRef(0);
-
-  const handleTouchStart = (e: React.TouchEvent) => { touchStart.current = e.targetTouches[0].clientX; };
-  const handleTouchMove = (e: React.TouchEvent) => { touchEnd.current = e.targetTouches[0].clientX; };
-  const handleTouchEnd = () => {
-    if (!touchStart.current || !touchEnd.current) return;
-    const distance = touchStart.current - touchEnd.current;
-    if (distance < -50 && !isSidebarOpen) setIsSidebarOpen(true);
-    if (distance > 50 && isSidebarOpen) setIsSidebarOpen(false);
-    touchStart.current = 0; touchEnd.current = 0;
-  };
 
   const handleLogout = async () => {
       await signOut(auth);
@@ -172,7 +159,7 @@ const GameContainer: React.FC = () => {
               onClose={() => setIsSidebarOpen(false)} 
               role={userData.role}
             />
-            <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+            <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col pb-24 md:pb-0">
                 <NewsTicker />
                 {isSupervisor && (
                     <div className={`px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2 ${hasWriteAccess ? 'bg-amber-600 text-white' : 'bg-purple-600 text-white'}`}>
@@ -180,8 +167,7 @@ const GameContainer: React.FC = () => {
                         {hasWriteAccess ? 'Mode Superviseur (Écriture Autorisée)' : 'Mode Superviseur (Lecture Seule)'}
                     </div>
                 )}
-                <div className="p-4 md:p-8 pt-16 md:pt-8 flex-1">
-                    <button onClick={() => setIsSidebarOpen(true)} className="md:hidden fixed top-14 left-4 z-40 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-700"><Menu size={24} /></button>
+                <div className="p-4 md:p-8 pt-4 md:pt-8 flex-1">
                     
                     {/* ROUTING DES VUES AVEC INJECTION DU STATUT READONLY */}
                     {adminView === 'MARKET' && <AdminMarket agencies={agencies} />}
@@ -210,6 +196,43 @@ const GameContainer: React.FC = () => {
                     {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isViewReadOnly} />}
                 </div>
+            </div>
+
+            {/* Mobile Bottom Navigation Bar */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[40] pb-[env(safe-area-inset-bottom)]">
+              <div className="flex items-center justify-around h-16 px-2">
+                <button 
+                  onClick={() => setAdminView('OVERVIEW')}
+                  className={`flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${adminView === 'OVERVIEW' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
+                >
+                  <LayoutDashboard size={20} />
+                  <span className="text-[10px] font-medium">Accueil</span>
+                </button>
+
+                <button 
+                  onClick={() => setAdminView('PROJECTS')}
+                  className={`flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${adminView === 'PROJECTS' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
+                >
+                  <Briefcase size={20} />
+                  <span className="text-[10px] font-medium">Projets</span>
+                </button>
+
+                <button 
+                  onClick={() => setAdminView('CRISIS')}
+                  className={`flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${adminView === 'CRISIS' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
+                >
+                  <Flame size={20} />
+                  <span className="text-[10px] font-medium">Crises</span>
+                </button>
+
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className={`flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${isSidebarOpen ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
+                >
+                  <Menu size={20} />
+                  <span className="text-[10px] font-medium">Menu</span>
+                </button>
+              </div>
             </div>
           </>
       );

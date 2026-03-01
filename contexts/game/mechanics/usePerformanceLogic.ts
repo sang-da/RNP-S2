@@ -1,13 +1,15 @@
 
 import { writeBatch, doc, db } from '../../../services/firebase';
-import { Agency, GameEvent, PeerReview, CareerStep, Badge } from '../../../types';
+import { Agency, GameEvent, PeerReview, CareerStep, Badge, WeekModule } from '../../../types';
 import { calculateVECap, BADGE_DEFINITIONS } from '../../../constants';
 
-export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
+export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], weeks: { [key: string]: WeekModule }, toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
   const processPerformance = async (targetClass: 'A' | 'B' | 'ALL') => {
       const today = new Date().toISOString().split('T')[0];
-      const currentWeek = getCurrentGameWeek().toString();
+      const currentWeekNum = getCurrentGameWeek();
+      const currentWeekId = currentWeekNum.toString();
+      const currentWeekConfig = weeks[currentWeekId];
 
       try {
         const batch = writeBatch(db);
@@ -28,6 +30,28 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
                 let memberBadges = [...(member.badges || [])];
                 let eventsDescription = "";
 
+                // --- 0. PENALITE PEER REVIEW MANQUANTE ---
+                // Si activé pour la semaine, on vérifie si le membre a fait sa review
+                if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && !isSoloMode) {
+                    // On cherche si ce membre a soumis une review pour cette semaine
+                    // Note: reviews contient TOUTES les reviews. On doit filtrer par reviewerId et weekId.
+                    const hasReviewed = reviews.some(r => 
+                        r.reviewerId === member.id && 
+                        r.weekId === currentWeekId
+                    );
+
+                    if (!hasReviewed) {
+                        const penalty = currentWeekConfig.scoring.missingReviewPenalty;
+                        if (penalty.type === 'score') {
+                            scoreDelta -= penalty.amount;
+                            eventsDescription += ` [Malus Review: -${penalty.amount}]`;
+                        } else if (penalty.type === 'VE') {
+                            // Le malus VE est appliqué à l'agence, pas au membre individuellement ici
+                            // On le gère plus bas dans la section VE
+                        }
+                    }
+                }
+
                 // --- 1. CALCUL DU SCORE ---
                 if (isSoloMode) {
                     // Logique Solo (basée sur VE et Budget)
@@ -47,7 +71,7 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
                     // Filtre : Target = Membre ET Agency = Agence ET Week = Current
                     const memberReviews = reviews.filter(r => 
                         r.targetId === member.id && 
-                        r.weekId === currentWeek &&
+                        r.weekId === currentWeekId &&
                         r.agencyId === agency.id // Sécurité supplémentaire
                     );
 
@@ -93,7 +117,7 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
                 // Si l'étudiant a un vrai compte lié (pas s-...), on met à jour son doc user
                 if (!member.id.startsWith('s-') && !member.id.startsWith('agency_')) {
                     const careerStep: CareerStep = {
-                        weekId: currentWeek,
+                        weekId: currentWeekId,
                         agencyId: agency.id,
                         agencyName: agency.name,
                         role: member.role,
@@ -110,12 +134,46 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], t
 
             // --- 3. CALCUL VE (AVEC TOLÉRANCE OVERCAP) ---
             let veAdjustment = 0;
+            
+            // A. VE PENALTY (PEER REVIEW)
+            if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
+                 let missingReviewCount = 0;
+                 agency.members.forEach(member => {
+                     const hasReviewed = reviews.some(r => r.reviewerId === member.id && r.weekId === currentWeekId);
+                     if (!hasReviewed) missingReviewCount++;
+                 });
+
+                 if (missingReviewCount > 0) {
+                     const penaltyAmount = currentWeekConfig.scoring.missingReviewPenalty.amount * missingReviewCount;
+                     veAdjustment -= penaltyAmount;
+                     logEvents.push({ 
+                        id: `perf-penalty-review-${Date.now()}-${agency.id}`, 
+                        date: today, 
+                        type: 'CRISIS', 
+                        label: 'Malus Peer Review', 
+                        deltaVE: -penaltyAmount, 
+                        description: `${missingReviewCount} membre(s) n'ont pas voté (-${penaltyAmount} VE).` 
+                     });
+                 }
+            }
+
+            // B. VE BUDGET ADJUSTMENT
             const budget = agency.budget_real;
             if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
             else if (budget < 0) veAdjustment -= Math.ceil(Math.abs(budget) / 1000) * 2;
 
-            if (veAdjustment !== 0) {
-                logEvents.push({ id: `perf-ve-${Date.now()}-${agency.id}`, date: today, type: veAdjustment > 0 ? 'VE_DELTA' : 'CRISIS', label: 'Ajustement VE (Bilan)', deltaVE: veAdjustment, description: veAdjustment > 0 ? 'Trésorerie saine.' : 'Dette.' });
+            if (veAdjustment !== 0 && !logEvents.find(e => e.label === 'Malus Peer Review')) { // Avoid double logging if only penalty
+                // Only log budget adjustment if it's not just the penalty (or log separately? The penalty is already logged above)
+                // Actually, let's log budget adjustment separately if it exists.
+            }
+            
+            // Re-calculate budget part for logging to be clear
+            let budgetVeAdj = 0;
+            if (budget >= 2000) budgetVeAdj += Math.floor(budget / 2000);
+            else if (budget < 0) budgetVeAdj -= Math.ceil(Math.abs(budget) / 1000) * 2;
+            
+            if (budgetVeAdj !== 0) {
+                 logEvents.push({ id: `perf-ve-${Date.now()}-${agency.id}`, date: today, type: budgetVeAdj > 0 ? 'VE_DELTA' : 'CRISIS', label: 'Ajustement VE (Bilan)', deltaVE: budgetVeAdj, description: budgetVeAdj > 0 ? 'Trésorerie saine.' : 'Dette.' });
             }
 
             const veCap = calculateVECap(agency);
