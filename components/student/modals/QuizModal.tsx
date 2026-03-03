@@ -22,7 +22,8 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [textAnswer, setTextAnswer] = useState('');
     const [ratingAnswer, setRatingAnswer] = useState<number>(0);
-    
+    const [criteriaRatings, setCriteriaRatings] = useState<{[key: string]: number}>({}); // Pour les sous-questions
+
     // Accumulateurs
     const [allAnswers, setAllAnswers] = useState<any>({}); // { qId: value }
     const [audioBlobs, setAudioBlobs] = useState<{[key: string]: Blob}>({}); // Stockage temporaire pour analyse sentiment (caché)
@@ -110,9 +111,17 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             setTextAnswer('');
         }
         else if (currentQuestion.type === 'rating') {
-            if (ratingAnswer === 0) return;
-            answerValue = ratingAnswer;
-            setRatingAnswer(0);
+            if (currentQuestion.criteria && currentQuestion.criteria.length > 0) {
+                // Check if all criteria have been rated
+                const allRated = currentQuestion.criteria.every(c => criteriaRatings[c] !== undefined && criteriaRatings[c] > 0);
+                if (!allRated) return;
+                answerValue = criteriaRatings;
+                setCriteriaRatings({});
+            } else {
+                if (ratingAnswer === 0) return;
+                answerValue = ratingAnswer;
+                setRatingAnswer(0);
+            }
         }
 
         const newAnswers = { ...allAnswers, [currentQuestion.id]: answerValue };
@@ -238,7 +247,12 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         if (isSubmitting || transcribing || isRecording) return true;
         if (currentQuestion.type === 'choice') return selectedOption === null;
         if (currentQuestion.type === 'text') return !textAnswer.trim();
-        if (currentQuestion.type === 'rating') return ratingAnswer === 0;
+        if (currentQuestion.type === 'rating') {
+            if (currentQuestion.criteria && currentQuestion.criteria.length > 0) {
+                return !currentQuestion.criteria.every(c => criteriaRatings[c] !== undefined && criteriaRatings[c] > 0);
+            }
+            return ratingAnswer === 0;
+        }
         return false;
     };
 
@@ -394,18 +408,54 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
 
                     {/* TYPE: RATING */}
                     {currentQuestion.type === 'rating' && (
-                        <div className="mt-8 flex justify-center gap-2">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <button
-                                    key={star}
-                                    onClick={() => setRatingAnswer(star)}
-                                    className={`p-2 transition-transform hover:scale-110 ${
-                                        ratingAnswer >= star ? 'text-amber-400' : 'text-slate-200'
-                                    }`}
-                                >
-                                    <Star size={40} fill={ratingAnswer >= star ? "currentColor" : "none"} />
-                                </button>
-                            ))}
+                        <div className="mt-8 space-y-8">
+                            {currentQuestion.criteria && currentQuestion.criteria.length > 0 ? (
+                                // MODE CRITÈRES MULTIPLES (SLIDERS)
+                                <div className="space-y-6">
+                                    {currentQuestion.criteria.map((crit, idx) => {
+                                        const val = criteriaRatings[crit] || 0;
+                                        return (
+                                            <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <label className="font-bold text-slate-700 text-sm">{crit}</label>
+                                                    <span className={`text-sm font-black ${val > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                        {val > 0 ? val.toFixed(1) : '-'} / 5
+                                                    </span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="0" 
+                                                    max="5" 
+                                                    step="0.5"
+                                                    value={val}
+                                                    onChange={(e) => setCriteriaRatings(prev => ({ ...prev, [crit]: parseFloat(e.target.value) }))}
+                                                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                                />
+                                                <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase mt-1">
+                                                    <span>Inexistant (0)</span>
+                                                    <span>Moyen (2.5)</span>
+                                                    <span>Très fort (5)</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                // MODE SIMPLE (STARS) - Legacy ou simple note globale
+                                <div className="flex justify-center gap-2">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            onClick={() => setRatingAnswer(star)}
+                                            className={`p-2 transition-transform hover:scale-110 ${
+                                                ratingAnswer >= star ? 'text-amber-400' : 'text-slate-200'
+                                            }`}
+                                        >
+                                            <Star size={40} fill={ratingAnswer >= star ? "currentColor" : "none"} />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

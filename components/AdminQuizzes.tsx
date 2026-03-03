@@ -275,9 +275,8 @@ export const AdminQuizzes: React.FC = () => {
                                         className="w-full p-3 border border-slate-200 rounded-lg bg-white"
                                     >
                                         <option value="choice">Choix Multiple</option>
-                                        <option value="text">Texte Libre</option>
-                                        <option value="rating">Notation (1-5)</option>
-                                        <option value="audio">Audio (Vocal)</option>
+                                        <option value="text">Texte / Audio</option>
+                                        <option value="rating">Notation / Évaluation</option>
                                     </select>
                                 </div>
                             </div>
@@ -317,19 +316,57 @@ export const AdminQuizzes: React.FC = () => {
 
                             {q.type === 'text' && (
                                 <div className="flex items-center gap-2 text-slate-400 text-sm pl-4 border-l-2 border-slate-200">
-                                    <Type size={16} /> Champ texte libre pour l'étudiant
+                                    <div className="flex items-center gap-4">
+                                        <span className="flex items-center gap-1"><Type size={16} /> Réponse Texte</span>
+                                        <span className="flex items-center gap-1 text-indigo-500"><Mic size={16} /> Audio Activé</span>
+                                    </div>
                                 </div>
                             )}
 
                             {q.type === 'rating' && (
-                                <div className="flex items-center gap-2 text-amber-400 text-sm pl-4 border-l-2 border-amber-200">
-                                    <Star size={16} fill="currentColor" /> Système de notation 1 à 5 étoiles
-                                </div>
-                            )}
-
-                            {q.type === 'audio' && (
-                                <div className="flex items-center gap-2 text-red-400 text-sm pl-4 border-l-2 border-red-200">
-                                    <Mic size={16} /> Enregistrement vocal avec transcription IA
+                                <div className="space-y-3 pl-4 border-l-2 border-amber-200">
+                                    <div className="flex items-center gap-2 text-amber-600 text-sm font-bold">
+                                        <Star size={16} fill="currentColor" /> Critères d'évaluation (Optionnel)
+                                    </div>
+                                    <p className="text-xs text-slate-500">Si vide, une seule note globale (1-5) sera demandée. Sinon, une note par critère.</p>
+                                    
+                                    {q.criteria?.map((crit, cIdx) => (
+                                        <div key={cIdx} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={crit}
+                                                onChange={e => {
+                                                    const updatedQuestions = [...(currentQuiz.questions || [])];
+                                                    const criteria = [...(updatedQuestions[qIdx].criteria || [])];
+                                                    criteria[cIdx] = e.target.value;
+                                                    updatedQuestions[qIdx].criteria = criteria;
+                                                    setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
+                                                }}
+                                                className="flex-1 p-2 border border-slate-200 rounded bg-white text-sm"
+                                                placeholder={`Critère ${cIdx + 1} (ex: Stress, Cohésion...)`}
+                                            />
+                                            <button 
+                                                onClick={() => {
+                                                    const updatedQuestions = [...(currentQuiz.questions || [])];
+                                                    updatedQuestions[qIdx].criteria = updatedQuestions[qIdx].criteria?.filter((_, i) => i !== cIdx);
+                                                    setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
+                                                }} 
+                                                className="text-slate-400 hover:text-red-500"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={() => {
+                                            const updatedQuestions = [...(currentQuiz.questions || [])];
+                                            updatedQuestions[qIdx].criteria = [...(updatedQuestions[qIdx].criteria || []), ''];
+                                            setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
+                                        }}
+                                        className="text-xs font-bold text-amber-600 hover:text-amber-700 mt-2 flex items-center gap-1"
+                                    >
+                                        <Plus size={12}/> Ajouter un critère
+                                    </button>
                                 </div>
                             )}
                         </div>

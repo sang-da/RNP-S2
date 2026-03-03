@@ -272,6 +272,7 @@ export interface QuizQuestion {
     type: 'choice' | 'text' | 'rating' | 'audio';
     options?: string[];
     correctOptionIndex?: number;
+    criteria?: string[]; // Pour les sous-questions de notation
 }
 
 export interface Quiz {
