@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Student, Agency, Deliverable, PeerReview } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog } from 'lucide-react';
+import { Student, Agency, Deliverable, PeerReview, QuizAttempt } from '../../../types';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 
@@ -14,12 +14,26 @@ interface StudentProfileProps {
     portfolio: any[];
     chartData: any[];
     gradeDistribution: any[];
+    quizAttempts?: QuizAttempt[];
 }
 
-export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, allAgencies, timeline, behaviorStats, portfolio, chartData, gradeDistribution }) => {
+export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, allAgencies, timeline, behaviorStats, portfolio, chartData, gradeDistribution, quizAttempts = [] }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [playingAudio, setPlayingAudio] = useState<string | null>(null);
 
     const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
+
+    const handlePlayAudio = (url: string) => {
+        if (playingAudio === url) {
+            setPlayingAudio(null);
+            // Stop logic would be here if we had a ref to the audio element
+        } else {
+            setPlayingAudio(url);
+            const audio = new Audio(url);
+            audio.play();
+            audio.onended = () => setPlayingAudio(null);
+        }
+    };
 
     return (
         <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
@@ -60,6 +74,58 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     </div>
                 </div>
             </div>
+
+            {/* QUIZ & SONDAGES (NEW SECTION) */}
+            {quizAttempts.length > 0 && (
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><MessageSquare size={20}/> Quiz & Sondages ({quizAttempts.length})</h4>
+                    <div className="space-y-4">
+                        {quizAttempts.map(attempt => (
+                            <div key={attempt.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${attempt.type === 'SURVEY' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                            {attempt.type === 'SURVEY' ? 'Sondage' : 'Quiz'}
+                                        </span>
+                                        <span className="text-xs text-slate-400 ml-2">{new Date(attempt.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="font-bold text-slate-900">{attempt.score}/{attempt.maxScore}</span>
+                                        <span className="text-[10px] text-slate-400 block">Score</span>
+                                    </div>
+                                </div>
+                                
+                                {/* AUDIO & ANALYSIS DISPLAY */}
+                                {attempt.audioUrls && Object.keys(attempt.audioUrls).length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-200">
+                                        <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><Mic size={12}/> Enregistrements Vocaux & Analyse (Secret)</p>
+                                        <div className="space-y-2">
+                                            {Object.entries(attempt.audioUrls).map(([qId, url]) => (
+                                                <div key={qId} className="flex items-center justify-between bg-white p-2 rounded border border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            onClick={() => handlePlayAudio(url as string)}
+                                                            className={`p-1.5 rounded-full ${playingAudio === url ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
+                                                        >
+                                                            {playingAudio === url ? <Square size={12} fill="currentColor"/> : <Play size={12} fill="currentColor"/>}
+                                                        </button>
+                                                        <span className="text-xs font-medium text-slate-600">Question {qId}</span>
+                                                    </div>
+                                                    {attempt.aiAnalysis && attempt.aiAnalysis[qId] && (
+                                                        <div className="text-[10px] text-slate-500 italic">
+                                                            Sentiment: <span className="font-bold text-indigo-600">{attempt.aiAnalysis[qId].sentiment || 'N/A'}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* NOTES PEDAGOGIQUES (NEW) */}
             {student.notes && student.notes.length > 0 && (

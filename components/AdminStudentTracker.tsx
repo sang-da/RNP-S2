@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
-import { Agency, Student, Deliverable, PeerReview } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Agency, Student, Deliverable, PeerReview, QuizAttempt } from '../types';
 import { User, Search, Filter, Users } from 'lucide-react';
 import { TrackerStats } from './admin/tracker/TrackerStats';
 import { StudentProfile } from './admin/tracker/StudentProfile';
 import { useGame } from '../contexts/GameContext';
+import { collection, query, where, getDocs, db } from '../services/firebase';
 
 interface AdminStudentTrackerProps {
     agencies: Agency[];
@@ -17,6 +18,26 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [classFilter, setClassFilter] = useState<'ALL' | 'A' | 'B'>('ALL');
+    const [studentAttempts, setStudentAttempts] = useState<QuizAttempt[]>([]);
+
+    // --- 0. FETCH QUIZ ATTEMPTS ---
+    useEffect(() => {
+        const fetchAttempts = async () => {
+            if (!selectedStudentId) {
+                setStudentAttempts([]);
+                return;
+            }
+            try {
+                const q = query(collection(db, 'quiz_attempts'), where('studentId', '==', selectedStudentId));
+                const snapshot = await getDocs(q);
+                const attempts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizAttempt));
+                setStudentAttempts(attempts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            } catch (e) {
+                console.error("Error fetching attempts", e);
+            }
+        };
+        fetchAttempts();
+    }, [selectedStudentId]);
 
     // --- 1. LISTE GLOBALE DES ÉTUDIANTS (Flattened) ---
     const allStudents = useMemo(() => {
@@ -273,6 +294,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                                 portfolio={portfolio}
                                 chartData={chartData}
                                 gradeDistribution={gradeDistribution}
+                                quizAttempts={studentAttempts}
                             />
                         </div>
                     ) : (

@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Quiz, QuizQuestion } from '../../../types';
-import { CheckCircle2, XCircle, HelpCircle, Coins, Award, ArrowRight, Mic, Square, Play, Star, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, Coins, Award, ArrowRight, Mic, Square, Play, Star, Loader2, Trash2 } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { doc, runTransaction, db } from '../../../services/firebase';
+import { doc, runTransaction, db, storage, ref, uploadBytes, getDownloadURL } from '../../../services/firebase';
 import { transcribeAudioWithGroq } from '../../../services/groqService';
 
 interface QuizModalProps {
@@ -22,11 +22,10 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [textAnswer, setTextAnswer] = useState('');
     const [ratingAnswer, setRatingAnswer] = useState<number>(0);
-    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     
     // Accumulateurs
     const [allAnswers, setAllAnswers] = useState<any>({}); // { qId: value }
-    const [audioBlobs, setAudioBlobs] = useState<{[key: string]: Blob}>({});
+    const [audioBlobs, setAudioBlobs] = useState<{[key: string]: Blob}>({}); // Stockage temporaire pour analyse sentiment (caché)
 
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [score, setScore] = useState(0);
@@ -49,10 +48,27 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             const chunks: BlobPart[] = [];
 
             recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = () => {
+            recorder.onstop = async () => {
                 const blob = new Blob(chunks, { type: 'audio/webm' });
-                setAudioBlob(blob);
                 stream.getTracks().forEach(track => track.stop());
+                
+                // 1. Transcription Live
+                setTranscribing(true);
+                try {
+                    const text = await transcribeAudioWithGroq(blob, "Transcription de réponse étudiant");
+                    setTextAnswer(prev => prev ? `${prev}\n${text}` : text);
+                    
+                    // 2. Stockage du Blob pour analyse sentiment (Admin Only)
+                    // On ne le stocke que si c'est une question texte qui autorise l'audio
+                    // Ici on considère que tout champ texte peut avoir de l'audio
+                    setAudioBlobs(prev => ({ ...prev, [currentQuestion.id]: blob }));
+                    
+                } catch (e) {
+                    console.error("Transcription error", e);
+                    alert("Erreur de transcription. Veuillez réessayer ou taper votre texte.");
+                } finally {
+                    setTranscribing(false);
+                }
             };
 
             recorder.start();
@@ -98,13 +114,6 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             answerValue = ratingAnswer;
             setRatingAnswer(0);
         }
-        else if (currentQuestion.type === 'audio') {
-            if (!audioBlob) return;
-            // On stocke le blob séparément pour le traiter à la fin
-            setAudioBlobs(prev => ({ ...prev, [currentQuestion.id]: audioBlob }));
-            answerValue = "AUDIO_PENDING";
-            setAudioBlob(null);
-        }
 
         const newAnswers = { ...allAnswers, [currentQuestion.id]: answerValue };
         setAllAnswers(newAnswers);
@@ -134,25 +143,36 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         }
         setScore(finalScore);
 
-        // 2. Transcription Audio (si nécessaire)
-        const transcriptions: {[key: string]: string} = {};
-        if (Object.keys(audioBlobs).length > 0) {
-            setTranscribing(true);
-            try {
-                for (const [qId, blob] of Object.entries(audioBlobs)) {
-                    const text = await transcribeAudioWithGroq(blob as Blob, "Transcription de réponse étudiant");
-                    transcriptions[qId] = text;
-                }
-            } catch (e) {
-                console.error("Transcription error", e);
-            }
-            setTranscribing(false);
+        // 2. Upload Audio Blobs (Secret)
+        const audioUrls: { [key: string]: string } = {};
+        const aiAnalysis: { [key: string]: any } = {};
+
+        try {
+            const uploadPromises = Object.entries(audioBlobs).map(async ([qId, blob]) => {
+                if (!currentUser) return;
+                const storageRef = ref(storage, `quizzes/${quiz.id}/${currentUser.uid}/${qId}_${Date.now()}.webm`);
+                await uploadBytes(storageRef, blob);
+                const url = await getDownloadURL(storageRef);
+                audioUrls[qId] = url;
+                
+                // Mock AI Analysis (since we don't have a backend function ready)
+                // In a real scenario, we would trigger a Cloud Function here
+                aiAnalysis[qId] = {
+                    sentiment: "pending_analysis", // To be processed by Admin later
+                    transcription_length: finalAnswers[qId]?.length || 0
+                };
+            });
+
+            await Promise.all(uploadPromises);
+        } catch (e) {
+            console.error("Error uploading audio:", e);
+            // Continue even if upload fails, we still want to save the quiz
         }
 
         // 3. Enregistrement Firebase
         if (currentUser) {
             try {
-                await saveResultsToFirebase(finalScore, finalAnswers, transcriptions);
+                await saveResultsToFirebase(finalScore, finalAnswers, audioUrls, aiAnalysis);
             } catch (error) {
                 console.error("Error submitting quiz:", error);
             }
@@ -162,7 +182,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         setIsSubmitting(false);
     };
 
-    const saveResultsToFirebase = async (finalScore: number, finalAnswers: any, transcriptions: any) => {
+    const saveResultsToFirebase = async (finalScore: number, finalAnswers: any, audioUrls: any, aiAnalysis: any) => {
         if (!currentUser) return;
 
         const ratio = finalScore / quiz.questions.length;
@@ -190,13 +210,8 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             });
 
             // Sauvegarde de la tentative complète
-            // On utilise une collection 'quiz_attempts'
-            // ID composite pour unicité si 'ONCE', sinon timestamp si 'WEEKLY'
             let attemptId = `${quiz.id}_${currentUser.uid}`;
             if (quiz.frequency === 'WEEKLY') {
-                // On ajoute la semaine courante pour permettre une par semaine
-                // Mais ici on n'a pas le weekId facilement accessible sans contexte...
-                // On va utiliser le timestamp pour l'instant
                 attemptId += `_${Date.now()}`;
             }
 
@@ -209,7 +224,8 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                 date: new Date().toISOString(),
                 rewardsEarned: { points: pointsEarned, pixi: pixiEarned },
                 answers: finalAnswers,
-                transcriptions: transcriptions,
+                audioUrls: audioUrls,
+                aiAnalysis: aiAnalysis,
                 type: quiz.type || 'QUIZ'
             });
 
@@ -219,11 +235,10 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
 
     // RENDER HELPERS
     const isNextDisabled = () => {
-        if (isSubmitting || transcribing) return true;
+        if (isSubmitting || transcribing || isRecording) return true;
         if (currentQuestion.type === 'choice') return selectedOption === null;
         if (currentQuestion.type === 'text') return !textAnswer.trim();
         if (currentQuestion.type === 'rating') return ratingAnswer === 0;
-        if (currentQuestion.type === 'audio') return !audioBlob;
         return false;
     };
 
@@ -318,15 +333,62 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                         </div>
                     )}
 
-                    {/* TYPE: TEXT */}
-                    {currentQuestion.type === 'text' && (
-                        <div className="mt-6">
-                            <textarea
-                                value={textAnswer}
-                                onChange={(e) => setTextAnswer(e.target.value)}
-                                placeholder="Écris ta réponse ici..."
-                                className="w-full h-32 p-4 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-0 resize-none text-slate-700"
-                            />
+                    {/* TYPE: TEXT (AVEC AUDIO OPTIONNEL) */}
+                    {(currentQuestion.type === 'text' || currentQuestion.type === 'audio') && (
+                        <div className="mt-6 space-y-4">
+                            <div className="relative">
+                                <textarea
+                                    value={textAnswer}
+                                    onChange={(e) => setTextAnswer(e.target.value)}
+                                    placeholder="Écris ta réponse ici ou utilise le micro..."
+                                    className="w-full h-40 p-4 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-0 resize-none text-slate-700 pr-12"
+                                    disabled={isRecording || transcribing}
+                                />
+                                <div className="absolute bottom-4 right-4 flex gap-2">
+                                    {textAnswer && (
+                                        <button 
+                                            onClick={() => setTextAnswer('')}
+                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                            title="Effacer le texte"
+                                        >
+                                            <Trash2 size={18}/>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* AUDIO RECORDER INTEGRATED */}
+                            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={isRecording ? stopRecording : startRecording}
+                                        disabled={transcribing}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                                            isRecording 
+                                            ? 'bg-red-500 text-white animate-pulse' 
+                                            : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                                        } ${transcribing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isRecording ? <Square size={16} fill="currentColor"/> : <Mic size={20}/>}
+                                    </button>
+                                    
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-700 uppercase">
+                                            {isRecording ? 'Enregistrement...' : transcribing ? 'Transcription IA...' : 'Dictée Vocale'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">
+                                            {isRecording ? `00:${recordingTime < 10 ? `0${recordingTime}` : recordingTime}` : 'Cliquez pour parler'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {transcribing && (
+                                    <div className="flex items-center gap-2 text-indigo-600 text-xs font-bold animate-pulse">
+                                        <Loader2 size={14} className="animate-spin"/>
+                                        Transcription...
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -344,63 +406,6 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                                     <Star size={40} fill={ratingAnswer >= star ? "currentColor" : "none"} />
                                 </button>
                             ))}
-                        </div>
-                    )}
-
-                    {/* TYPE: AUDIO */}
-                    {currentQuestion.type === 'audio' && (
-                        <div className="mt-6 flex flex-col items-center justify-center bg-slate-50 rounded-2xl p-8 border-2 border-dashed border-slate-200">
-                            {!audioBlob && !isRecording && (
-                                <button 
-                                    onClick={startRecording}
-                                    className="w-20 h-20 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg transition-all hover:scale-105"
-                                >
-                                    <Mic size={32} />
-                                </button>
-                            )}
-
-                            {isRecording && (
-                                <div className="flex flex-col items-center gap-4">
-                                    <div className="animate-pulse text-red-500 font-bold text-xl font-mono">
-                                        00:{recordingTime < 10 ? `0${recordingTime}` : recordingTime}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"/>
-                                        <span className="text-xs font-bold text-red-500 uppercase">Enregistrement...</span>
-                                    </div>
-                                    <button 
-                                        onClick={stopRecording}
-                                        className="mt-4 px-6 py-2 bg-slate-900 text-white rounded-full font-bold text-sm flex items-center gap-2"
-                                    >
-                                        <Square size={16} fill="currentColor"/> Stop
-                                    </button>
-                                </div>
-                            )}
-
-                            {audioBlob && (
-                                <div className="flex flex-col items-center gap-4 w-full">
-                                    <div className="w-full bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                                            <Play size={20} fill="currentColor"/>
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="h-1 bg-slate-100 rounded-full w-full overflow-hidden">
-                                                <div className="h-full bg-indigo-500 w-full"/>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => setAudioBlob(null)} className="text-slate-400 hover:text-red-500">
-                                            <XCircle size={20}/>
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                                        <CheckCircle2 size={14}/> Audio prêt à l'envoi
-                                    </p>
-                                </div>
-                            )}
-                            
-                            <p className="mt-4 text-xs text-slate-400 text-center max-w-xs">
-                                {isRecording ? "Parlez distinctement..." : "Cliquez sur le micro pour enregistrer votre réponse (max 60s)."}
-                            </p>
                         </div>
                     )}
                 </div>

@@ -300,6 +300,8 @@ export interface QuizAttempt {
     weekId?: string;
     answers?: { [questionId: string]: string | number };
     transcriptions?: { [questionId: string]: string };
+    audioUrls?: { [questionId: string]: string }; // URL of the uploaded audio
+    aiAnalysis?: { [questionId: string]: any }; // Hidden analysis (sentiment, etc.)
 }
 
 export interface GameConfig {
