@@ -266,6 +266,35 @@ export interface SupervisorPermissions {
     };
 }
 
+export interface QuizQuestion {
+    id: string;
+    text: string;
+    options: string[];
+    correctOptionIndex: number;
+}
+
+export interface Quiz {
+    id: string;
+    title: string;
+    description?: string;
+    questions: QuizQuestion[];
+    rewardPoints: number; // Points de score individuel
+    rewardPixi: number;   // Argent personnel
+    costPixi: number;     // Coût d'entrée (0 si gratuit)
+    isVisible: boolean;
+    createdAt: string;
+}
+
+export interface QuizAttempt {
+    id: string;
+    quizId: string;
+    studentId: string;
+    score: number; // Nombre de bonnes réponses
+    maxScore: number;
+    date: string;
+    rewardsEarned: { points: number; pixi: number };
+}
+
 export interface GameConfig {
     id: string;
     currentCycle: number;
@@ -273,7 +302,8 @@ export interface GameConfig {
     autoPilot: boolean;
     lastFinanceRun: string | null;
     lastPerformanceRun: string | null;
-    supervisorPermissions?: SupervisorPermissions; // AJOUTÉ
+    supervisorPermissions?: SupervisorPermissions;
+    quizzes?: Quiz[]; // NOUVEAU
 }
 
 export interface AIInsight {

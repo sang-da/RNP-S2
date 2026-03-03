@@ -57,6 +57,7 @@ export const deleteDoc = (ref: any) => ref.delete();
 export const onSnapshot = (ref: any, ...args: any[]) => ref.onSnapshot(...args);
 
 export const writeBatch = (firestore: any) => firestore.batch();
+export const runTransaction = (firestore: any, updateFunction: (transaction: any) => Promise<any>) => firestore.runTransaction(updateFunction);
 export const serverTimestamp = () => firebase.firestore.FieldValue.serverTimestamp();
 export const arrayUnion = (...elements: any[]) => firebase.firestore.FieldValue.arrayUnion(...elements);
 export const arrayRemove = (...elements: any[]) => firebase.firestore.FieldValue.arrayRemove(...elements);

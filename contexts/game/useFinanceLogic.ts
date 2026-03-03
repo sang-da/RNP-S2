@@ -1,5 +1,5 @@
 
-import { writeBatch, doc, updateDoc, db } from '../../services/firebase';
+import { writeBatch, doc, updateDoc, db, runTransaction } from '../../services/firebase';
 import { Agency, GameEvent, TransactionRequest } from '../../types';
 import { GAME_RULES, BADGE_DEFINITIONS } from '../../constants';
 
@@ -190,112 +190,166 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
   };
 
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => { 
-      const sourceAgency = agencies.find(a => a.members.some(m => m.id === sourceId));
-      if (!sourceAgency) return;
-      
-      const sourceStudent = sourceAgency.members.find(m => m.id === sourceId);
-      if(!sourceStudent || (sourceStudent.wallet || 0) < amount) {
-          toast('error', "Fonds insuffisants.");
-          return;
+      try {
+        await runTransaction(db, async (transaction) => {
+            // 1. READ LATEST DATA
+            // We need to find which agency the students belong to. 
+            // Since we don't know the agency IDs upfront easily without the stale 'agencies' prop, 
+            // we might need to rely on the passed 'agencies' prop just to find the IDs, 
+            // but then READ the docs within transaction to get fresh data.
+            
+            const sourceAgencyInfo = agencies.find(a => a.members.some(m => m.id === sourceId));
+            const targetAgencyInfo = agencies.find(a => a.members.some(m => m.id === targetId));
+
+            if (!sourceAgencyInfo || !targetAgencyInfo) throw new Error("Agence introuvable");
+
+            const sourceAgencyRef = doc(db, "agencies", sourceAgencyInfo.id);
+            const targetAgencyRef = doc(db, "agencies", targetAgencyInfo.id);
+
+            const sourceDoc = await transaction.get(sourceAgencyRef);
+            const targetDoc = (sourceAgencyInfo.id === targetAgencyInfo.id) ? sourceDoc : await transaction.get(targetAgencyRef);
+
+            if (!sourceDoc.exists()) throw new Error("Agence source n'existe plus");
+            if (!targetDoc.exists()) throw new Error("Agence cible n'existe plus");
+
+            const sourceData = sourceDoc.data() as Agency;
+            const targetData = (sourceAgencyInfo.id === targetAgencyInfo.id) ? sourceData : targetDoc.data() as Agency;
+
+            const sourceStudent = sourceData.members.find(m => m.id === sourceId);
+            const targetStudent = targetData.members.find(m => m.id === targetId);
+
+            if (!sourceStudent) throw new Error("Étudiant source introuvable");
+            if (!targetStudent) throw new Error("Étudiant cible introuvable");
+
+            if ((sourceStudent.wallet || 0) < amount) throw new Error("Fonds insuffisants");
+
+            // 2. PERFORM UPDATES
+            // Update Source
+            const updatedSourceMembers = sourceData.members.map(m => 
+                m.id === sourceId 
+                ? { ...m, wallet: (m.wallet || 0) - amount } 
+                : m
+            );
+
+            const transferLog: GameEvent = {
+                id: `tx-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'INFO',
+                label: 'Virement P2P (Sortant)',
+                deltaBudgetReal: 0,
+                description: `${sourceStudent.name} -> ${targetStudent.name} : -${amount} PiXi`
+            };
+
+            // Update Target
+            let finalSourceMembers = updatedSourceMembers;
+            let finalTargetMembers = targetData.members;
+            let finalSourceLog = [...sourceData.eventLog, transferLog];
+            let finalTargetLog = targetData.eventLog;
+
+            if (sourceAgencyInfo.id === targetAgencyInfo.id) {
+                // Same Agency
+                finalSourceMembers = finalSourceMembers.map(m => 
+                    m.id === targetId 
+                    ? { ...m, wallet: (m.wallet || 0) + amount } 
+                    : m
+                );
+                // No need to update targetData separately
+            } else {
+                // Different Agencies
+                finalTargetMembers = targetData.members.map(m => 
+                    m.id === targetId 
+                    ? { ...m, wallet: (m.wallet || 0) + amount } 
+                    : m
+                );
+
+                const receiptLog: GameEvent = {
+                    id: `tx-rx-${Date.now()}`,
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'INFO',
+                    label: 'Virement P2P (Reçu)',
+                    deltaBudgetReal: 0,
+                    description: `${targetStudent.name} <- ${sourceStudent.name} : +${amount} PiXi`
+                };
+                finalTargetLog = [...targetData.eventLog, receiptLog];
+            }
+
+            // 3. WRITE BACK
+            transaction.update(sourceAgencyRef, { 
+                members: finalSourceMembers,
+                eventLog: finalSourceLog
+            });
+
+            if (sourceAgencyInfo.id !== targetAgencyInfo.id) {
+                transaction.update(targetAgencyRef, {
+                    members: finalTargetMembers,
+                    eventLog: finalTargetLog
+                });
+            }
+        });
+        toast('success', `Virement de ${amount} PiXi effectué.`);
+      } catch (e: any) {
+          console.error("Transfer Error:", e);
+          toast('error', `Erreur virement: ${e.message}`);
       }
-
-      const targetAgency = agencies.find(a => a.members.some(m => m.id === targetId));
-      if(!targetAgency) return;
-      const targetStudent = targetAgency.members.find(m => m.id === targetId);
-
-      const batch = writeBatch(db);
-
-      const updatedSourceMembers = sourceAgency.members.map(m => 
-          m.id === sourceId 
-          ? { ...m, wallet: (m.wallet || 0) - amount } 
-          : m
-      );
-      
-      const transferLog: GameEvent = {
-          id: `tx-${Date.now()}`,
-          date: new Date().toISOString().split('T')[0],
-          type: 'INFO',
-          label: 'Virement P2P (Sortant)',
-          deltaBudgetReal: 0,
-          description: `${sourceStudent.name} -> ${targetStudent?.name} : -${amount} PiXi`
-      };
-      
-      batch.update(doc(db, "agencies", sourceAgency.id), { 
-          members: updatedSourceMembers,
-          eventLog: [...sourceAgency.eventLog, transferLog]
-      });
-
-      const updatedTargetMembers = targetAgency.members.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
-      
-      if (sourceAgency.id !== targetAgency.id) {
-          const receiptLog: GameEvent = {
-              id: `tx-rx-${Date.now()}`,
-              date: new Date().toISOString().split('T')[0],
-              type: 'INFO',
-              label: 'Virement P2P (Reçu)',
-              deltaBudgetReal: 0,
-              description: `${targetStudent?.name} <- ${sourceStudent.name} : +${amount} PiXi`
-          };
-          batch.update(doc(db, "agencies", targetAgency.id), { 
-              members: updatedTargetMembers,
-              eventLog: [...targetAgency.eventLog, receiptLog]
-          });
-      } else {
-          const finalMembers = updatedSourceMembers.map(m => m.id === targetId ? { ...m, wallet: (m.wallet || 0) + amount } : m);
-          batch.update(doc(db, "agencies", sourceAgency.id), { members: finalMembers });
-      }
-
-      await batch.commit();
-      toast('success', `Virement de ${amount} PiXi effectué.`);
   };
 
   const injectCapital = async (studentId: string, agencyId: string, amount: number) => { 
-      const agency = agencies.find(a => a.id === agencyId);
-      if(!agency) return;
-      const student = agency.members.find(m => m.id === studentId);
-      if(!student || (student.wallet || 0) < amount) {
-          toast('error', "Fonds insuffisants.");
-          return;
+      try {
+        await runTransaction(db, async (transaction) => {
+            const agencyRef = doc(db, "agencies", agencyId);
+            const agencyDoc = await transaction.get(agencyRef);
+            
+            if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+            
+            const agencyData = agencyDoc.data() as Agency;
+            const student = agencyData.members.find(m => m.id === studentId);
+            
+            if (!student) throw new Error("Étudiant introuvable dans cette agence");
+            if ((student.wallet || 0) < amount) throw new Error("Fonds insuffisants");
+
+            // LOGIQUE TAXE CUMULATIVE
+            const previousInjection = student.cumulativeInjection || 0;
+            const newTotalInjection = previousInjection + amount;
+            
+            const totalTaxDue = Math.floor(newTotalInjection * GAME_RULES.INJECTION_TAX);
+            const previousTaxPaid = Math.floor(previousInjection * GAME_RULES.INJECTION_TAX);
+            
+            const currentTax = totalTaxDue - previousTaxPaid;
+            const netInjection = amount - currentTax;
+
+            const updatedMembers = agencyData.members.map(m => 
+                m.id === studentId 
+                ? { 
+                    ...m, 
+                    wallet: (m.wallet || 0) - amount,
+                    cumulativeInjection: newTotalInjection
+                  } 
+                : m
+            );
+            
+            const today = new Date().toISOString().split('T')[0];
+            const newEvent: GameEvent = {
+                id: `inj-${Date.now()}`,
+                date: today,
+                type: 'INFO',
+                label: 'Injection Capital (Taxe Cumulative)',
+                deltaBudgetReal: netInjection,
+                description: `${student.name} injecte ${amount} PiXi (Taxe ajustée: ${currentTax}).`
+            };
+
+            transaction.update(agencyRef, { 
+                members: updatedMembers, 
+                budget_real: agencyData.budget_real + netInjection,
+                eventLog: [...agencyData.eventLog, newEvent] 
+            });
+        });
+        // Note: We can't easily get netInjection out of transaction to toast exact amount without refactoring, 
+        // but we can approximate or just say success.
+        toast('success', `Injection de capital effectuée.`);
+      } catch (e: any) {
+          console.error("Injection Error:", e);
+          toast('error', `Erreur injection: ${e.message}`);
       }
-      
-      // LOGIQUE TAXE CUMULATIVE
-      const previousInjection = student.cumulativeInjection || 0;
-      const newTotalInjection = previousInjection + amount;
-      
-      const totalTaxDue = Math.floor(newTotalInjection * GAME_RULES.INJECTION_TAX);
-      const previousTaxPaid = Math.floor(previousInjection * GAME_RULES.INJECTION_TAX);
-      
-      const currentTax = totalTaxDue - previousTaxPaid;
-      const netInjection = amount - currentTax;
-
-      const batch = writeBatch(db);
-      const updatedMembers = agency.members.map(m => 
-          m.id === studentId 
-          ? { 
-              ...m, 
-              wallet: (m.wallet || 0) - amount,
-              cumulativeInjection: newTotalInjection
-            } 
-          : m
-      );
-      
-      const today = new Date().toISOString().split('T')[0];
-      const newEvent: GameEvent = {
-          id: `inj-${Date.now()}`,
-          date: today,
-          type: 'INFO',
-          label: 'Injection Capital (Taxe Cumulative)',
-          deltaBudgetReal: netInjection,
-          description: `${student.name} injecte ${amount} PiXi (Taxe ajustée: ${currentTax}).`
-      };
-
-      batch.update(doc(db, "agencies", agency.id), { 
-          members: updatedMembers, 
-          budget_real: agency.budget_real + netInjection,
-          eventLog: [...agency.eventLog, newEvent] 
-      });
-      await batch.commit();
-      toast('success', `Injection: +${netInjection} PiXi (Taxe -${currentTax})`);
   };
 
   const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 

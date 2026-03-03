@@ -2,7 +2,7 @@
 import { 
     LayoutDashboard, PieChart, Landmark, Contact, Medal, HeartHandshake, 
     TrendingUp, Bot, KeyRound, CalendarRange, Users, Briefcase, Flame, 
-    EyeOff, FolderOpen, MonitorPlay, Settings, ShoppingBag
+    EyeOff, FolderOpen, MonitorPlay, Settings, ShoppingBag, HelpCircle
 } from 'lucide-react';
 
 export const ADMIN_MENU_STRUCTURE = [
@@ -30,6 +30,7 @@ export const ADMIN_MENU_STRUCTURE = [
             { id: 'BANK', label: 'Banque Centrale', icon: Landmark },
             { id: 'STUDENT_TRACKER', label: 'Dossiers Étudiants', icon: Contact },
             { id: 'BADGES', label: 'Salle des Trophées', icon: Medal },
+            { id: 'QUIZZES', label: 'Gestion des Quiz', icon: HelpCircle },
             { id: 'PEER_REVIEWS', label: 'Bilans & Feedbacks', icon: HeartHandshake },
             { id: 'MERCATO', label: 'Mercato RH', icon: Users },
         ]

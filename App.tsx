@@ -31,8 +31,11 @@ import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Termi
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
+import { AdminQuizzes } from './components/AdminQuizzes';
+import { QuizButton } from './components/student/QuizButton';
+
 // NOTE: Le type AdminViewType doit correspondre aux IDs dans adminMenu.ts
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -109,6 +112,7 @@ const GameContainer: React.FC = () => {
                     {simulationMode === 'AGENCY' && simulatedAgencyId && (
                         <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
                             <StudentAgencyView agency={agencies.find(a => a.id === simulatedAgencyId) || agencies[0]} allAgencies={agencies} onUpdateAgency={updateAgency} />
+                            <QuizButton />
                         </Layout>
                     )}
 
@@ -195,6 +199,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'MERCATO' && <AdminMercato agencies={agencies} onUpdateAgencies={updateAgenciesList} readOnly={isViewReadOnly} />}
                     {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isViewReadOnly} />}
+                    {adminView === 'QUIZZES' && <AdminQuizzes />}
                 </div>
             </div>
 
@@ -268,6 +273,7 @@ const GameContainer: React.FC = () => {
         <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
           <NewsTicker />
           <StudentAgencyView agency={myAgency} allAgencies={agencies} onUpdateAgency={updateAgency} />
+          <QuizButton />
         </Layout>
       );
   }
