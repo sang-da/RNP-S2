@@ -144,7 +144,7 @@ export const GradingControls: React.FC<GradingControlsProps> = ({
                                 type="checkbox" 
                                 checked={constraintBroken}
                                 onChange={(e) => setConstraintBroken(e.target.checked)}
-                                className="hidden"
+                                className="sr-only"
                             />
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold leading-none">Contrainte Brisée</span>
@@ -162,7 +162,7 @@ export const GradingControls: React.FC<GradingControlsProps> = ({
                                     type="checkbox" 
                                     checked={bonusEarly}
                                     onChange={(e) => setBonusEarly(e.target.checked)}
-                                    className="hidden"
+                                    className="sr-only"
                                 />
                                 <div className="flex flex-col">
                                     <span className="text-xs font-bold leading-none">Rendu en Avance</span>

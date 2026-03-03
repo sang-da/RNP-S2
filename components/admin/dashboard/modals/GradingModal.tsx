@@ -70,28 +70,38 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     }, [agency, item.weekId, weeks]);
 
     // --- AUTO-FILL LOGIC ---
+    // Fix: Use a ref or separate state to track initialization to prevent resets on background updates
+    const [initializedId, setInitializedId] = useState<string | null>(null);
+
     useEffect(() => {
-        if (item.deliverable) {
-            setFeedback(item.deliverable.feedback || "Fichier reçu. En attente de validation.");
+        // Only run initialization if we haven't initialized this specific deliverable yet
+        // OR if scheduledDeadline just arrived and we want to update the calculation
+        if (item.deliverable.id !== initializedId || (scheduledDeadline && daysLate === 0)) {
             
-            // Auto-select MVP
-            if (item.deliverable.nominatedMvpId && !item.deliverable.grading?.mvpId) {
-                setSelectedMvpId(item.deliverable.nominatedMvpId);
-            } else if (item.deliverable.grading?.mvpId) {
-                setSelectedMvpId(item.deliverable.grading.mvpId);
+            if (item.deliverable.id !== initializedId) {
+                setFeedback(item.deliverable.feedback || "Fichier reçu. En attente de validation.");
+                setInitializedId(item.deliverable.id);
+                
+                // Auto-select MVP
+                if (item.deliverable.nominatedMvpId && !item.deliverable.grading?.mvpId) {
+                    setSelectedMvpId(item.deliverable.nominatedMvpId);
+                } else if (item.deliverable.grading?.mvpId) {
+                    setSelectedMvpId(item.deliverable.grading.mvpId);
+                }
             }
 
             // Calcul Automatique du Retard (Jours Ouvrables)
+            // On le fait si on initialise, ou si la deadline vient d'arriver (async)
             const effectiveDeadline = item.deliverable.deadline || scheduledDeadline;
 
             if (item.deliverable.submissionDate && effectiveDeadline) {
                 const late = calculateBusinessDaysLate(effectiveDeadline, item.deliverable.submissionDate);
                 setDaysLate(late);
-            } else {
+            } else if (item.deliverable.id !== initializedId) {
                 setDaysLate(0);
             }
         }
-    }, [item, scheduledDeadline]);
+    }, [item.deliverable.id, item.deliverable.submissionDate, scheduledDeadline]);
 
     // --- CALCULATIONS ---
     const calculation = useMemo(() => {
@@ -203,14 +213,17 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         <div className="fixed inset-0 z-[60] flex flex-col md:flex-row bg-slate-900 md:bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
             
             {/* --- GAUCHE : FORMULAIRE (35% width desktop, 100% mobile) --- */}
-            <div className="w-full md:w-[400px] lg:w-[450px] bg-white h-full shadow-2xl flex flex-col z-20 border-r border-slate-200">
+            <div className="w-full md:w-[400px] lg:w-[450px] bg-white h-full shadow-2xl flex flex-col z-[70] border-r border-slate-200">
                 
                 {/* Header Form */}
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors flex items-center gap-1 text-sm font-bold">
                         <ArrowLeft size={18}/> Retour
                     </button>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{agency?.name || 'Agence'}</span>
+                    <div className="text-right">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">{agency?.name || 'Agence'}</span>
+                        <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{item.weekId}</span>
+                    </div>
                 </div>
 
                 {/* Scrollable Form Content */}
