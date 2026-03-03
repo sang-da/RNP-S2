@@ -1,239 +1,444 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Quiz, QuizQuestion } from '../types';
-import { Plus, Trash2, Save, Eye, EyeOff, HelpCircle, CheckCircle2 } from 'lucide-react';
-import { Modal } from './Modal';
+import { Plus, Trash2, Save, Edit2, Check, X, HelpCircle, Star, Mic, Type, List, Calendar, Lock, MessageSquare, Award } from 'lucide-react';
+import { doc, updateDoc, arrayUnion, runTransaction, db } from '../services/firebase';
 
-interface QuizEditorProps {
-    initialQuiz: Quiz | null;
-    onSave: (quiz: Quiz) => void;
-    onClose: () => void;
-}
+export const AdminQuizzes: React.FC = () => {
+    const { gameConfig } = useGame();
+    const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentQuiz, setCurrentQuiz] = useState<Partial<Quiz>>({
+        title: '',
+        description: '',
+        type: 'QUIZ',
+        frequency: 'ONCE',
+        questions: [],
+        rewardPoints: 0,
+        rewardPixi: 0,
+        costPixi: 0,
+        isVisible: false,
+        unlockWeek: 1
+    });
 
-const QuizEditor: React.FC<QuizEditorProps> = ({ initialQuiz, onSave, onClose }) => {
-    const [title, setTitle] = useState(initialQuiz?.title || "");
-    const [description, setDescription] = useState(initialQuiz?.description || "");
-    const [rewardPixi, setRewardPixi] = useState(initialQuiz?.rewardPixi || 100);
-    const [rewardPoints, setRewardPoints] = useState(initialQuiz?.rewardPoints || 5);
-    const [questions, setQuestions] = useState<QuizQuestion[]>(initialQuiz?.questions || []);
+    useEffect(() => {
+        if (gameConfig?.quizzes) {
+            setQuizzes(gameConfig.quizzes);
+        }
+    }, [gameConfig]);
 
-    const handleAddQuestion = () => {
-        setQuestions([...questions, {
-            id: `q-${Date.now()}`,
-            text: "",
-            options: ["", "", "", ""],
+    const handleSaveQuiz = async () => {
+        if (!currentQuiz.title || !currentQuiz.questions?.length) return;
+
+        const newQuiz: Quiz = {
+            id: currentQuiz.id || `quiz_${Date.now()}`,
+            title: currentQuiz.title!,
+            description: currentQuiz.description || '',
+            questions: currentQuiz.questions as QuizQuestion[],
+            rewardPoints: currentQuiz.rewardPoints || 0,
+            rewardPixi: currentQuiz.rewardPixi || 0,
+            costPixi: currentQuiz.costPixi || 0,
+            isVisible: currentQuiz.isVisible || false,
+            createdAt: currentQuiz.createdAt || new Date().toISOString(),
+            type: currentQuiz.type || 'QUIZ',
+            frequency: currentQuiz.frequency || 'ONCE',
+            unlockWeek: currentQuiz.unlockWeek
+        };
+
+        try {
+            const gameConfigRef = doc(db, 'game_config', 'main');
+            
+            if (currentQuiz.id) {
+                // Update existing
+                const updatedQuizzes = quizzes.map(q => q.id === newQuiz.id ? newQuiz : q);
+                await updateDoc(gameConfigRef, { quizzes: updatedQuizzes });
+            } else {
+                // Create new
+                await updateDoc(gameConfigRef, {
+                    quizzes: arrayUnion(newQuiz)
+                });
+            }
+            
+            setIsEditing(false);
+            setCurrentQuiz({
+                title: '',
+                description: '',
+                type: 'QUIZ',
+                frequency: 'ONCE',
+                questions: [],
+                rewardPoints: 0,
+                rewardPixi: 0,
+                costPixi: 0,
+                isVisible: false,
+                unlockWeek: 1
+            });
+        } catch (error) {
+            console.error("Error saving quiz:", error);
+            alert("Erreur lors de la sauvegarde");
+        }
+    };
+
+    const handleDeleteQuiz = async (quizId: string) => {
+        if (!confirm("Êtes-vous sûr de vouloir supprimer ce quiz ?")) return;
+        
+        try {
+            const gameConfigRef = doc(db, 'game_config', 'main');
+            const updatedQuizzes = quizzes.filter(q => q.id !== quizId);
+            await updateDoc(gameConfigRef, { quizzes: updatedQuizzes });
+        } catch (error) {
+            console.error("Error deleting quiz:", error);
+        }
+    };
+
+    const addQuestion = () => {
+        const newQuestion: QuizQuestion = {
+            id: `q_${Date.now()}`,
+            text: '',
+            type: 'choice',
+            options: ['', ''],
             correctOptionIndex: 0
-        }]);
+        };
+        setCurrentQuiz(prev => ({
+            ...prev,
+            questions: [...(prev.questions || []), newQuestion]
+        }));
     };
 
     const updateQuestion = (index: number, field: keyof QuizQuestion, value: any) => {
-        const newQuestions = [...questions];
-        // @ts-ignore
-        newQuestions[index] = { ...newQuestions[index], [field]: value };
-        setQuestions(newQuestions);
+        const updatedQuestions = [...(currentQuiz.questions || [])];
+        updatedQuestions[index] = { ...updatedQuestions[index], [field]: value };
+        setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
     };
 
     const updateOption = (qIndex: number, oIndex: number, value: string) => {
-        const newQuestions = [...questions];
-        const newOptions = [...newQuestions[qIndex].options];
-        newOptions[oIndex] = value;
-        newQuestions[qIndex] = { ...newQuestions[qIndex], options: newOptions };
-        setQuestions(newQuestions);
+        const updatedQuestions = [...(currentQuiz.questions || [])];
+        const options = [...(updatedQuestions[qIndex].options || [])];
+        options[oIndex] = value;
+        updatedQuestions[qIndex].options = options;
+        setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
     };
 
-    const handleSave = () => {
-        if (!title || questions.length === 0) return alert("Titre et au moins une question requis.");
-        
-        const quiz: Quiz = {
-            id: initialQuiz?.id || `quiz-${Date.now()}`,
-            title,
-            description,
-            rewardPixi,
-            rewardPoints,
-            costPixi: 0,
-            isVisible: initialQuiz?.isVisible || false,
-            createdAt: initialQuiz?.createdAt || new Date().toISOString(),
-            questions
-        };
-        onSave(quiz);
+    const addOption = (qIndex: number) => {
+        const updatedQuestions = [...(currentQuiz.questions || [])];
+        updatedQuestions[qIndex].options = [...(updatedQuestions[qIndex].options || []), ''];
+        setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
     };
 
-    return (
-        <Modal isOpen={true} onClose={onClose} title={initialQuiz ? "Modifier Quiz" : "Nouveau Quiz"}>
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="col-span-full">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre</label>
-                        <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl font-bold" placeholder="Ex: Culture Générale Design" />
+    const removeOption = (qIndex: number, oIndex: number) => {
+        const updatedQuestions = [...(currentQuiz.questions || [])];
+        updatedQuestions[qIndex].options = updatedQuestions[qIndex].options?.filter((_, i) => i !== oIndex);
+        setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
+    };
+
+    const removeQuestion = (index: number) => {
+        const updatedQuestions = (currentQuiz.questions || []).filter((_, i) => i !== index);
+        setCurrentQuiz(prev => ({ ...prev, questions: updatedQuestions }));
+    };
+
+    if (isEditing) {
+        return (
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-900">
+                        {currentQuiz.id ? 'Modifier' : 'Créer'} un {currentQuiz.type === 'SURVEY' ? 'Sondage' : 'Quiz'}
+                    </h2>
+                    <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">Titre</label>
+                            <input
+                                type="text"
+                                value={currentQuiz.title}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, title: e.target.value }))}
+                                className="w-full p-3 border border-slate-200 rounded-xl"
+                                placeholder="Ex: Quiz Culture G ou Feedback S1"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">Description</label>
+                            <textarea
+                                value={currentQuiz.description}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, description: e.target.value }))}
+                                className="w-full p-3 border border-slate-200 rounded-xl h-24 resize-none"
+                                placeholder="Instructions pour l'étudiant..."
+                            />
+                        </div>
                     </div>
-                    <div className="col-span-full">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
-                        <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm" placeholder="Courte description..." />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Récompense PiXi</label>
-                        <input type="number" value={rewardPixi} onChange={e => setRewardPixi(Number(e.target.value))} className="w-full p-3 border border-slate-200 rounded-xl font-bold" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Récompense Score</label>
-                        <input type="number" value={rewardPoints} onChange={e => setRewardPoints(Number(e.target.value))} className="w-full p-3 border border-slate-200 rounded-xl font-bold" />
+
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Type</label>
+                                <select
+                                    value={currentQuiz.type}
+                                    onChange={e => setCurrentQuiz(prev => ({ ...prev, type: e.target.value as any }))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50"
+                                >
+                                    <option value="QUIZ">Quiz (Noté)</option>
+                                    <option value="SURVEY">Sondage (Feedback)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Fréquence</label>
+                                <select
+                                    value={currentQuiz.frequency}
+                                    onChange={e => setCurrentQuiz(prev => ({ ...prev, frequency: e.target.value as any }))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50"
+                                >
+                                    <option value="ONCE">Une fois</option>
+                                    <option value="WEEKLY">Hebdomadaire</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Récompense (Pts)</label>
+                                <input
+                                    type="number"
+                                    value={currentQuiz.rewardPoints}
+                                    onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPoints: parseInt(e.target.value) }))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Récompense (PiXi)</label>
+                                <input
+                                    type="number"
+                                    value={currentQuiz.rewardPixi}
+                                    onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPixi: parseInt(e.target.value) }))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Débloquer Semaine</label>
+                                <input
+                                    type="number"
+                                    value={currentQuiz.unlockWeek || 1}
+                                    onChange={e => setCurrentQuiz(prev => ({ ...prev, unlockWeek: parseInt(e.target.value) }))}
+                                    className="w-full p-3 border border-slate-200 rounded-xl"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-4">
+                            <input
+                                type="checkbox"
+                                checked={currentQuiz.isVisible}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, isVisible: e.target.checked }))}
+                                className="w-5 h-5 text-indigo-600 rounded"
+                            />
+                            <label className="text-sm font-bold text-slate-700">Visible par les étudiants</label>
+                        </div>
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                        <h4 className="font-bold text-slate-900">Questions ({questions.length})</h4>
-                        <button onClick={handleAddQuestion} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg hover:bg-indigo-100">+ Ajouter</button>
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                        <h3 className="text-lg font-bold text-slate-800">Questions ({currentQuiz.questions?.length})</h3>
+                        <button
+                            onClick={addQuestion}
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold hover:bg-indigo-100"
+                        >
+                            <Plus size={18} /> Ajouter une question
+                        </button>
                     </div>
 
-                    {questions.map((q, qIdx) => (
-                        <div key={q.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 relative group">
-                            <button 
-                                onClick={() => setQuestions(questions.filter((_, i) => i !== qIdx))}
-                                className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                    {currentQuiz.questions?.map((q, qIdx) => (
+                        <div key={q.id} className="bg-slate-50 p-6 rounded-xl border border-slate-200 relative group">
+                            <button
+                                onClick={() => removeQuestion(qIdx)}
+                                className="absolute top-4 right-4 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                                <Trash2 size={16}/>
+                                <Trash2 size={20} />
                             </button>
-                            
-                            <div className="mb-3">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Question {qIdx + 1}</label>
-                                <input 
-                                    type="text" 
-                                    value={q.text} 
-                                    onChange={e => updateQuestion(qIdx, 'text', e.target.value)}
-                                    className="w-full p-2 border border-slate-200 rounded-lg text-sm font-medium"
-                                    placeholder="Intitulé de la question..."
-                                />
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div className="md:col-span-3">
+                                    <input
+                                        type="text"
+                                        value={q.text}
+                                        onChange={e => updateQuestion(qIdx, 'text', e.target.value)}
+                                        className="w-full p-3 border border-slate-200 rounded-lg font-medium"
+                                        placeholder="Intitulé de la question..."
+                                    />
+                                </div>
+                                <div>
+                                    <select
+                                        value={q.type}
+                                        onChange={e => updateQuestion(qIdx, 'type', e.target.value)}
+                                        className="w-full p-3 border border-slate-200 rounded-lg bg-white"
+                                    >
+                                        <option value="choice">Choix Multiple</option>
+                                        <option value="text">Texte Libre</option>
+                                        <option value="rating">Notation (1-5)</option>
+                                        <option value="audio">Audio (Vocal)</option>
+                                    </select>
+                                </div>
                             </div>
 
-                            <div className="space-y-2 pl-4 border-l-2 border-slate-200">
-                                {q.options.map((opt, oIdx) => (
-                                    <div key={oIdx} className="flex items-center gap-2">
-                                        <input 
-                                            type="radio" 
-                                            name={`correct-${q.id}`}
-                                            checked={q.correctOptionIndex === oIdx}
-                                            onChange={() => updateQuestion(qIdx, 'correctOptionIndex', oIdx)}
-                                            className="accent-emerald-500"
-                                        />
-                                        <input 
-                                            type="text" 
-                                            value={opt} 
-                                            onChange={e => updateOption(qIdx, oIdx, e.target.value)}
-                                            className="flex-1 p-2 border border-slate-200 rounded-lg text-xs"
-                                            placeholder={`Option ${oIdx + 1}`}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                            {q.type === 'choice' && (
+                                <div className="space-y-2 pl-4 border-l-2 border-indigo-100">
+                                    {q.options?.map((opt, oIdx) => (
+                                        <div key={oIdx} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name={`correct_${q.id}`}
+                                                checked={q.correctOptionIndex === oIdx}
+                                                onChange={() => updateQuestion(qIdx, 'correctOptionIndex', oIdx)}
+                                                className="w-4 h-4 text-indigo-600"
+                                                disabled={currentQuiz.type === 'SURVEY'} // Pas de bonne réponse en mode sondage
+                                            />
+                                            <input
+                                                type="text"
+                                                value={opt}
+                                                onChange={e => updateOption(qIdx, oIdx, e.target.value)}
+                                                className="flex-1 p-2 border border-slate-200 rounded bg-white text-sm"
+                                                placeholder={`Option ${oIdx + 1}`}
+                                            />
+                                            <button onClick={() => removeOption(qIdx, oIdx)} className="text-slate-400 hover:text-red-500">
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={() => addOption(qIdx)}
+                                        className="text-xs font-bold text-indigo-500 hover:text-indigo-700 mt-2"
+                                    >
+                                        + Ajouter une option
+                                    </button>
+                                </div>
+                            )}
+
+                            {q.type === 'text' && (
+                                <div className="flex items-center gap-2 text-slate-400 text-sm pl-4 border-l-2 border-slate-200">
+                                    <Type size={16} /> Champ texte libre pour l'étudiant
+                                </div>
+                            )}
+
+                            {q.type === 'rating' && (
+                                <div className="flex items-center gap-2 text-amber-400 text-sm pl-4 border-l-2 border-amber-200">
+                                    <Star size={16} fill="currentColor" /> Système de notation 1 à 5 étoiles
+                                </div>
+                            )}
+
+                            {q.type === 'audio' && (
+                                <div className="flex items-center gap-2 text-red-400 text-sm pl-4 border-l-2 border-red-200">
+                                    <Mic size={16} /> Enregistrement vocal avec transcription IA
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
 
-                <button onClick={handleSave} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                    <Save size={18}/> Enregistrer le Quiz
-                </button>
+                <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100">
+                    <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        onClick={handleSaveQuiz}
+                        className="px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/25 flex items-center gap-2"
+                    >
+                        <Save size={20} /> Enregistrer le {currentQuiz.type === 'SURVEY' ? 'Sondage' : 'Quiz'}
+                    </button>
+                </div>
             </div>
-        </Modal>
-    );
-};
-
-export const AdminQuizzes: React.FC = () => {
-    const { gameConfig, updateGameConfig } = useGame();
-    const [isCreating, setIsCreating] = useState(false);
-    const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
-
-    const handleSaveQuiz = async (quiz: Quiz) => {
-        const currentQuizzes = gameConfig.quizzes || [];
-        let newQuizzes;
-        
-        if (currentQuizzes.find(q => q.id === quiz.id)) {
-            newQuizzes = currentQuizzes.map(q => q.id === quiz.id ? quiz : q);
-        } else {
-            newQuizzes = [...currentQuizzes, quiz];
-        }
-
-        await updateGameConfig({ quizzes: newQuizzes });
-        setIsCreating(false);
-        setEditingQuiz(null);
-    };
-
-    const handleDeleteQuiz = async (id: string) => {
-        if (!confirm("Supprimer ce quiz ?")) return;
-        const newQuizzes = (gameConfig.quizzes || []).filter(q => q.id !== id);
-        await updateGameConfig({ quizzes: newQuizzes });
-    };
-
-    const toggleVisibility = async (quiz: Quiz) => {
-        const newQuizzes = (gameConfig.quizzes || []).map(q => 
-            q.id === quiz.id ? { ...q, isVisible: !q.isVisible } : q
         );
-        await updateGameConfig({ quizzes: newQuizzes });
-    };
+    }
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                        <HelpCircle className="text-indigo-600"/> Gestion des Quiz
-                    </h2>
-                    <p className="text-slate-500">Créez des questionnaires rémunérés pour les étudiants.</p>
+                    <h2 className="text-2xl font-bold text-slate-900">Gestion des Quiz & Sondages</h2>
+                    <p className="text-slate-500">Créez des évaluations ou récoltez du feedback.</p>
                 </div>
-                <button 
-                    onClick={() => setIsCreating(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg hover:shadow-indigo-500/25"
+                <button
+                    onClick={() => {
+                        setCurrentQuiz({
+                            title: '',
+                            description: '',
+                            type: 'QUIZ',
+                            frequency: 'ONCE',
+                            questions: [],
+                            rewardPoints: 0,
+                            rewardPixi: 0,
+                            costPixi: 0,
+                            isVisible: false,
+                            unlockWeek: 1
+                        });
+                        setIsEditing(true);
+                    }}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/25 flex items-center gap-2"
                 >
-                    <Plus size={18}/> Nouveau Quiz
+                    <Plus size={20} /> Nouveau
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(gameConfig.quizzes || []).map(quiz => (
-                    <div key={quiz.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${quiz.isVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                {quiz.isVisible ? 'Publié' : 'Brouillon'}
+            <div className="grid grid-cols-1 gap-4">
+                {quizzes.map(quiz => (
+                    <div key={quiz.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center hover:border-indigo-200 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-lg ${quiz.type === 'SURVEY' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                {quiz.type === 'SURVEY' ? <MessageSquare size={24} /> : <HelpCircle size={24} />}
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => toggleVisibility(quiz)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600" title={quiz.isVisible ? "Masquer" : "Publier"}>
-                                    {quiz.isVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
-                                </button>
-                                <button onClick={() => setEditingQuiz(quiz)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600" title="Éditer">
-                                    <CheckCircle2 size={16}/>
-                                </button>
-                                <button onClick={() => handleDeleteQuiz(quiz.id)} className="p-2 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-600" title="Supprimer">
-                                    <Trash2 size={16}/>
-                                </button>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-bold text-lg text-slate-900">{quiz.title}</h3>
+                                    {!quiz.isVisible && (
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase rounded-full">Caché</span>
+                                    )}
+                                    {quiz.frequency === 'WEEKLY' && (
+                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold uppercase rounded-full flex items-center gap-1">
+                                            <Calendar size={10} /> Hebdo
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-slate-500 mb-1">{quiz.description}</p>
+                                <div className="flex items-center gap-4 text-xs font-medium text-slate-400">
+                                    <span className="flex items-center gap-1"><List size={14}/> {quiz.questions.length} questions</span>
+                                    <span className="flex items-center gap-1"><Award size={14}/> {quiz.rewardPoints} pts</span>
+                                    <span className="flex items-center gap-1"><Lock size={14}/> Semaine {quiz.unlockWeek || 1}+</span>
+                                </div>
                             </div>
                         </div>
-
-                        <h3 className="font-bold text-lg text-slate-900 mb-2">{quiz.title}</h3>
-                        <p className="text-sm text-slate-500 line-clamp-2 mb-4">{quiz.description || "Pas de description"}</p>
-
-                        <div className="flex items-center gap-4 text-xs font-bold text-slate-400 border-t border-slate-100 pt-4">
-                            <span className="flex items-center gap-1"><HelpCircle size={14}/> {quiz.questions.length} Q</span>
-                            <span className="flex items-center gap-1 text-emerald-600"><div className="w-2 h-2 bg-emerald-500 rounded-full"/> +{quiz.rewardPixi} PiXi</span>
-                            <span className="flex items-center gap-1 text-indigo-600"><div className="w-2 h-2 bg-indigo-500 rounded-full"/> +{quiz.rewardPoints} Pts</span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    setCurrentQuiz(quiz);
+                                    setIsEditing(true);
+                                }}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            >
+                                <Edit2 size={20} />
+                            </button>
+                            <button
+                                onClick={() => handleDeleteQuiz(quiz.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                                <Trash2 size={20} />
+                            </button>
                         </div>
                     </div>
                 ))}
 
-                {(gameConfig.quizzes || []).length === 0 && (
-                    <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
-                        <HelpCircle size={48} className="mx-auto mb-4 opacity-20"/>
-                        <p>Aucun quiz configuré.</p>
+                {quizzes.length === 0 && (
+                    <div className="text-center py-12 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                        <HelpCircle size={48} className="mx-auto text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-medium">Aucun quiz ou sondage créé.</p>
                     </div>
                 )}
             </div>
-
-            {(isCreating || editingQuiz) && (
-                <QuizEditor 
-                    initialQuiz={editingQuiz} 
-                    onSave={handleSaveQuiz} 
-                    onClose={() => { setIsCreating(false); setEditingQuiz(null); }} 
-                />
-            )}
         </div>
     );
 };
+
+

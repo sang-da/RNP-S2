@@ -269,8 +269,9 @@ export interface SupervisorPermissions {
 export interface QuizQuestion {
     id: string;
     text: string;
-    options: string[];
-    correctOptionIndex: number;
+    type: 'choice' | 'text' | 'rating' | 'audio';
+    options?: string[];
+    correctOptionIndex?: number;
 }
 
 export interface Quiz {
@@ -278,21 +279,27 @@ export interface Quiz {
     title: string;
     description?: string;
     questions: QuizQuestion[];
-    rewardPoints: number; // Points de score individuel
-    rewardPixi: number;   // Argent personnel
-    costPixi: number;     // Coût d'entrée (0 si gratuit)
+    rewardPoints: number;
+    rewardPixi: number;
+    costPixi: number;
     isVisible: boolean;
     createdAt: string;
+    type: 'QUIZ' | 'SURVEY';
+    frequency: 'ONCE' | 'WEEKLY';
+    unlockWeek?: number;
 }
 
 export interface QuizAttempt {
     id: string;
     quizId: string;
     studentId: string;
-    score: number; // Nombre de bonnes réponses
+    score: number;
     maxScore: number;
     date: string;
     rewardsEarned: { points: number; pixi: number };
+    weekId?: string;
+    answers?: { [questionId: string]: string | number };
+    transcriptions?: { [questionId: string]: string };
 }
 
 export interface GameConfig {

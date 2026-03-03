@@ -1,22 +1,24 @@
 
 import React, { useState } from 'react';
-import { Agency, Student } from '../../types';
+import { Agency, Student, Quiz } from '../../types';
 import { WalletView } from '../student/WalletView';
 import { MissionsView } from '../student/MissionsView';
 import { TeamView } from '../student/TeamView';
 import { MercatoView } from '../student/MercatoView';
 import { WikiView } from '../student/WikiView';
 import { FAQView } from '../student/FAQView';
-import { Wallet, Target, Users, Briefcase, BookOpen, HelpCircle, X, Layout } from 'lucide-react';
+import { QuizModal } from '../student/modals/QuizModal';
+import { Wallet, Target, Users, Briefcase, BookOpen, HelpCircle, X, Layout, MessageSquare } from 'lucide-react';
 
 interface StudentSpecialSimulationProps {
     onClose: () => void;
 }
 
-type SpecialTab = 'WALLET' | 'MISSIONS' | 'TEAM' | 'MERCATO' | 'WIKI' | 'FAQ';
+type SpecialTab = 'WALLET' | 'MISSIONS' | 'TEAM' | 'MERCATO' | 'WIKI' | 'FAQ' | 'SURVEY';
 
 export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> = ({ onClose }) => {
     const [activeTab, setActiveTab] = useState<SpecialTab>('WALLET');
+    const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
     
     // Mock functions for simulation (no real impact)
     const noop = () => console.log("Simulation: Action blocked in preview mode");
@@ -64,6 +66,25 @@ export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> =
         projectDef: { problem: '', target: '', location: '', gesture: '', isLocked: false }
     };
 
+    const MOCK_SURVEY: Quiz = {
+        id: 'survey-1',
+        title: 'Rapport Hebdomadaire S22',
+        description: 'Feedback sur la semaine écoulée. Vos retours sont précieux.',
+        type: 'SURVEY',
+        frequency: 'WEEKLY',
+        isVisible: true,
+        createdAt: new Date().toISOString(),
+        rewardPoints: 5,
+        rewardPixi: 100,
+        costPixi: 0,
+        questions: [
+            { id: 'q1', text: 'Comment évalues-tu ta charge de travail cette semaine ?', type: 'rating' },
+            { id: 'q2', text: 'Quel a été le principal bloquant ?', type: 'choice', options: ['Aucun', 'Technique', 'Organisation', 'Conflit', 'Manque de temps'] },
+            { id: 'q3', text: 'Raconte-nous un moment fort (positif ou négatif).', type: 'audio' },
+            { id: 'q4', text: 'Une suggestion pour améliorer le cours ?', type: 'text' }
+        ]
+    };
+
     const [selectedStudentId, setSelectedStudentId] = useState<string>(MOCK_AGENCY.members[0].id);
     const selectedStudent = MOCK_AGENCY.members.find(m => m.id === selectedStudentId) || MOCK_AGENCY.members[0];
     const ALL_MOCK_AGENCIES = [MOCK_AGENCY];
@@ -76,6 +97,7 @@ export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> =
         { id: 'MERCATO', label: 'Mercato / RH', icon: <Briefcase size={20}/>, color: 'text-emerald-500', bg: 'bg-emerald-50' },
         { id: 'WIKI', label: 'Wiki Ressources', icon: <BookOpen size={20}/>, color: 'text-blue-500', bg: 'bg-blue-50' },
         { id: 'FAQ', label: 'Centre d\'Aide', icon: <HelpCircle size={20}/>, color: 'text-slate-500', bg: 'bg-slate-50' },
+        { id: 'SURVEY', label: 'Sondages / Quiz', icon: <MessageSquare size={20}/>, color: 'text-purple-500', bg: 'bg-purple-50' },
     ];
 
     return (
@@ -161,9 +183,39 @@ export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> =
                         {activeTab === 'MERCATO' && <MercatoView agency={MOCK_AGENCY} allAgencies={ALL_MOCK_AGENCIES} onUpdateAgency={noop} onUpdateAgencies={noop} currentUserOverride={selectedStudent} />}
                         {activeTab === 'WIKI' && <WikiView agency={MOCK_AGENCY} />}
                         {activeTab === 'FAQ' && <FAQView />}
+                        
+                        {activeTab === 'SURVEY' && (
+                            <div className="space-y-6">
+                                <h3 className="text-2xl font-bold text-slate-900">Sondages & Quiz (Simulation)</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Sondage Hebdo</span>
+                                            <span className="text-xs text-slate-400 font-bold">S22</span>
+                                        </div>
+                                        <h4 className="font-bold text-lg mb-2">{MOCK_SURVEY.title}</h4>
+                                        <p className="text-slate-500 text-sm mb-6">{MOCK_SURVEY.description}</p>
+                                        <button 
+                                            onClick={() => setActiveQuiz(MOCK_SURVEY)}
+                                            className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+                                        >
+                                            Lancer le Sondage
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* MODAL RENDER */}
+            {activeQuiz && (
+                <QuizModal 
+                    quiz={activeQuiz} 
+                    onClose={() => setActiveQuiz(null)} 
+                />
+            )}
         </div>
     );
 };
