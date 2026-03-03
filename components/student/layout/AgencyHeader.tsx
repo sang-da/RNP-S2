@@ -2,7 +2,7 @@
 import React from 'react';
 import { Agency, BrandColor, Student } from '../../../types';
 import { Settings, Wallet, Landmark, HelpCircle, Shield, Crown, Sparkles, Star } from 'lucide-react';
-import { GAME_RULES, calculateVECap } from '../../../constants';
+import { GAME_RULES, calculateVECap, calculateMarketVE } from '../../../constants';
 
 interface AgencyHeaderProps {
     agency: Agency;
@@ -29,8 +29,9 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
     const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
     const netWeekly = weeklyRevenue - weeklyCharges;
 
-    // VE Cap Calculation
+    // VE Calculations
     const maxVE = calculateVECap(agency);
+    const marketVE = calculateMarketVE(agency);
 
     // --- 100 VE GOD MODE CHECK ---
     const isElite = agency.ve_current >= 100;
@@ -150,10 +151,10 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                                 onClick={onOpenVERules}
                                 className={`text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 justify-center cursor-pointer hover:text-white ${isElite ? 'text-yellow-400' : 'text-slate-300'}`}
                             >
-                                VE Réelle / Max <HelpCircle size={10}/>
+                                VE Marché / Plafond <HelpCircle size={10}/>
                             </div>
                             <div className={`text-3xl font-display font-bold leading-none flex items-baseline gap-1 justify-center ${isElite ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]' : (agency.ve_current >= 60 ? 'text-emerald-400' : 'text-amber-400')}`}>
-                                {agency.ve_current.toFixed(1)} <span className="text-sm opacity-60 font-sans font-bold">/ {maxVE}</span>
+                                {marketVE.toFixed(0)} <span className="text-sm opacity-60 font-sans font-bold">/ {maxVE}</span>
                             </div>
                         </div>
                     </div>

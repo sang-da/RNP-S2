@@ -10,7 +10,7 @@ import { WikiView } from './student/WikiView';
 import { FAQView } from './student/FAQView';
 import { TheBackdoor } from './student/TheBackdoor';
 import { Modal } from './Modal';
-import { GAME_RULES } from '../constants';
+import { GAME_RULES, calculateMarketVE } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useGame } from '../contexts/GameContext';
 
@@ -53,7 +53,12 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
 
   const brandColor = agency.branding?.color || 'indigo';
   const theme = COLOR_THEMES[brandColor];
-  const leaderboard = [...allAgencies].filter(a => a.id !== 'unassigned').sort((a, b) => b.ve_current - a.ve_current);
+  
+  // LEADERBOARD BASED ON MARKET VE (UNCAPPED)
+  const leaderboard = [...allAgencies]
+    .filter(a => a.id !== 'unassigned')
+    .sort((a, b) => calculateMarketVE(b) - calculateMarketVE(a));
+    
   const myRank = leaderboard.findIndex(a => a.id === agency.id) + 1;
   const myMemberProfile = agency.members.find(m => m.id === currentUser?.uid);
 

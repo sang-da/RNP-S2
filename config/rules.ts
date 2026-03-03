@@ -106,3 +106,12 @@ export const calculateVECap = (agency: Agency): number => {
     // Fallback si 0 membres
     return GAME_RULES.VE_CAP_1_MEMBER;
 };
+
+// --- HELPER FUNCTION: MARKET VE CALCULATOR ---
+// Calcule la VE "Réelle" (Marché) en sommant tout l'historique, sans plafond.
+export const calculateMarketVE = (agency: Agency): number => {
+    if (!agency.eventLog) return 0;
+    const STARTING_VE = 0;
+    const marketVE = agency.eventLog.reduce((sum, e) => sum + (e.deltaVE || 0), STARTING_VE);
+    return Math.max(0, marketVE);
+};
