@@ -1,13 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2 } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { SoloPanel } from './team/SoloPanel';
 import { doc, setDoc, db } from '../../services/firebase'; // Direct Write for Reviews
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
 import { transcribeAudioWithGroq, askGroq } from '../../services/groqService';
 
@@ -21,6 +22,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
   const [selectedMember, setSelectedMember] = useState<Student | null>(null);
   const [reviewMode, setReviewMode] = useState<Student | null>(null);
   const [showSalaryInfo, setShowSalaryInfo] = useState(false);
+  const [isEditingRole, setIsEditingRole] = useState(false);
+  const [editedRole, setEditedRole] = useState("");
 
   const { currentUser: firebaseUser } = useAuth();
   const { getCurrentGameWeek, reviews } = useGame(); // On récupère les reviews globales
@@ -28,6 +31,47 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
   const currentUser = currentUserOverride || agency.members.find(m => m.id === firebaseUser?.uid);
   const currentWeek = getCurrentGameWeek();
   const isSoloMode = agency.members.length === 1;
+
+  useEffect(() => {
+    if (selectedMember) {
+      setEditedRole(selectedMember.role);
+      setIsEditingRole(false);
+    }
+  }, [selectedMember]);
+
+  const handleSaveRole = () => {
+    if (!selectedMember || !currentUser) return;
+    
+    const updatedMembers = agency.members.map(m => 
+        m.id === selectedMember.id ? { ...m, role: editedRole } : m
+    );
+    
+    onUpdateAgency({ ...agency, members: updatedMembers });
+    setSelectedMember({ ...selectedMember, role: editedRole });
+    setIsEditingRole(false);
+  };
+
+  const memberReviews = useMemo(() => {
+      if (!selectedMember) return [];
+      return reviews.filter(r => r.targetId === selectedMember.id);
+  }, [selectedMember, reviews]);
+
+  const radarData = useMemo(() => {
+      if (memberReviews.length === 0) return [];
+      
+      const total = memberReviews.reduce((acc, r) => ({
+          attendance: acc.attendance + (r.ratings.attendance || 0),
+          quality: acc.quality + (r.ratings.quality || 0),
+          involvement: acc.involvement + (r.ratings.involvement || 0)
+      }), { attendance: 0, quality: 0, involvement: 0 });
+
+      const count = memberReviews.length;
+      return [
+          { subject: 'Assiduité', A: parseFloat((total.attendance / count).toFixed(1)), fullMark: 5 },
+          { subject: 'Qualité', A: parseFloat((total.quality / count).toFixed(1)), fullMark: 5 },
+          { subject: 'Implication', A: parseFloat((total.involvement / count).toFixed(1)), fullMark: 5 },
+      ];
+  }, [memberReviews]);
 
   // NOUVELLE FONCTION D'ENVOI
   const handlePeerReview = async (review: PeerReview) => {
@@ -169,9 +213,31 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                 <div className="space-y-6">
                     <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <img src={selectedMember.avatarUrl} className="w-16 h-16 rounded-xl bg-white shadow-sm" alt={selectedMember.name} />
-                        <div>
+                        <div className="flex-1">
                             <h4 className="font-bold text-lg text-slate-900">{selectedMember.name}</h4>
-                            <p className="text-xs text-slate-500 font-bold uppercase">{selectedMember.role}</p>
+                            
+                            {selectedMember.id === currentUser?.id ? (
+                                isEditingRole ? (
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <input 
+                                            type="text" 
+                                            value={editedRole} 
+                                            onChange={(e) => setEditedRole(e.target.value)}
+                                            className="text-xs font-bold uppercase p-1 border border-indigo-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none w-full max-w-[150px] bg-white text-slate-700"
+                                            autoFocus
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSaveRole()}
+                                        />
+                                        <button onClick={handleSaveRole} className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={12}/></button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 group cursor-pointer w-fit" onClick={() => setIsEditingRole(true)} title="Modifier votre rôle">
+                                        <p className="text-xs text-slate-500 font-bold uppercase group-hover:text-indigo-600 transition-colors">{selectedMember.role}</p>
+                                        <Edit2 size={10} className="text-slate-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity"/>
+                                    </div>
+                                )
+                            ) : (
+                                <p className="text-xs text-slate-500 font-bold uppercase">{selectedMember.role}</p>
+                            )}
                         </div>
                     </div>
 
@@ -185,6 +251,37 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                             <p className="text-2xl font-black text-emerald-600">{selectedMember.wallet} <span className="text-xs">PiXi</span></p>
                         </div>
                     </div>
+
+                    {/* RADAR CHART (PRIVATE) */}
+                    {selectedMember.id === currentUser?.id && radarData.length > 0 && (
+                        <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-2 opacity-5">
+                                <TrendingUp size={100} />
+                            </div>
+                            <h5 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 relative z-10">
+                                <TrendingUp size={16} className="text-indigo-500"/> Analyse 360° (Privé)
+                            </h5>
+                            <div className="h-[200px] w-full relative z-10">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                                        <PolarGrid stroke="#e2e8f0" />
+                                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
+                                        <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />
+                                        <Radar
+                                            name="Moyenne"
+                                            dataKey="A"
+                                            stroke="#4f46e5"
+                                            fill="#6366f1"
+                                            fillOpacity={0.3}
+                                        />
+                                    </RadarChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <p className="text-[10px] text-center text-slate-400 mt-2 italic relative z-10">
+                                Basé sur les évaluations anonymes de vos collègues
+                            </p>
+                        </div>
+                    )}
 
                     <div className="space-y-3">
                         <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">

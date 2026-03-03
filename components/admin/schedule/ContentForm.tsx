@@ -132,6 +132,15 @@ export const ContentForm: React.FC<ContentFormProps> = ({ contentForm, setConten
                                 className="w-full p-2 bg-white/5 border border-white/10 rounded-xl text-center font-bold text-red-400 focus:ring-2 focus:ring-indigo-500"
                             />
                         </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Bonus Avance</label>
+                            <input 
+                                type="number" 
+                                value={contentForm.scoring.bonusEarly || 0} 
+                                onChange={(e) => handleScoringChange('bonusEarly', Number(e.target.value))}
+                                className="w-full p-2 bg-white/5 border border-white/10 rounded-xl text-center font-bold text-emerald-400 focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
                     </div>
 
                     {/* PENALITE PEER REVIEW */}

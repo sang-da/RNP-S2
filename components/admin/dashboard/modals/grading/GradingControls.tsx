@@ -11,6 +11,8 @@ interface GradingControlsProps {
     setDaysLate: (d: number) => void;
     constraintBroken: boolean;
     setConstraintBroken: (b: boolean) => void;
+    bonusEarly: boolean;
+    setBonusEarly: (b: boolean) => void;
     feedback: string;
     setFeedback: (s: string) => void;
     selectedMvpId: string;
@@ -24,6 +26,7 @@ export const GradingControls: React.FC<GradingControlsProps> = ({
     quality, setQuality,
     daysLate, setDaysLate,
     constraintBroken, setConstraintBroken,
+    bonusEarly, setBonusEarly,
     feedback, setFeedback,
     selectedMvpId, setSelectedMvpId,
     agency, suggestedMvpMember, scoringConfig
@@ -115,38 +118,73 @@ export const GradingControls: React.FC<GradingControlsProps> = ({
                 </div>
             )}
 
-            {/* 3. PÉNALITÉS */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jours Retard</label>
-                    <div className="relative">
-                        <input 
-                            type="number" 
-                            min="0"
-                            value={daysLate}
-                            onChange={(e) => setDaysLate(Number(e.target.value))}
-                            className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-                        />
-                        {daysLate > 0 && <span className="absolute right-3 top-3.5 text-xs font-bold text-red-500">-{daysLate * scoringConfig.penaltyLatePerDay} pts</span>}
+            {/* 3. PÉNALITÉS & CONTRÔLES */}
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jours Retard</label>
+                        <div className="relative">
+                            <input 
+                                type="number" 
+                                min="0"
+                                value={daysLate}
+                                onChange={(e) => setDaysLate(Number(e.target.value))}
+                                className="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                            {daysLate > 0 && <span className="absolute right-3 top-3.5 text-xs font-bold text-red-500">-{daysLate * scoringConfig.penaltyLatePerDay} pts</span>}
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                         {/* Contrainte Brisée */}
+                        <label className={`w-full p-3 border-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all h-[50px] ${constraintBroken ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${constraintBroken ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300'}`}>
+                                {constraintBroken && <Check size={12}/>}
+                            </div>
+                            <input 
+                                type="checkbox" 
+                                checked={constraintBroken}
+                                onChange={(e) => setConstraintBroken(e.target.checked)}
+                                className="hidden"
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold leading-none">Contrainte Brisée</span>
+                                {constraintBroken && <span className="text-[9px] leading-none mt-0.5">-{scoringConfig.penaltyConstraint} pts</span>}
+                            </div>
+                        </label>
+
+                         {/* Bonus Avance */}
+                         {scoringConfig.bonusEarly && scoringConfig.bonusEarly > 0 && (
+                            <label className={`w-full p-3 border-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all h-[50px] ${bonusEarly ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${bonusEarly ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>
+                                    {bonusEarly && <Check size={12}/>}
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    checked={bonusEarly}
+                                    onChange={(e) => setBonusEarly(e.target.checked)}
+                                    className="hidden"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold leading-none">Rendu en Avance</span>
+                                    {bonusEarly && <span className="text-[9px] leading-none mt-0.5">+{scoringConfig.bonusEarly} pts</span>}
+                                </div>
+                            </label>
+                         )}
                     </div>
                 </div>
-                <div className="flex items-end">
-                    <label className={`w-full p-3 border-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all h-[50px] ${constraintBroken ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${constraintBroken ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300'}`}>
-                            {constraintBroken && <Check size={12}/>}
-                        </div>
-                        <input 
-                            type="checkbox" 
-                            checked={constraintBroken}
-                            onChange={(e) => setConstraintBroken(e.target.checked)}
-                            className="hidden"
-                        />
-                        <div className="flex flex-col">
-                            <span className="text-xs font-bold leading-none">Contrainte Brisée</span>
-                            {constraintBroken && <span className="text-[9px] leading-none mt-0.5">-{scoringConfig.penaltyConstraint} pts</span>}
-                        </div>
-                    </label>
-                </div>
+
+                {/* Nomenclature Check */}
+                <label className="w-full p-3 border border-slate-200 rounded-xl flex items-center gap-3 cursor-pointer transition-all bg-slate-50 hover:bg-slate-100">
+                    <div className="w-5 h-5 rounded border border-slate-300 flex items-center justify-center shrink-0 bg-white text-indigo-600">
+                        {/* We don't store this in state, it's just a visual checklist for the admin */}
+                        <input type="checkbox" className="w-full h-full opacity-0 absolute cursor-pointer" />
+                        <Check size={12} className="opacity-0 peer-checked:opacity-100 pointer-events-none" style={{ opacity: 'inherit' }} />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-700 leading-none">Nomenclature respectée</span>
+                        <span className="text-[10px] text-slate-500 mt-1">Vérification visuelle du nom du fichier</span>
+                    </div>
+                </label>
             </div>
 
             {/* 4. FEEDBACK */}

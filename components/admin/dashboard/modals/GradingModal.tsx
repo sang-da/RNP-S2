@@ -26,6 +26,7 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
     const [quality, setQuality] = useState<'A' | 'B' | 'C'>('B');
     const [daysLate, setDaysLate] = useState<number>(0);
     const [constraintBroken, setConstraintBroken] = useState<boolean>(false);
+    const [bonusEarly, setBonusEarly] = useState<boolean>(false); // NOUVEAU
     const [feedback, setFeedback] = useState("");
     const [selectedMvpId, setSelectedMvpId] = useState<string | "NONE">("NONE"); 
     const [isSaving, setIsSaving] = useState(false);
@@ -99,8 +100,9 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         const baseScore = quality === 'A' ? scoringConfig.pointsA : quality === 'B' ? scoringConfig.pointsB : 0;
         const penaltyLate = (daysLate || 0) * scoringConfig.penaltyLatePerDay;
         const penaltyConstraint = constraintBroken ? scoringConfig.penaltyConstraint : 0;
+        const bonusEarlyPoints = bonusEarly && scoringConfig.bonusEarly ? scoringConfig.bonusEarly : 0;
         
-        const rawScore = baseScore - penaltyLate - penaltyConstraint;
+        const rawScore = baseScore - penaltyLate - penaltyConstraint + bonusEarlyPoints;
         const multiplier = getAgencyPerformanceMultiplier(agency);
         let finalDelta = rawScore > 0 ? Math.round(rawScore * multiplier) : rawScore;
 
@@ -117,11 +119,12 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
         return { 
             base: baseScore, 
             penalty: penaltyLate + penaltyConstraint, 
+            bonus: bonusEarlyPoints,
             finalVE: finalDelta, 
             multiplier,
             lucidityBonus
         };
-    }, [quality, daysLate, constraintBroken, agency, item.deliverable.selfAssessment, scoringConfig]);
+    }, [quality, daysLate, constraintBroken, bonusEarly, agency, item.deliverable.selfAssessment, scoringConfig]);
 
     const handleValidate = async () => {
         if(!agency) return;
@@ -163,7 +166,7 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                 return { ...m, individualScore: newScore };
             });
 
-            let desc = `Note ${quality} ${daysLate > 0 ? `(-${daysLate}j)` : ''} ${constraintBroken ? '(Contrainte)' : ''}. Lucidité: +${calculation.lucidityBonus} score.`;
+            let desc = `Note ${quality} ${daysLate > 0 ? `(-${daysLate}j)` : ''} ${constraintBroken ? '(Contrainte)' : ''} ${bonusEarly ? '(Avance)' : ''}. Lucidité: +${calculation.lucidityBonus} score.`;
             if (mvpName) desc += ` MVP: ${mvpName} (+5).`;
 
             const newEvent: GameEvent = {
@@ -244,6 +247,8 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
                         setDaysLate={setDaysLate}
                         constraintBroken={constraintBroken}
                         setConstraintBroken={setConstraintBroken}
+                        bonusEarly={bonusEarly}
+                        setBonusEarly={setBonusEarly}
                         feedback={feedback}
                         setFeedback={setFeedback}
                         selectedMvpId={selectedMvpId}

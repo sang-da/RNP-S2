@@ -117,6 +117,7 @@ export interface WeekScoringConfig {
     pointsB: number;
     penaltyLatePerDay: number;
     penaltyConstraint: number;
+    bonusEarly?: number; // NOUVEAU : Bonus si rendu en avance
     expectedTargetVE: number;
     missingReviewPenalty?: {
         enabled: boolean;
