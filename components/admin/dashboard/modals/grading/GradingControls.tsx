@@ -175,10 +175,21 @@ export const GradingControls: React.FC<GradingControlsProps> = ({
 
                 {/* Nomenclature Check */}
                 <label className="w-full p-3 border border-slate-200 rounded-xl flex items-center gap-3 cursor-pointer transition-all bg-slate-50 hover:bg-slate-100">
-                    <div className="w-5 h-5 rounded border border-slate-300 flex items-center justify-center shrink-0 bg-white text-indigo-600">
-                        {/* We don't store this in state, it's just a visual checklist for the admin */}
-                        <input type="checkbox" className="w-full h-full opacity-0 absolute cursor-pointer" />
-                        <Check size={12} className="opacity-0 peer-checked:opacity-100 pointer-events-none" style={{ opacity: 'inherit' }} />
+                    <div className="w-5 h-5 rounded border border-slate-300 flex items-center justify-center shrink-0 bg-white text-indigo-600 relative">
+                        <input 
+                            type="checkbox" 
+                            className="w-full h-full opacity-0 absolute cursor-pointer z-10" 
+                            onChange={(e) => {
+                                // Add visual feedback or logic if needed, 
+                                // currently it's just a visual checklist as requested.
+                                const checkIcon = e.target.nextElementSibling;
+                                if (checkIcon) {
+                                    if (e.target.checked) checkIcon.classList.remove('opacity-0');
+                                    else checkIcon.classList.add('opacity-0');
+                                }
+                            }}
+                        />
+                        <Check size={12} className="opacity-0 pointer-events-none" />
                     </div>
                     <div className="flex flex-col">
                         <span className="text-sm font-bold text-slate-700 leading-none">Nomenclature respectée</span>
