@@ -1,7 +1,7 @@
 
-import { writeBatch, doc, db } from '../../../services/firebase';
+import { writeBatch, doc, db, arrayUnion } from '../../../services/firebase';
 import { Agency, GameEvent, PeerReview, CareerStep, Badge, WeekModule } from '../../../types';
-import { calculateVECap, BADGE_DEFINITIONS } from '../../../constants';
+import { calculateVECap, BADGE_DEFINITIONS, HOLDING_RULES } from '../../../constants';
 
 export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], weeks: { [key: string]: WeekModule }, toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
@@ -24,11 +24,37 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             let logEvents: GameEvent[] = [];
             const isSoloMode = agency.members.length === 1;
 
+            // --- HOLDING: EJECTABLE SEAT CHECK ---
+            // On vérifie si les membres ont été suggérés MVP cette semaine
+            const weekDeliverables = currentWeekConfig?.deliverables || [];
+            const mvpSuggestions = weekDeliverables.map(d => d.nominatedMvpId).filter(Boolean);
+
             const updatedMembers = (agency.members || []).map(member => {
                 let scoreDelta = 0;
                 let newStreak = member.streak || 0;
                 let memberBadges = [...(member.badges || [])];
                 let eventsDescription = "";
+                let newStatus = member.status || 'ACTIVE';
+                let weeksWithoutMVP = member.weeksWithoutMVPSuggestion || 0;
+
+                // LOGIQUE HOLDING : SIÈGE ÉJECTABLE
+                if (agency.type === 'HOLDING') {
+                    const isSuggestedMVP = mvpSuggestions.includes(member.id);
+                    if (isSuggestedMVP) {
+                        weeksWithoutMVP = 0;
+                        if (newStatus === 'AT_RISK') newStatus = 'ACTIVE';
+                    } else {
+                        weeksWithoutMVP++;
+                    }
+
+                    if (weeksWithoutMVP >= HOLDING_RULES.WEEKS_WITHOUT_MVP_LIMIT) {
+                        newStatus = 'FIRED';
+                        eventsDescription += ` [LICENCIEMENT AUTOMATIQUE: Siège Éjectable]`;
+                    } else if (weeksWithoutMVP === HOLDING_RULES.WEEKS_WITHOUT_MVP_LIMIT - 1) {
+                        newStatus = 'AT_RISK';
+                        eventsDescription += ` [ATTENTION: Siège Éjectable imminent]`;
+                    }
+                }
 
                 // --- 0. PENALITE PEER REVIEW MANQUANTE ---
                 // Si activé pour la semaine, on vérifie si le membre a fait sa review
@@ -126,10 +152,19 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                     };
                     
                     const userRef = doc(db, "users", member.id);
-                    // On ignore l'écriture user dans ce batch pour la stabilité si limite batch atteinte
+                    batch.update(userRef, {
+                        careerPath: arrayUnion(careerStep)
+                    });
                 }
 
-                return { ...member, individualScore: finalScore, streak: newStreak, badges: memberBadges };
+                return { 
+                    ...member, 
+                    individualScore: finalScore, 
+                    streak: newStreak, 
+                    badges: memberBadges,
+                    weeksWithoutMVPSuggestion: weeksWithoutMVP,
+                    status: newStatus
+                };
             });
 
             // --- 3. CALCUL VE (AVEC TOLÉRANCE OVERCAP) ---
@@ -200,10 +235,14 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                 }
             }
 
+            // UPDATE VE HISTORY (Pour calcul croissance Holding)
+            const newHistory = [...(agency.ve_history || []), { week: currentWeekId, value: finalVE }];
+
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 members: updatedMembers,
                 ve_current: finalVE,
+                ve_history: newHistory,
                 // peerReviews: [], // PLUS BESOIN DE VIDER L'ARRAY LOCAL
                 eventLog: [...agency.eventLog, ...logEvents],
                 status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'

@@ -40,11 +40,33 @@ export const GAME_RULES = {
 
     // BANKRUPTCY
     BANKRUPTCY_THRESHOLD: -5000, // Seuil de faillite définitive
+    BANKRUPTCY_THRESHOLD_HOLDING: -15000, // Seuil de faillite pour les Holdings
 
     // SEUILS DE VOTE (VOTING THRESHOLDS)
     VOTE_THRESHOLD_HIRE: 0.66, // 66% pour recruter
     VOTE_THRESHOLD_FIRE: 0.75, // 75% pour virer
     VOTE_THRESHOLD_CHALLENGE: 0.50, // 50% pour accepter une mission
+};
+
+export const HOLDING_RULES = {
+    MIN_MEMBERS: 6, // Taille pour devenir Holding
+    REVENUE_MULTIPLIER_STANDARD: 50, // 1 VE = 50 PiXi
+    REVENUE_MULTIPLIER_PERFORMANCE: 70, // 1 VE = 70 PiXi (si croissance > 10)
+    GROWTH_TARGET: 5, // +5 VE/semaine requis
+    GROWTH_TARGET_BONUS: 10, // +10 VE/semaine pour bonus performance
+    
+    // EJECTABLE SEAT
+    WEEKS_WITHOUT_MVP_LIMIT: 2, // Max semaines sans être MVP avant licenciement
+    
+    // BUYOUTS
+    BUYOUT_VULTURE_THRESHOLD: -3000, // Budget < -3000 = Rachat forcé
+    BUYOUT_FRIENDLY_VE_THRESHOLD: 60, // VE < 60 = Rachat amical possible
+    
+    // DIVIDENDS
+    DIVIDEND_RATE_LOW: 0.05, // 5% si VE < 60
+    DIVIDEND_RATE_MID: 0.10, // 10% si VE 60-80
+    DIVIDEND_RATE_HIGH: 0.15, // 15% si VE > 80
+    DIVIDEND_PERCENTAGE_SENIOR: 0.05, // 5% pour les seniors
 };
 
 export const CONSTRAINTS_POOL = {

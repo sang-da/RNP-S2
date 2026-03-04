@@ -33,6 +33,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
 
     // --- MASCOT SELECTION ---
     const getMascot = () => {
+        if (agency.type === 'HOLDING') return MASCOTS.MARKET_RICH; // Holding toujours riche
         if (agency.budget_real <= 0) return MASCOTS.MARKET_POOR;
         if (agency.budget_real >= 5000) return MASCOTS.MARKET_RICH;
         return MASCOTS.MARKET_STABLE;

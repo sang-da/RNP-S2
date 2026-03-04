@@ -1,7 +1,7 @@
 
 import { writeBatch, doc, db } from '../../../services/firebase';
 import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
-import { GAME_RULES } from '../../../constants';
+import { GAME_RULES, HOLDING_RULES } from '../../../constants';
 
 // AJOUT DE reviews EN PARAMÈTRE
 export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
@@ -350,5 +350,56 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', `Semaine ${weekId} débloquée !`);
   };
 
-  return { performBlackOp, triggerBlackOp, proposeMerger, finalizeMerger, sendChallenge, submitChallengeVote, purchaseIntel };
+  const triggerVultureBuyout = async (sourceAgencyId: string, targetAgencyId: string) => {
+      const source = agencies.find(a => a.id === sourceAgencyId);
+      const target = agencies.find(a => a.id === targetAgencyId);
+      
+      if (!source || !target) return;
+      
+      if (source.type !== 'HOLDING') {
+          toast('error', "Seules les Holdings peuvent effectuer un rachat vautour.");
+          return;
+      }
+      
+      if (target.budget_real >= HOLDING_RULES.BUYOUT_VULTURE_THRESHOLD) {
+          toast('error', "Cible non éligible (Budget > -3000).");
+          return;
+      }
+      
+      const batch = writeBatch(db);
+      
+      const newMembers = [...source.members, ...target.members];
+      const newBudget = source.budget_real + target.budget_real;
+      
+      const buyoutEvent: GameEvent = {
+          id: `buyout-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'INFO',
+          label: 'Rachat Vautour',
+          deltaBudgetReal: target.budget_real,
+          description: `Absorption forcée de ${target.name}.`
+      };
+      
+      batch.update(doc(db, "agencies", source.id), {
+          members: newMembers,
+          budget_real: newBudget,
+          eventLog: [...source.eventLog, buyoutEvent]
+      });
+      
+      batch.delete(doc(db, "agencies", target.id));
+      
+      await batch.commit();
+      toast('success', `Rachat Vautour de ${target.name} effectué !`);
+  };
+
+  return { 
+      performBlackOp, 
+      triggerBlackOp, 
+      proposeMerger, 
+      finalizeMerger, 
+      sendChallenge, 
+      submitChallengeVote, 
+      purchaseIntel,
+      triggerVultureBuyout
+  };
 };

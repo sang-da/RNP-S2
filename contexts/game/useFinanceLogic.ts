@@ -1,7 +1,7 @@
 
-import { writeBatch, doc, updateDoc, db, runTransaction } from '../../services/firebase';
-import { Agency, GameEvent, TransactionRequest } from '../../types';
-import { GAME_RULES, BADGE_DEFINITIONS } from '../../constants';
+import { writeBatch, doc, db, runTransaction } from '../../services/firebase';
+import { Agency, GameEvent } from '../../types';
+import { GAME_RULES, BADGE_DEFINITIONS, HOLDING_RULES } from '../../constants';
 
 export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
 
@@ -24,7 +24,39 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
             let totalVeBonusFromTalent = 0;
 
             // 1. REVENUES
-            const revenueVE = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER);
+            let multiplier = GAME_RULES.REVENUE_VE_MULTIPLIER;
+            
+            // LOGIQUE HOLDING : MULTIPLICATEUR DYNAMIQUE
+            if (agency.type === 'HOLDING') {
+                const history = agency.ve_history || [];
+                // On regarde la croissance sur la dernière semaine enregistrée
+                // Si pas assez d'historique, on applique le standard
+                if (history.length >= 2) {
+                    const lastVE = history[history.length - 1].value;
+                    const prevVE = history[history.length - 2].value;
+                    const growth = lastVE - prevVE;
+
+                    if (growth >= 10) {
+                        multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE; // 70
+                    } else if (growth >= HOLDING_RULES.GROWTH_TARGET) {
+                        multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD; // 50
+                    } else {
+                        multiplier = 30; // Pénalité si croissance < 5
+                        logEvents.push({ 
+                            id: `hold-pen-${Date.now()}-${agency.id}`, 
+                            date: today, 
+                            type: 'CRISIS', 
+                            label: 'Croissance Insuffisante', 
+                            deltaBudgetReal: 0, 
+                            description: `Objectif +5 VE raté (${growth > 0 ? '+' : ''}${growth.toFixed(1)} VE). Revenus sanctionnés.` 
+                        });
+                    }
+                } else {
+                    multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+                }
+            }
+
+            const revenueVE = (agency.ve_current * multiplier);
             const bonuses = agency.weeklyRevenueModifier || 0;
             const totalRevenue = revenueVE + bonuses + GAME_RULES.REVENUE_BASE;
             
@@ -35,8 +67,41 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 type: 'REVENUE', 
                 label: 'Recettes', 
                 deltaBudgetReal: totalRevenue, 
-                description: `Facturation client (VE: ${agency.ve_current.toFixed(1)}).` 
+                description: `Facturation client (VE: ${agency.ve_current.toFixed(1)} x ${multiplier}).` 
             });
+
+            // 1.5 HOLDING DIVIDENDS (SENIOR PARTNERS)
+            if (agency.type === 'HOLDING' && agency.seniorityMap) {
+                const seniorMembers = agencyMembers.filter(m => agency.seniorityMap?.[m.id] === 'SENIOR');
+                
+                if (seniorMembers.length > 0) {
+                    let dividendRate = HOLDING_RULES.DIVIDEND_RATE_LOW;
+                    if (agency.ve_current >= 80) dividendRate = HOLDING_RULES.DIVIDEND_RATE_HIGH;
+                    else if (agency.ve_current >= 60) dividendRate = HOLDING_RULES.DIVIDEND_RATE_MID;
+
+                    const totalDividends = Math.floor(totalRevenue * dividendRate);
+                    const perSenior = Math.floor(totalDividends / seniorMembers.length);
+
+                    if (totalDividends > 0) {
+                        currentBudget -= totalDividends;
+                        agencyMembers = agencyMembers.map(m => {
+                            if (agency.seniorityMap?.[m.id] === 'SENIOR') {
+                                return { ...m, wallet: (m.wallet || 0) + perSenior };
+                            }
+                            return m;
+                        });
+
+                        logEvents.push({ 
+                            id: `div-pay-${Date.now()}-${agency.id}`, 
+                            date: today, 
+                            type: 'REVENUE', 
+                            label: 'Dividendes Seniors', 
+                            deltaBudgetReal: -totalDividends, 
+                            description: `Distribution de ${(dividendRate * 100).toFixed(0)}% du CA aux Seniors (+${perSenior} PiXi/pers).` 
+                        });
+                    }
+                }
+            }
 
             // 2. RENT & SOLIDARITY CLAUSE
             const rent = GAME_RULES.AGENCY_RENT;
@@ -171,12 +236,31 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
                 });
             }
 
+            // 6. CHECK BANKRUPTCY (HOLDING vs AGENCY)
+            const bankruptcyLimit = agency.type === 'HOLDING' 
+                ? GAME_RULES.BANKRUPTCY_THRESHOLD_HOLDING 
+                : GAME_RULES.BANKRUPTCY_THRESHOLD;
+
+            let finalStatus = agency.status;
+            if (currentBudget < bankruptcyLimit) {
+                finalStatus = 'critique';
+                logEvents.push({
+                    id: `bankrupt-${Date.now()}-${agency.id}`,
+                    date: today,
+                    type: 'CRISIS',
+                    label: 'FAILLITE IMMINENTE',
+                    deltaBudgetReal: 0,
+                    description: `Seuil critique (${bankruptcyLimit} PiXi) dépassé. Risque de dissolution.`
+                });
+            }
+
             const ref = doc(db, "agencies", agency.id);
             batch.update(ref, {
                 budget_real: currentBudget,
                 ve_current: finalVe,
                 members: agencyMembers,
-                eventLog: [...agency.eventLog, ...logEvents]
+                eventLog: [...agency.eventLog, ...logEvents],
+                status: finalStatus
             });
         });
 

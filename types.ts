@@ -73,8 +73,12 @@ export interface Student {
     connectionStatus: 'online' | 'offline';
     badges?: Badge[];
     history?: CareerHistoryItem[]; // Now strictly typed
+    careerPath?: CareerStep[]; // NOUVEAU : Historique complet des semaines
     notes?: StudentNote[]; // NOUVEAU
     cvUrl?: string;
+    // Holding / Ejectable Seat
+    weeksWithoutMVPSuggestion?: number; // Compteur pour le siège éjectable
+    status?: 'ACTIVE' | 'AT_RISK' | 'FIRED';
 }
 
 export interface GameEvent {
@@ -197,9 +201,11 @@ export enum CycleType {
 export interface Agency {
     id: string;
     name: string;
+    type?: 'AGENCY' | 'HOLDING'; // Nouveau type
     tagline: string;
     ve_current: number;
     veCapOverride?: number;
+    ve_history?: { week: string, value: number }[]; // Pour calculer la croissance
     status: 'stable' | 'fragile' | 'critique';
     classId: 'A' | 'B' | 'ALL';
     budget_real: number;
@@ -207,6 +213,10 @@ export interface Agency {
     weeklyTax: number;
     weeklyRevenueModifier: number;
     members: Student[];
+    
+    // Holding specific
+    seniorityMap?: { [studentId: string]: 'SENIOR' | 'JUNIOR' }; // Pour les dividendes
+    
     eventLog: GameEvent[];
     currentCycle: CycleType;
     projectDef: {
