@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Agency, BrandColor, Student } from '../../../types';
-import { Settings, Wallet, Landmark, HelpCircle, Shield, Crown, Sparkles, Star } from 'lucide-react';
+import { Settings, Wallet, Landmark, HelpCircle, Shield, Crown, Sparkles, Star, History } from 'lucide-react';
 import { GAME_RULES, calculateVECap, calculateMarketVE } from '../../../constants';
 
 interface AgencyHeaderProps {
@@ -11,6 +11,8 @@ interface AgencyHeaderProps {
     myMemberProfile?: Student;
     onOpenSettings: () => void;
     onOpenVERules: () => void;
+    onOpenHistory?: () => void;
+    onOpenFinance?: () => void;
 }
 
 export const AgencyHeader: React.FC<AgencyHeaderProps> = ({ 
@@ -19,7 +21,9 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
     theme, 
     myMemberProfile, 
     onOpenSettings, 
-    onOpenVERules 
+    onOpenVERules,
+    onOpenHistory,
+    onOpenFinance
 }) => {
     
     // Calculs financiers pour l'affichage
@@ -65,12 +69,29 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                 </div>
             )}
 
-            {/* SETTINGS BUTTON */}
-            {agency.id !== 'unassigned' && (
-                <button onClick={onOpenSettings} className="absolute top-4 right-4 p-2 bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 border border-white/10 z-20">
-                    <Settings size={20}/>
-                </button>
-            )}
+            {/* SETTINGS & HISTORY BUTTONS */}
+            <div className="absolute top-4 right-4 flex gap-2 z-20">
+                {agency.id !== 'unassigned' && (
+                    <>
+                        {onOpenHistory && (
+                            <button 
+                                onClick={onOpenHistory} 
+                                className="p-2 bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 border border-white/10"
+                                title="Historique des Incidents"
+                            >
+                                <History size={20}/>
+                            </button>
+                        )}
+                        <button 
+                            onClick={onOpenSettings} 
+                            className="p-2 bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 border border-white/10"
+                            title="Paramètres Agence"
+                        >
+                            <Settings size={20}/>
+                        </button>
+                    </>
+                )}
+            </div>
 
             {/* MAIN CONTENT */}
             <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col xl:flex-row justify-between items-end xl:items-end gap-6 text-white">
@@ -133,18 +154,28 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                     )}
                     
                     <div className="flex-1 md:text-right md:border-r border-white/20 md:pr-4">
-                        <span className={`text-[10px] font-bold uppercase tracking-widest block mb-1 flex items-center gap-1 md:justify-end ${isElite ? 'text-amber-200' : 'text-indigo-300'}`}>
-                            <Landmark size={12}/> Trésorerie
-                        </span>
-                        <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
-                            <span className={`font-mono ${agency.budget_real < 0 ? 'text-red-400' : 'text-white'}`}>{agency.budget_real} PiXi</span>
+                        <div 
+                            onClick={onOpenFinance}
+                            className={`${onOpenFinance ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        >
+                            <span className={`text-[10px] font-bold uppercase tracking-widest block mb-1 flex items-center gap-1 md:justify-end ${isElite ? 'text-amber-200' : 'text-indigo-300'}`}>
+                                <Landmark size={12}/> Trésorerie
+                            </span>
+                            <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
+                                <span className={`font-mono ${agency.budget_real < 0 ? 'text-red-400' : 'text-white'}`}>{agency.budget_real} PiXi</span>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex items-center justify-between md:justify-start gap-6 pl-2">
                         <div className="text-center">
-                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
-                            <div className={`text-xl font-bold ${netWeekly >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)}</div>
+                            <div 
+                                onClick={onOpenFinance}
+                                className={`${onOpenFinance ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                            >
+                                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
+                                <div className={`text-xl font-bold ${netWeekly >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)}</div>
+                            </div>
                         </div>
                         <div className="text-center">
                             <div 

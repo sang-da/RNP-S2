@@ -17,11 +17,12 @@ interface MarketOverviewProps {
     allAgencies: Agency[];
     currentUser?: Student;
     onUpdateAgency?: (agency: Agency) => void;
+    onOpenFinance: () => void;
 }
 
 type TabType = 'GRAPH' | 'WALLET' | 'HISTORY';
 
-export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies, currentUser, onUpdateAgency }) => {
+export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgencies, currentUser, onUpdateAgency, onOpenFinance }) => {
     const { toast, confirm } = useUI();
     const { weeks, gameConfig, purchaseIntel } = useGame();
     const [activeTab, setActiveTab] = useState<TabType>('GRAPH');
@@ -77,11 +78,14 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                             <CycleObjective />
                         </div>
                         {/* MASCOTTE CARD */}
-                        <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm flex items-center gap-4 relative overflow-hidden md:w-1/3">
+                        <div 
+                            onClick={onOpenFinance}
+                            className="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm flex items-center gap-4 relative overflow-hidden md:w-1/3 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+                        >
                             <div className="absolute top-0 right-0 w-20 h-full bg-gradient-to-l from-slate-100 to-transparent"></div>
                             <img src={getMascot()} className="h-20 w-auto drop-shadow-md z-10 animate-bounce-slow" alt="Mascotte" />
                             <div className="z-10">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Santé Financière</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-indigo-500 transition-colors">Santé Financière</p>
                                 <p className={`text-2xl font-black ${agency.budget_real < 0 ? 'text-red-500' : 'text-slate-900'}`}>
                                     {agency.budget_real.toLocaleString()} <span className="text-sm font-bold text-slate-400">px</span>
                                 </p>
@@ -89,6 +93,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = ({ agency, allAgenc
                                     {agency.budget_real < 0 ? 'En Difficulté' : agency.budget_real > 5000 ? 'Prospère' : 'Stable'}
                                 </div>
                             </div>
+                            <Info size={16} className="absolute top-4 right-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                     </div>
                     {onUpdateAgency && <AgencyStatusBoard agency={agency} onUpdateAgency={onUpdateAgency} />}

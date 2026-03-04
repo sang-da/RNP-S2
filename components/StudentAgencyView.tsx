@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, GameEvent } from '../types';
-import { Eye, AlertTriangle, PartyPopper, Zap } from 'lucide-react';
+import { Eye, AlertTriangle, PartyPopper, Zap, History } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -20,6 +20,8 @@ import { AgencyNav } from './student/layout/AgencyNav';
 import { BackdoorTrigger } from './student/features/BackdoorTrigger';
 import { VotingSystem } from './student/features/VotingSystem';
 import { AgencySettingsModal } from './student/modals/AgencySettingsModal';
+import { EventHistoryModal } from './student/modals/EventHistoryModal';
+import { FinanceDetailModal } from './student/modals/FinanceDetailModal';
 
 interface StudentViewProps {
   agency: Agency;
@@ -47,6 +49,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showBackdoor, setShowBackdoor] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showFinanceModal, setShowFinanceModal] = useState(false);
   
   const [unlockModal, setUnlockModal] = useState<{title: string, message: string, icon: any, confirmText: string} | null>(null);
   const [notificationEvent, setNotificationEvent] = useState<GameEvent | null>(null);
@@ -116,6 +120,8 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             myMemberProfile={myMemberProfile}
             onOpenSettings={() => setShowSettings(true)}
             onOpenVERules={() => setShowVERules(true)}
+            onOpenHistory={() => setShowHistory(true)}
+            onOpenFinance={() => setShowFinanceModal(true)}
         />
 
         {/* VOTING BOOTHS */}
@@ -137,6 +143,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                     allAgencies={allAgencies} 
                     currentUser={myMemberProfile} 
                     onUpdateAgency={onUpdateAgency}
+                    onOpenFinance={() => setShowFinanceModal(true)}
                 />
             )}
             
@@ -231,19 +238,44 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
                         </p>
                     </div>
 
-                    <button 
-                        onClick={closeNotification}
-                        className={`w-full py-4 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 ${
-                            notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
-                            ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
-                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
-                        }`}
-                    >
-                        {notificationEvent.type === 'CRISIS' ? "J'AI PRIS CONNAISSANCE" : "GÉNIAL !"}
-                    </button>
+                    <div className="w-full space-y-3">
+                        <button 
+                            onClick={closeNotification}
+                            className={`w-full py-4 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 ${
+                                notificationEvent.type === 'CRISIS' || (notificationEvent.deltaVE || 0) < 0
+                                ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
+                                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                            }`}
+                        >
+                            {notificationEvent.type === 'CRISIS' ? "J'AI PRIS CONNAISSANCE" : "GÉNIAL !"}
+                        </button>
+                        
+                        <button 
+                            onClick={() => {
+                                closeNotification();
+                                setShowHistory(true);
+                            }}
+                            className="w-full py-3 text-slate-500 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <History size={18} />
+                            Voir l'historique complet
+                        </button>
+                    </div>
                 </div>
             </Modal>
         )}
+
+        <EventHistoryModal 
+            isOpen={showHistory} 
+            onClose={() => setShowHistory(false)} 
+            events={agency.eventLog || []} 
+        />
+        
+        <FinanceDetailModal 
+            isOpen={showFinanceModal} 
+            onClose={() => setShowFinanceModal(false)} 
+            agency={agency} 
+        />
     </div>
   );
 };

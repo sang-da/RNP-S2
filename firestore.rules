@@ -90,6 +90,13 @@ service cloud.firestore {
        allow update, delete: if isAdmin(); // Seul l'admin peut modifier/supprimer une note frauduleuse
     }
 
+    // 7. QUIZ ATTEMPTS (Réponses aux quiz)
+    match /quiz_attempts/{attemptId} {
+       allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isAdmin());
+       allow create: if isAuthenticated();
+       allow update: if isAdmin(); // On ne modifie pas une tentative, sauf admin
+    }
+
     // Règle par défaut (Sécurité)
     match /{document=**} {
       allow read, write: if isAdmin();
