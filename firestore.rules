@@ -35,6 +35,12 @@ service cloud.firestore {
       allow write: if isAdmin(); // Seul l'admin change la semaine ou les paramètres
     }
 
+    // 1.bis CONFIGURATION QUIZ & SONDAGES
+    match /game_config/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     // 2. UTILISATEURS (Profils)
     match /users/{userId} {
       // Lecture ouverte aux connectés (pour l'annuaire, les classements)

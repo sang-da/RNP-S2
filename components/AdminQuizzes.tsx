@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Quiz, QuizQuestion } from '../types';
 import { Plus, Trash2, Save, Edit2, Check, X, HelpCircle, Star, Mic, Type, List, Calendar, Lock, MessageSquare, Award } from 'lucide-react';
-import { doc, updateDoc, arrayUnion, runTransaction, db } from '../services/firebase';
+import { doc, updateDoc, arrayUnion, runTransaction, db, setDoc } from '../services/firebase';
 
 export const AdminQuizzes: React.FC = () => {
     const { gameConfig } = useGame();
@@ -30,11 +30,24 @@ export const AdminQuizzes: React.FC = () => {
     const handleSaveQuiz = async () => {
         if (!currentQuiz.title || !currentQuiz.questions?.length) return;
 
+        // Sanitize questions to remove undefined optional fields
+        const sanitizedQuestions = currentQuiz.questions.map(q => {
+            const cleanQ: any = {
+                id: q.id,
+                text: q.text,
+                type: q.type,
+            };
+            if (q.options) cleanQ.options = q.options;
+            if (q.correctOptionIndex !== undefined) cleanQ.correctOptionIndex = q.correctOptionIndex;
+            if (q.criteria) cleanQ.criteria = q.criteria;
+            return cleanQ;
+        });
+
         const newQuiz: Quiz = {
             id: currentQuiz.id || `quiz_${Date.now()}`,
             title: currentQuiz.title!,
             description: currentQuiz.description || '',
-            questions: currentQuiz.questions as QuizQuestion[],
+            questions: sanitizedQuestions as QuizQuestion[],
             rewardPoints: currentQuiz.rewardPoints || 0,
             rewardPixi: currentQuiz.rewardPixi || 0,
             costPixi: currentQuiz.costPixi || 0,
@@ -42,7 +55,7 @@ export const AdminQuizzes: React.FC = () => {
             createdAt: currentQuiz.createdAt || new Date().toISOString(),
             type: currentQuiz.type || 'QUIZ',
             frequency: currentQuiz.frequency || 'ONCE',
-            unlockWeek: currentQuiz.unlockWeek
+            unlockWeek: currentQuiz.unlockWeek || 1
         };
 
         try {
@@ -51,12 +64,12 @@ export const AdminQuizzes: React.FC = () => {
             if (currentQuiz.id) {
                 // Update existing
                 const updatedQuizzes = quizzes.map(q => q.id === newQuiz.id ? newQuiz : q);
-                await updateDoc(gameConfigRef, { quizzes: updatedQuizzes });
+                await setDoc(gameConfigRef, { quizzes: updatedQuizzes }, { merge: true });
             } else {
                 // Create new
-                await updateDoc(gameConfigRef, {
+                await setDoc(gameConfigRef, {
                     quizzes: arrayUnion(newQuiz)
-                });
+                }, { merge: true });
             }
             
             setIsEditing(false);
@@ -74,7 +87,7 @@ export const AdminQuizzes: React.FC = () => {
             });
         } catch (error) {
             console.error("Error saving quiz:", error);
-            alert("Erreur lors de la sauvegarde");
+            alert("Erreur lors de la sauvegarde: " + (error as any).message);
         }
     };
 
