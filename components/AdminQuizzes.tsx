@@ -59,7 +59,8 @@ export const AdminQuizzes: React.FC = () => {
         };
 
         try {
-            const gameConfigRef = doc(db, 'game_config', 'main');
+            // FIX: Write to the correct configuration document that GameContext listens to
+            const gameConfigRef = doc(db, 'config', 'game_state');
             
             if (currentQuiz.id) {
                 // Update existing
@@ -95,9 +96,9 @@ export const AdminQuizzes: React.FC = () => {
         if (!confirm("Êtes-vous sûr de vouloir supprimer ce quiz ?")) return;
         
         try {
-            const gameConfigRef = doc(db, 'game_config', 'main');
+            const gameConfigRef = doc(db, 'config', 'game_state');
             const updatedQuizzes = quizzes.filter(q => q.id !== quizId);
-            await updateDoc(gameConfigRef, { quizzes: updatedQuizzes });
+            await setDoc(gameConfigRef, { quizzes: updatedQuizzes }, { merge: true });
         } catch (error) {
             console.error("Error deleting quiz:", error);
         }

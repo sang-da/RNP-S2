@@ -40,6 +40,26 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
 
     const agency = agencies.find(a => a.id === item.agencyId);
     
+    // Safety check if agency is not found
+    if (!agency) {
+        return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                <div className="bg-white p-6 rounded-xl max-w-md w-full text-center">
+                    <h3 className="text-xl font-bold text-red-600 mb-2">Erreur : Agence introuvable</h3>
+                    <p className="text-slate-600 mb-4">
+                        L'agence associée à ce livrable (ID: {item.agencyId}) semble avoir été supprimée ou n'est pas chargée.
+                    </p>
+                    <button 
+                        onClick={onClose}
+                        className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold"
+                    >
+                        Fermer
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    
     // Suggestion MVP
     const suggestedMvpMember = useMemo(() => {
         if (!agency || !item.deliverable.nominatedMvpId) return null;
