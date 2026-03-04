@@ -58,10 +58,11 @@ export const QuizButton: React.FC = () => {
             {selectedQuiz && (
                 <QuizModal 
                     quiz={selectedQuiz} 
-                    onClose={() => {
+                    onClose={(completed) => {
                         setSelectedQuiz(null);
-                        // Refresh completed list locally to hide button immediately
-                        setCompletedQuizIds(prev => [...prev, selectedQuiz.id]);
+                        if (completed) {
+                            setCompletedQuizIds(prev => [...prev, selectedQuiz.id]);
+                        }
                     }} 
                 />
             )}

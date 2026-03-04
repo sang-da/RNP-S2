@@ -1,20 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Quiz, QuizQuestion } from '../../../types';
-import { CheckCircle2, XCircle, HelpCircle, Coins, Award, ArrowRight, Mic, Square, Play, Star, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, Coins, Award, ArrowRight, Mic, Square, Play, Star, Loader2, Trash2, WifiOff } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useUI } from '../../../contexts/UIContext';
 import { doc, runTransaction, db, storage, ref, uploadBytes, getDownloadURL } from '../../../services/firebase';
 import { transcribeAudioWithGroq } from '../../../services/groqService';
 
 interface QuizModalProps {
     quiz: Quiz;
-    onClose: () => void;
+    onClose: (completed: boolean) => void;
 }
 
 export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     const { currentUser } = useAuth();
     const { agencies } = useGame();
+    const { toast } = useUI();
     
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     
@@ -42,6 +44,56 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     const currentQuestion = quiz.questions[currentQuestionIndex];
     const isLastQuestion = currentQuestionIndex === quiz.questions.length - 1;
 
+    // LOCAL STORAGE PERSISTENCE
+    const STORAGE_KEY = `quiz_progress_${quiz.id}_${currentUser?.uid}`;
+
+    useEffect(() => {
+        // Load progress on mount
+        const savedProgress = localStorage.getItem(STORAGE_KEY);
+        if (savedProgress) {
+            try {
+                const parsed = JSON.parse(savedProgress);
+                setAllAnswers(parsed.answers || {});
+                setCurrentQuestionIndex(parsed.currentIndex || 0);
+                // Note: We cannot easily restore audio blobs from local storage
+            } catch (e) {
+                console.error("Error loading quiz progress", e);
+            }
+        }
+    }, [STORAGE_KEY]);
+
+    useEffect(() => {
+        // Save progress on change
+        if (!isSubmitted) {
+            const progress = {
+                answers: allAnswers,
+                currentIndex: currentQuestionIndex,
+                lastUpdated: Date.now()
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+        }
+    }, [allAnswers, currentQuestionIndex, isSubmitted, STORAGE_KEY]);
+
+    // Restore current question state when index changes or answers loaded
+    useEffect(() => {
+        const savedAnswer = allAnswers[currentQuestion.id];
+        if (savedAnswer !== undefined) {
+            if (currentQuestion.type === 'choice') setSelectedOption(savedAnswer);
+            else if (currentQuestion.type === 'text') setTextAnswer(savedAnswer);
+            else if (currentQuestion.type === 'rating') {
+                if (typeof savedAnswer === 'object') setCriteriaRatings(savedAnswer);
+                else setRatingAnswer(savedAnswer);
+            }
+        } else {
+            // Reset fields if no answer
+            setSelectedOption(null);
+            setTextAnswer('');
+            setRatingAnswer(0);
+            setCriteriaRatings({});
+        }
+    }, [currentQuestionIndex, currentQuestion, allAnswers]);
+
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -60,13 +112,11 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                     setTextAnswer(prev => prev ? `${prev}\n${text}` : text);
                     
                     // 2. Stockage du Blob pour analyse sentiment (Admin Only)
-                    // On ne le stocke que si c'est une question texte qui autorise l'audio
-                    // Ici on considère que tout champ texte peut avoir de l'audio
                     setAudioBlobs(prev => ({ ...prev, [currentQuestion.id]: blob }));
                     
                 } catch (e) {
                     console.error("Transcription error", e);
-                    alert("Erreur de transcription. Veuillez réessayer ou taper votre texte.");
+                    toast('error', "Erreur de transcription. Veuillez réessayer ou taper votre texte.");
                 } finally {
                     setTranscribing(false);
                 }
@@ -84,7 +134,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
 
         } catch (err) {
             console.error("Mic error", err);
-            alert("Accès micro refusé. Vérifiez vos permissions.");
+            toast('error', "Accès micro refusé. Vérifiez vos permissions.");
         }
     };
 
@@ -103,12 +153,10 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         if (currentQuestion.type === 'choice') {
             if (selectedOption === null) return;
             answerValue = selectedOption;
-            setSelectedOption(null);
         } 
         else if (currentQuestion.type === 'text') {
             if (!textAnswer.trim()) return;
             answerValue = textAnswer;
-            setTextAnswer('');
         }
         else if (currentQuestion.type === 'rating') {
             if (currentQuestion.criteria && currentQuestion.criteria.length > 0) {
@@ -116,11 +164,9 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                 const allRated = currentQuestion.criteria.every(c => criteriaRatings[c] !== undefined && criteriaRatings[c] > 0);
                 if (!allRated) return;
                 answerValue = criteriaRatings;
-                setCriteriaRatings({});
             } else {
                 if (ratingAnswer === 0) return;
                 answerValue = ratingAnswer;
-                setRatingAnswer(0);
             }
         }
 
@@ -135,6 +181,11 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     };
 
     const submitQuiz = async (finalAnswers: any) => {
+        if (!navigator.onLine) {
+            toast('warning', "Pas de connexion internet. Vos réponses sont sauvegardées localement. Réessayez une fois connecté.");
+            return;
+        }
+
         setIsSubmitting(true);
         
         // 1. Calcul du Score (Uniquement pour QUIZ, pour SURVEY c'est 100%)
@@ -164,10 +215,8 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                 const url = await getDownloadURL(storageRef);
                 audioUrls[qId] = url;
                 
-                // Mock AI Analysis (since we don't have a backend function ready)
-                // In a real scenario, we would trigger a Cloud Function here
                 aiAnalysis[qId] = {
-                    sentiment: "pending_analysis", // To be processed by Admin later
+                    sentiment: "pending_analysis", 
                     transcription_length: finalAnswers[qId]?.length || 0
                 };
             });
@@ -175,20 +224,26 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             await Promise.all(uploadPromises);
         } catch (e) {
             console.error("Error uploading audio:", e);
-            // Continue even if upload fails, we still want to save the quiz
+            // Continue even if upload fails
         }
 
         // 3. Enregistrement Firebase
         if (currentUser) {
             try {
                 await saveResultsToFirebase(finalScore, finalAnswers, audioUrls, aiAnalysis);
+                
+                // Success! Clear local storage
+                localStorage.removeItem(STORAGE_KEY);
+                setIsSubmitted(true);
+                toast('success', quiz.type === 'SURVEY' ? "Merci pour ton retour !" : "Quiz envoyé avec succès !");
+                
             } catch (error) {
                 console.error("Error submitting quiz:", error);
+                toast('error', "Erreur lors de l'envoi. Vos réponses sont sauvegardées. Veuillez réessayer.");
+            } finally {
+                setIsSubmitting(false);
             }
         }
-        
-        setIsSubmitted(true);
-        setIsSubmitting(false);
     };
 
     const saveResultsToFirebase = async (finalScore: number, finalAnswers: any, audioUrls: any, aiAnalysis: any) => {
@@ -258,7 +313,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
 
     if (isSubmitted) {
         return (
-            <Modal isOpen={true} onClose={onClose} title={quiz.type === 'SURVEY' ? "Merci pour ton retour !" : "Résultats du Quiz"}>
+            <Modal isOpen={true} onClose={() => onClose(true)} title={quiz.type === 'SURVEY' ? "Merci pour ton retour !" : "Résultats du Quiz"}>
                 <div className="flex flex-col items-center justify-center py-8 space-y-6">
                     <div className="relative">
                         <div className="absolute inset-0 bg-indigo-100 rounded-full animate-ping opacity-20"></div>
@@ -296,7 +351,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
                     </div>
 
                     <button 
-                        onClick={onClose}
+                        onClick={() => onClose(true)}
                         className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors"
                     >
                         Fermer
@@ -307,7 +362,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     }
 
     return (
-        <Modal isOpen={true} onClose={onClose} title={quiz.title}>
+        <Modal isOpen={true} onClose={() => onClose(false)} title={quiz.title}>
             <div className="space-y-6">
                 {/* Progress Bar */}
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
