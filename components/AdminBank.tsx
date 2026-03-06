@@ -138,6 +138,80 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
         }
     };
 
+    // 2. JOURNAL DES TRANSACTIONS (Aggrégé)
+    const transactions = useMemo(() => {
+        const logs: {agencyName: string, agencyId: string, event: GameEvent}[] = [];
+        
+        agencies.forEach(a => {
+            // On filtre pour ne garder que les logs financiers pertinents + LOANS
+            const financialEvents = a.eventLog.filter(e => 
+                e.type === 'PAYROLL' || 
+                (e.type === 'INFO' && (e.label.includes('Virement') || e.label.includes('Injection') || e.label.includes('Prêt') || e.label.includes('Remboursement') || e.label.includes('Amnistie'))) ||
+                e.type === 'REVENUE'
+            );
+            
+            financialEvents.forEach(e => logs.push({agencyName: a.name, agencyId: a.id, event: e}));
+        });
+
+        // Tri décroissant par date/id
+        return logs.sort((a,b) => b.event.id.localeCompare(a.event.id)).slice(0, 50); // Dernières 50 transactions
+    }, [agencies]);
+
+    const handleReverseTransaction = async (agencyId: string, event: GameEvent) => {
+        const confirmed = await confirm({
+            title: "Annuler la transaction ?",
+            message: `Vous allez contre-passer cette opération de ${event.deltaBudgetReal} PiXi.\nCela créera une écriture inverse.`,
+            confirmText: "Annuler (Contre-passation)"
+        });
+
+        if (confirmed) {
+            const reverseAmount = -event.deltaBudgetReal;
+            const newEvent: GameEvent = {
+                id: `rev-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'INFO',
+                label: 'ANNULATION',
+                deltaBudgetReal: reverseAmount,
+                description: `Annulation de l'opération ${event.id} (${event.description})`
+            };
+
+            const agencyRef = doc(db, "agencies", agencyId);
+            await updateDoc(agencyRef, {
+                budget_real: (agencies.find(a => a.id === agencyId)?.budget_real || 0) + reverseAmount,
+                eventLog: arrayUnion(newEvent)
+            });
+            toast('success', "Transaction annulée.");
+        }
+    };
+
+    const handleFlagFraud = async (agencyId: string, event: GameEvent) => {
+        const confirmed = await confirm({
+            title: "Signaler comme Fraude ?",
+            message: "Vous allez sanctionner cette opération comme frauduleuse.\nUne amende de 500 PiXi sera appliquée à l'agence.",
+            confirmText: "Sanctionner (Fraude)",
+            isDangerous: true
+        });
+
+        if (confirmed) {
+            const fine = -500;
+            const newEvent: GameEvent = {
+                id: `fraud-${Date.now()}`,
+                date: new Date().toISOString().split('T')[0],
+                type: 'INFO',
+                label: 'SANCTION FRAUDE',
+                deltaBudgetReal: fine,
+                description: `Amende pour opération frauduleuse: ${event.description}`
+            };
+
+            const agencyRef = doc(db, "agencies", agencyId);
+            await updateDoc(agencyRef, {
+                budget_real: (agencies.find(a => a.id === agencyId)?.budget_real || 0) + fine,
+                eventLog: arrayUnion(newEvent)
+            });
+            toast('success', "Sanction appliquée.");
+        }
+    };
+
     // 4. OBSERVATOIRE DE LA DETTE (Existing logic)
     const debtors = useMemo(() => {
         const list: Debtor[] = [];
@@ -319,6 +393,73 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* TRANSACTION HISTORY */}
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                <ArrowRightLeft size={20}/> Grand Livre des Transactions
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
+                                    <tr>
+                                        <th className="p-4">Date</th>
+                                        <th className="p-4">Agence Concernée</th>
+                                        <th className="p-4">Type</th>
+                                        <th className="p-4">Description / Motif</th>
+                                        <th className="p-4 text-right">Montant</th>
+                                        <th className="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {transactions.map((t, idx) => (
+                                        <tr key={`${t.event.id}-${idx}`} className="hover:bg-slate-50 transition-colors text-sm group">
+                                            <td className="p-4 whitespace-nowrap text-slate-500 font-mono text-xs">{t.event.date}</td>
+                                            <td className="p-4 font-bold text-slate-700">{t.agencyName}</td>
+                                            <td className="p-4">
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${
+                                                    t.event.type === 'REVENUE' ? 'bg-emerald-100 text-emerald-700' :
+                                                    t.event.type === 'PAYROLL' ? 'bg-red-100 text-red-700' :
+                                                    'bg-indigo-100 text-indigo-700'
+                                                }`}>
+                                                    {t.event.label}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-slate-600 max-w-md truncate" title={t.event.description}>
+                                                {t.event.description}
+                                            </td>
+                                            <td className={`p-4 text-right font-mono font-bold ${
+                                                (t.event.deltaBudgetReal || 0) > 0 ? 'text-emerald-600' : 
+                                                (t.event.deltaBudgetReal || 0) < 0 ? 'text-red-600' : 'text-slate-400'
+                                            }`}>
+                                                {t.event.deltaBudgetReal !== 0 ? `${t.event.deltaBudgetReal > 0 ? '+' : ''}${t.event.deltaBudgetReal}` : '-'}
+                                            </td>
+                                            <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex justify-end gap-2">
+                                                    <button 
+                                                        onClick={() => handleReverseTransaction(t.agencyId, t.event)}
+                                                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded"
+                                                        title="Annuler (Contre-passation)"
+                                                    >
+                                                        <ArrowRightLeft size={14}/>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleFlagFraud(t.agencyId, t.event)}
+                                                        className="p-1.5 text-red-300 hover:text-red-600 hover:bg-red-50 rounded"
+                                                        title="Sanctionner (Fraude)"
+                                                    >
+                                                        <AlertTriangle size={14}/>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </>
