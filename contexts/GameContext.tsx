@@ -59,6 +59,7 @@ interface GameContextType {
   purchaseIntel: (agencyId: string, weekId: string) => Promise<void>;
 
   getCurrentGameWeek: () => number;
+  dispatchAction: (type: any, payload: any, studentId: string, agencyId: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -92,14 +93,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const finance = useFinanceLogic(agencies, toast, role, dispatchAction);
   
   // Initialize Action Processor (only runs if role === 'admin')
-  useActionProcessor(role, finance, toast);
+  useActionProcessor(role, finance, mechanics, toast);
   
   const getCurrentGameWeek = useCallback(() => {
       return gameConfig.currentWeek || 1;
   }, [gameConfig.currentWeek]);
   
   // On passe 'reviews' aux mécaniques pour les calculs de perf
-  const mechanics = useGameMechanics(agencies, reviews, weeks, toast, getCurrentGameWeek);
+  const mechanics = useGameMechanics(agencies, reviews, weeks, toast, getCurrentGameWeek, role, dispatchAction);
 
   // 0. SYNC CONFIG
   useEffect(() => {
@@ -246,7 +247,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       sendChallenge: mechanics.sendChallenge,
       submitChallengeVote: mechanics.submitChallengeVote,
       purchaseIntel: mechanics.purchaseIntel,
-      getCurrentGameWeek
+      getCurrentGameWeek,
+      dispatchAction
     }}>
       {children}
     </GameContext.Provider>

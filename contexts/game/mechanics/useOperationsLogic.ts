@@ -4,9 +4,16 @@ import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
 import { GAME_RULES, HOLDING_RULES } from '../../../constants';
 
 // AJOUT DE reviews EN PARAMÈTRE
-export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
+export const useOperationsLogic = (
+    agencies: Agency[], 
+    reviews: PeerReview[], 
+    toast: (type: string, msg: string) => void, 
+    getCurrentGameWeek: () => number,
+    role: 'admin' | 'student',
+    dispatchAction: (type: string, payload: any, studentId: string, agencyId: string) => Promise<void>
+) => {
 
-  const performBlackOp = async (studentId: string, agencyId: string, opType: string, payload: any) => {
+  const executePerformBlackOp = async (studentId: string, agencyId: string, opType: string, payload: any) => {
       const agency = agencies.find(a => a.id === agencyId);
       if (!agency) return;
       const student = agency.members.find(m => m.id === studentId);
@@ -181,11 +188,19 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', `Opération ${opType} exécutée.`);
   };
 
+  const performBlackOp = async (studentId: string, agencyId: string, opType: string, payload: any) => {
+      if (role === 'admin') {
+          await executePerformBlackOp(studentId, agencyId, opType, payload);
+      } else {
+          await dispatchAction('BLACK_OP', { studentId, agencyId, opType, payload }, studentId, agencyId);
+      }
+  };
+
   const triggerBlackOp = async (sourceAgencyId: string, targetAgencyId: string, type: 'AUDIT' | 'LEAK') => {
       console.log("Trigger Black Op", sourceAgencyId, targetAgencyId, type);
   };
 
-  const proposeMerger = async (sourceAgencyId: string, targetAgencyId: string) => {
+  const executeProposeMerger = async (sourceAgencyId: string, targetAgencyId: string) => {
       const source = agencies.find(a => a.id === sourceAgencyId);
       const target = agencies.find(a => a.id === targetAgencyId);
       if(!source || !target) return;
@@ -207,7 +222,17 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', "Proposition de rachat envoyée.");
   };
 
-  const finalizeMerger = async (mergerId: string, targetAgencyId: string, approved: boolean) => {
+  const proposeMerger = async (sourceAgencyId: string, targetAgencyId: string) => {
+      if (role === 'admin') {
+          await executeProposeMerger(sourceAgencyId, targetAgencyId);
+      } else {
+          const source = agencies.find(a => a.id === sourceAgencyId);
+          const studentId = source?.members[0]?.id || 'unknown';
+          await dispatchAction('PROPOSE_MERGER', { sourceAgencyId, targetAgencyId }, studentId, sourceAgencyId);
+      }
+  };
+
+  const executeFinalizeMerger = async (mergerId: string, targetAgencyId: string, approved: boolean) => {
       const target = agencies.find(a => a.id === targetAgencyId);
       if(!target) return;
       const request = target.mergerRequests?.find(r => r.id === mergerId);
@@ -245,7 +270,17 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', "Fusion confirmée !");
   };
 
-  const sendChallenge = async (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => {
+  const finalizeMerger = async (mergerId: string, targetAgencyId: string, approved: boolean) => {
+      if (role === 'admin') {
+          await executeFinalizeMerger(mergerId, targetAgencyId, approved);
+      } else {
+          const target = agencies.find(a => a.id === targetAgencyId);
+          const studentId = target?.members[0]?.id || 'unknown';
+          await dispatchAction('FINALIZE_MERGER', { mergerId, targetAgencyId, approved }, studentId, targetAgencyId);
+      }
+  };
+
+  const executeSendChallenge = async (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => {
       const target = agencies.find(a => a.id === targetAgencyId);
       if(!target) return;
 
@@ -267,7 +302,15 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', "Challenge envoyé !");
   };
 
-  const submitChallengeVote = async (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => {
+  const sendChallenge = async (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => {
+      if (role === 'admin') {
+          await executeSendChallenge(targetAgencyId, title, description, rewardVE, rewardBudget);
+      } else {
+          await dispatchAction('SEND_CHALLENGE', { targetAgencyId, title, description, rewardVE, rewardBudget }, 'unknown', targetAgencyId);
+      }
+  };
+
+  const executeSubmitChallengeVote = async (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => {
       const agency = agencies.find(a => a.id === agencyId);
       if(!agency) return;
       
@@ -319,7 +362,15 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       await batch.commit();
   };
 
-  const purchaseIntel = async (agencyId: string, weekId: string) => {
+  const submitChallengeVote = async (agencyId: string, challengeId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => {
+      if (role === 'admin') {
+          await executeSubmitChallengeVote(agencyId, challengeId, voterId, vote);
+      } else {
+          await dispatchAction('SUBMIT_CHALLENGE_VOTE', { agencyId, challengeId, voterId, vote }, voterId, agencyId);
+      }
+  };
+
+  const executePurchaseIntel = async (agencyId: string, weekId: string) => {
       const agency = agencies.find(a => a.id === agencyId);
       if (!agency) return;
 
@@ -350,7 +401,17 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', `Semaine ${weekId} débloquée !`);
   };
 
-  const triggerVultureBuyout = async (sourceAgencyId: string, targetAgencyId: string) => {
+  const purchaseIntel = async (agencyId: string, weekId: string) => {
+      if (role === 'admin') {
+          await executePurchaseIntel(agencyId, weekId);
+      } else {
+          const agency = agencies.find(a => a.id === agencyId);
+          const studentId = agency?.members[0]?.id || 'unknown';
+          await dispatchAction('PURCHASE_INTEL', { agencyId, weekId }, studentId, agencyId);
+      }
+  };
+
+  const executeTriggerVultureBuyout = async (sourceAgencyId: string, targetAgencyId: string) => {
       const source = agencies.find(a => a.id === sourceAgencyId);
       const target = agencies.find(a => a.id === targetAgencyId);
       
@@ -392,6 +453,16 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       toast('success', `Rachat Vautour de ${target.name} effectué !`);
   };
 
+  const triggerVultureBuyout = async (sourceAgencyId: string, targetAgencyId: string) => {
+      if (role === 'admin') {
+          await executeTriggerVultureBuyout(sourceAgencyId, targetAgencyId);
+      } else {
+          const source = agencies.find(a => a.id === sourceAgencyId);
+          const studentId = source?.members[0]?.id || 'unknown';
+          await dispatchAction('TRIGGER_VULTURE_BUYOUT', { sourceAgencyId, targetAgencyId }, studentId, sourceAgencyId);
+      }
+  };
+
   return { 
       performBlackOp, 
       triggerBlackOp, 
@@ -400,6 +471,14 @@ export const useOperationsLogic = (agencies: Agency[], reviews: PeerReview[], to
       sendChallenge, 
       submitChallengeVote, 
       purchaseIntel,
-      triggerVultureBuyout
+      triggerVultureBuyout,
+      // EXPORT EXECUTORS
+      executePerformBlackOp,
+      executeProposeMerger,
+      executeFinalizeMerger,
+      executeSendChallenge,
+      executeSubmitChallengeVote,
+      executePurchaseIntel,
+      executeTriggerVultureBuyout
   };
 };

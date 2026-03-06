@@ -7,11 +7,19 @@ import { useVotingLogic } from './useVotingLogic';
 import { sanitizeForFirestore } from '../../../utils/firestore';
 
 // On reçoit maintenant 'reviews' dans le hook
-export const useGameMechanics = (agencies: Agency[], reviews: PeerReview[], weeks: { [key: string]: WeekModule }, toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
+export const useGameMechanics = (
+    agencies: Agency[], 
+    reviews: PeerReview[], 
+    weeks: { [key: string]: WeekModule }, 
+    toast: (type: string, msg: string) => void, 
+    getCurrentGameWeek: () => number,
+    role: 'admin' | 'student',
+    dispatchAction: (type: string, payload: any, studentId: string, agencyId: string) => Promise<void>
+) => {
 
   // On passe les reviews à la logique de performance ET operations
   const { processPerformance } = usePerformanceLogic(agencies, reviews, weeks, toast, getCurrentGameWeek);
-  const operations = useOperationsLogic(agencies, reviews, toast, getCurrentGameWeek);
+  const operations = useOperationsLogic(agencies, reviews, toast, getCurrentGameWeek, role, dispatchAction);
   const { submitMercatoVote } = useVotingLogic(agencies, toast);
 
   const updateAgency = async (updatedAgency: Agency, allowOverCap: boolean = false) => {
