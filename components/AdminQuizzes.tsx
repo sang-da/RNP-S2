@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
-import { Quiz } from '../types';
-import { doc, setDoc, db, arrayUnion } from '../services/firebase';
+import { Quiz, QuizAttempt } from '../types';
+import { doc, setDoc, db, arrayUnion, collection, onSnapshot, query } from '../services/firebase';
 import { QuizList } from './admin/quizzes/QuizList';
 import { QuizEditor } from './admin/quizzes/QuizEditor';
 import { QuizResults } from './admin/quizzes/QuizResults';
@@ -9,6 +9,7 @@ import { QuizResults } from './admin/quizzes/QuizResults';
 export const AdminQuizzes: React.FC = () => {
     const { gameConfig } = useGame();
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+    const [attempts, setAttempts] = useState<{[quizId: string]: QuizAttempt[]}>({});
     const [view, setView] = useState<'LIST' | 'EDIT' | 'RESULTS'>('LIST');
     const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
     const [currentQuiz, setCurrentQuiz] = useState<Partial<Quiz>>({
@@ -29,6 +30,30 @@ export const AdminQuizzes: React.FC = () => {
             setQuizzes(gameConfig.quizzes);
         }
     }, [gameConfig]);
+
+    // Fetch all attempts to display stats in the list
+    useEffect(() => {
+        const q = query(collection(db, 'quiz_attempts'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const allAttempts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizAttempt));
+            
+            // Sort by date desc
+            allAttempts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            // Group by quizId
+            const grouped: {[quizId: string]: QuizAttempt[]} = {};
+            allAttempts.forEach(attempt => {
+                if (!grouped[attempt.quizId]) {
+                    grouped[attempt.quizId] = [];
+                }
+                grouped[attempt.quizId].push(attempt);
+            });
+            
+            setAttempts(grouped);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const handleCreate = () => {
         setCurrentQuiz({
@@ -137,6 +162,7 @@ export const AdminQuizzes: React.FC = () => {
     return (
         <QuizList 
             quizzes={quizzes} 
+            attempts={attempts}
             onCreate={handleCreate} 
             onEdit={handleEdit} 
             onDelete={handleDeleteQuiz} 
