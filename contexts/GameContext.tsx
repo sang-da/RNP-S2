@@ -9,6 +9,8 @@ import { doc, updateDoc, writeBatch, setDoc, deleteDoc, db, onSnapshot, getDoc }
 import { useGameSync } from './game/useGameSync';
 import { useFinanceLogic } from './game/useFinanceLogic';
 import { useGameMechanics } from './game/mechanics/useGameMechanics';
+import { useActionQueue } from './game/useActionQueue';
+import { useActionProcessor } from './game/useActionProcessor';
 
 interface GameContextType {
   agencies: Agency[];
@@ -22,7 +24,7 @@ interface GameContextType {
   
   setRole: (role: 'admin' | 'student') => void;
   selectAgency: (id: string | null) => void;
-  updateAgency: (agency: Agency) => void;
+  updateAgency: (agency: Agency, allowOverCap?: boolean) => void;
   updateAgenciesList: (agencies: Agency[]) => void;
   deleteAgency: (agencyId: string) => Promise<void>;
   updateWeek: (weekId: string, week: WeekModule) => void;
@@ -85,7 +87,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Hook de synchro modifié pour inclure les reviews
   const { agencies, weeks, resources, reviews, seedDatabase, isLoading } = useGameSync(toast);
-  const finance = useFinanceLogic(agencies, toast);
+  
+  const { dispatchAction } = useActionQueue(toast);
+  const finance = useFinanceLogic(agencies, toast, role, dispatchAction);
+  
+  // Initialize Action Processor (only runs if role === 'admin')
+  useActionProcessor(role, finance, toast);
   
   const getCurrentGameWeek = useCallback(() => {
       return gameConfig.currentWeek || 1;

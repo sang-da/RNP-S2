@@ -1,9 +1,14 @@
 
-import { writeBatch, doc, db, runTransaction } from '../../services/firebase';
-import { Agency, GameEvent } from '../../types';
+import { writeBatch, doc, db, runTransaction, updateDoc } from '../../services/firebase';
+import { Agency, GameEvent, TransactionRequest } from '../../types';
 import { GAME_RULES, BADGE_DEFINITIONS, HOLDING_RULES } from '../../constants';
 
-export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: string) => void) => {
+export const useFinanceLogic = (
+    agencies: Agency[], 
+    toast: (type: string, msg: string) => void,
+    role: 'admin' | 'student',
+    dispatchAction: (type: string, payload: any, studentId: string, agencyId: string) => Promise<void>
+) => {
 
   const processFinance = async (targetClass: 'A' | 'B' | 'ALL') => {
       const today = new Date().toISOString().split('T')[0];
@@ -273,7 +278,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       } catch(e) { console.error(e); toast('error', "Erreur technique Finance"); }
   };
 
-  const transferFunds = async (sourceId: string, targetId: string, amount: number) => { 
+  const executeTransferFunds = async (sourceId: string, targetId: string, amount: number) => { 
       try {
         await runTransaction(db, async (transaction) => {
             // 1. READ LATEST DATA
@@ -377,7 +382,15 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       }
   };
 
-  const injectCapital = async (studentId: string, agencyId: string, amount: number) => { 
+  const transferFunds = async (sourceId: string, targetId: string, amount: number) => {
+      if (role === 'admin') {
+          await executeTransferFunds(sourceId, targetId, amount);
+      } else {
+          await dispatchAction('TRANSFER_FUNDS', { sourceId, targetId, amount }, sourceId, 'unknown');
+      }
+  };
+
+  const executeInjectCapital = async (studentId: string, agencyId: string, amount: number) => { 
       try {
         await runTransaction(db, async (transaction) => {
             const agencyRef = doc(db, "agencies", agencyId);
@@ -436,12 +449,28 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       }
   };
 
-  const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 
+  const injectCapital = async (studentId: string, agencyId: string, amount: number) => {
+      if (role === 'admin') {
+          await executeInjectCapital(studentId, agencyId, amount);
+      } else {
+          await dispatchAction('INJECT_CAPITAL', { studentId, agencyId, amount }, studentId, agencyId);
+      }
+  };
+
+  const executeRequestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 
      const agency = agencies.find(a => a.id === agencyId);
      if(!agency) return;
      const newRequest: TransactionRequest = { id: `req-score-${Date.now()}`, studentId, studentName: agency.members.find(m=>m.id===studentId)?.name || '', type: 'BUY_SCORE', amountPixi, amountScore, status: 'PENDING', date: new Date().toISOString().split('T')[0] };
      await updateDoc(doc(db, "agencies", agency.id), { transactionRequests: [...(agency.transactionRequests || []), newRequest] });
      toast('success', "Demande envoyée");
+  };
+
+  const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => {
+      if (role === 'admin') {
+          await executeRequestScorePurchase(studentId, agencyId, amountPixi, amountScore);
+      } else {
+          await dispatchAction('BUY_SCORE', { studentId, agencyId, amountPixi, amountScore }, studentId, agencyId);
+      }
   };
 
   const handleTransactionRequest = async (agency: Agency, request: TransactionRequest, approved: boolean) => {
@@ -456,7 +485,7 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', "Transaction validée");
   };
 
-  const manageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
+  const executeManageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
       const agency = agencies.find(a => a.id === agencyId);
       if (!agency) return;
       const student = agency.members.find(m => m.id === studentId);
@@ -486,7 +515,15 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', type === 'DEPOSIT' ? `Placé : ${amount} PiXi` : `Retiré : ${amount} PiXi`);
   };
 
-  const manageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
+  const manageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
+      if (role === 'admin') {
+          await executeManageSavings(studentId, agencyId, amount, type);
+      } else {
+          await dispatchAction('MANAGE_SAVINGS', { studentId, agencyId, amount, type }, studentId, agencyId);
+      }
+  };
+
+  const executeManageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
       const agency = agencies.find(a => a.id === agencyId);
       if (!agency) return;
       const student = agency.members.find(m => m.id === studentId);
@@ -544,6 +581,14 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
   };
 
+  const manageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
+      if (role === 'admin') {
+          await executeManageLoan(studentId, agencyId, amount, type);
+      } else {
+          await dispatchAction(type === 'TAKE' ? 'TAKE_LOAN' : 'REPAY_LOAN', { studentId, agencyId, amount, type }, studentId, agencyId);
+      }
+  };
+
   // NOUVEAU : FONCTION D'AMNISTIE
   const wipeDebt = async (studentId: string, agencyId: string) => {
       const agency = agencies.find(a => a.id === agencyId);
@@ -578,5 +623,19 @@ export const useFinanceLogic = (agencies: Agency[], toast: (type: string, msg: s
       toast('success', `Dette de ${student.name} effacée.`);
   };
 
-  return { processFinance, transferFunds, injectCapital, requestScorePurchase, handleTransactionRequest, manageSavings, manageLoan, wipeDebt };
+  return { 
+      processFinance, 
+      transferFunds, 
+      injectCapital, 
+      requestScorePurchase, 
+      handleTransactionRequest, 
+      manageSavings, 
+      manageLoan, 
+      wipeDebt,
+      executeTransferFunds,
+      executeInjectCapital,
+      executeRequestScorePurchase,
+      executeManageSavings,
+      executeManageLoan
+  };
 };

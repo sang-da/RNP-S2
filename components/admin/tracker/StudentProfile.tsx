@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Student, Agency, Deliverable, PeerReview, QuizAttempt } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square } from 'lucide-react';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square, Eye, EyeOff } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 
@@ -20,6 +20,11 @@ interface StudentProfileProps {
 export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency, allAgencies, timeline, behaviorStats, portfolio, chartData, gradeDistribution, quizAttempts = [] }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+    const [expandedQuizzes, setExpandedQuizzes] = useState<Record<string, boolean>>({});
+
+    const toggleQuiz = (id: string) => {
+        setExpandedQuizzes(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
 
@@ -81,44 +86,89 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><MessageSquare size={20}/> Quiz & Sondages ({quizAttempts.length})</h4>
                     <div className="space-y-4">
                         {quizAttempts.map(attempt => (
-                            <div key={attempt.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div key={attempt.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100 transition-all hover:shadow-md">
                                 <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${attempt.type === 'SURVEY' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                            {attempt.type === 'SURVEY' ? 'Sondage' : 'Quiz'}
-                                        </span>
-                                        <span className="text-xs text-slate-400 ml-2">{new Date(attempt.date).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            onClick={() => toggleQuiz(attempt.id)}
+                                            className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                                        >
+                                            {expandedQuizzes[attempt.id] ? <EyeOff size={16}/> : <Eye size={16}/>}
+                                        </button>
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${attempt.type === 'SURVEY' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                    {attempt.type === 'SURVEY' ? 'Sondage' : 'Quiz'}
+                                                </span>
+                                                <span className="text-xs text-slate-400">{new Date(attempt.date).toLocaleDateString()}</span>
+                                            </div>
+                                            
+                                            {/* REWARDS DISPLAY */}
+                                            <div className="flex items-center gap-3 text-xs">
+                                                {attempt.rewardsEarned?.points > 0 && (
+                                                    <span className="flex items-center gap-1 font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                        <Trophy size={10}/> +{attempt.rewardsEarned.points} pts
+                                                    </span>
+                                                )}
+                                                {attempt.rewardsEarned?.pixi > 0 && (
+                                                    <span className="flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                                        <Wallet size={10}/> +{attempt.rewardsEarned.pixi} PiXi
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="font-bold text-slate-900">{attempt.score}/{attempt.maxScore}</span>
-                                        <span className="text-[10px] text-slate-400 block">Score</span>
+                                        <span className="font-bold text-slate-900 text-lg">{attempt.score}/{attempt.maxScore}</span>
+                                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Score Final</span>
                                     </div>
                                 </div>
                                 
-                                {/* AUDIO & ANALYSIS DISPLAY */}
-                                {attempt.audioUrls && Object.keys(attempt.audioUrls).length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-slate-200">
-                                        <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><Mic size={12}/> Enregistrements Vocaux & Analyse (Secret)</p>
-                                        <div className="space-y-2">
-                                            {Object.entries(attempt.audioUrls).map(([qId, url]) => (
-                                                <div key={qId} className="flex items-center justify-between bg-white p-2 rounded border border-slate-100">
-                                                    <div className="flex items-center gap-2">
-                                                        <button 
-                                                            onClick={() => handlePlayAudio(url as string)}
-                                                            className={`p-1.5 rounded-full ${playingAudio === url ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
-                                                        >
-                                                            {playingAudio === url ? <Square size={12} fill="currentColor"/> : <Play size={12} fill="currentColor"/>}
-                                                        </button>
-                                                        <span className="text-xs font-medium text-slate-600">Question {qId}</span>
-                                                    </div>
-                                                    {attempt.aiAnalysis && attempt.aiAnalysis[qId] && (
-                                                        <div className="text-[10px] text-slate-500 italic">
-                                                            Sentiment: <span className="font-bold text-indigo-600">{attempt.aiAnalysis[qId].sentiment || 'N/A'}</span>
+                                {/* EXPANDABLE CONTENT */}
+                                {expandedQuizzes[attempt.id] && (
+                                    <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2 duration-300">
+                                        
+                                        {/* ANSWERS (IF AVAILABLE) */}
+                                        {attempt.answers && Object.keys(attempt.answers).length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><FileText size={12}/> Réponses</p>
+                                                <div className="space-y-2">
+                                                    {Object.entries(attempt.answers).map(([qId, answer]) => (
+                                                        <div key={qId} className="bg-white p-2 rounded border border-slate-100 text-xs">
+                                                            <span className="font-bold text-slate-500 mr-2">Q{qId}:</span>
+                                                            <span className="text-slate-700">{answer}</span>
                                                         </div>
-                                                    )}
+                                                    ))}
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {/* AUDIO & ANALYSIS DISPLAY */}
+                                        {attempt.audioUrls && Object.keys(attempt.audioUrls).length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><Mic size={12}/> Enregistrements Vocaux & Analyse (Secret)</p>
+                                                <div className="space-y-2">
+                                                    {Object.entries(attempt.audioUrls).map(([qId, url]) => (
+                                                        <div key={qId} className="flex items-center justify-between bg-white p-2 rounded border border-slate-100">
+                                                            <div className="flex items-center gap-2">
+                                                                <button 
+                                                                    onClick={() => handlePlayAudio(url as string)}
+                                                                    className={`p-1.5 rounded-full ${playingAudio === url ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'}`}
+                                                                >
+                                                                    {playingAudio === url ? <Square size={12} fill="currentColor"/> : <Play size={12} fill="currentColor"/>}
+                                                                </button>
+                                                                <span className="text-xs font-medium text-slate-600">Question {qId}</span>
+                                                            </div>
+                                                            {attempt.aiAnalysis && attempt.aiAnalysis[qId] && (
+                                                                <div className="text-[10px] text-slate-500 italic">
+                                                                    Sentiment: <span className="font-bold text-indigo-600">{attempt.aiAnalysis[qId].sentiment || 'N/A'}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

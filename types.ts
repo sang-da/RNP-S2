@@ -313,6 +313,18 @@ export interface QuizAttempt {
     transcriptions?: { [questionId: string]: string };
     audioUrls?: { [questionId: string]: string }; // URL of the uploaded audio
     aiAnalysis?: { [questionId: string]: any }; // Hidden analysis (sentiment, etc.)
+    type?: 'QUIZ' | 'SURVEY';
+}
+
+export interface GameAction {
+    id: string;
+    type: 'MANAGE_SAVINGS' | 'SUBMIT_QUIZ' | 'TRANSFER_FUNDS' | 'INJECT_CAPITAL' | 'BUY_SCORE' | 'TAKE_LOAN' | 'REPAY_LOAN';
+    payload: any;
+    studentId: string;
+    agencyId: string;
+    status: 'PENDING' | 'PROCESSED' | 'ERROR';
+    createdAt: string;
+    error?: string;
 }
 
 export interface GameConfig {
