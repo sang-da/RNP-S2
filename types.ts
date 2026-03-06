@@ -318,7 +318,7 @@ export interface QuizAttempt {
 
 export interface GameAction {
     id: string;
-    type: 'MANAGE_SAVINGS' | 'SUBMIT_QUIZ' | 'TRANSFER_FUNDS' | 'INJECT_CAPITAL' | 'BUY_SCORE' | 'TAKE_LOAN' | 'REPAY_LOAN';
+    type: 'MANAGE_SAVINGS' | 'SUBMIT_QUIZ' | 'TRANSFER_FUNDS' | 'INJECT_CAPITAL' | 'BUY_SCORE' | 'TAKE_LOAN' | 'REPAY_LOAN' | 'PING';
     payload: any;
     studentId: string;
     agencyId: string;

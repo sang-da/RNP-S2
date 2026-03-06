@@ -40,6 +40,9 @@ export const useActionProcessor = (
                             case 'SUBMIT_QUIZ':
                                 await finance.executeSubmitQuiz(action.payload);
                                 break;
+                            case 'PING':
+                                console.log("PING RECEIVED from", action.studentId);
+                                break;
                             default:
                                 console.warn("Unknown action type:", action.type);
                         }
