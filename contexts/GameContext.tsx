@@ -92,15 +92,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { dispatchAction } = useActionQueue(toast);
   const finance = useFinanceLogic(agencies, toast, role, dispatchAction);
   
-  // Initialize Action Processor (only runs if role === 'admin')
-  useActionProcessor(role, finance, mechanics, toast);
-  
   const getCurrentGameWeek = useCallback(() => {
       return gameConfig.currentWeek || 1;
   }, [gameConfig.currentWeek]);
   
   // On passe 'reviews' aux mécaniques pour les calculs de perf
   const mechanics = useGameMechanics(agencies, reviews, weeks, toast, getCurrentGameWeek, role, dispatchAction);
+
+  // Initialize Action Processor (only runs if role === 'admin')
+  useActionProcessor(role, finance, mechanics, toast);
 
   // 0. SYNC CONFIG
   useEffect(() => {
