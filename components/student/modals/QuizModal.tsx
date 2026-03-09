@@ -15,7 +15,7 @@ interface QuizModalProps {
 
 export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
     const { currentUser } = useAuth();
-    const { agencies } = useGame();
+    const { agencies, submitQuiz: contextSubmitQuiz } = useGame();
     const { toast } = useUI();
     
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -227,10 +227,33 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
             // Continue even if upload fails
         }
 
-        // 3. Enregistrement Firebase
+        // 3. Enregistrement via Context (Action Queue pour les étudiants)
         if (currentUser) {
             try {
-                await saveResultsToFirebase(finalScore, finalAnswers, audioUrls, aiAnalysis);
+                const ratio = finalScore / quiz.questions.length;
+                const pointsEarned = Math.floor(quiz.rewardPoints * ratio);
+                const pixiEarned = Math.floor(quiz.rewardPixi * ratio);
+
+                let attemptId = `${quiz.id}_${currentUser.uid}`;
+                if (quiz.frequency === 'WEEKLY') {
+                    attemptId += `_${Date.now()}`;
+                }
+
+                const payload = {
+                    quizId: quiz.id,
+                    studentId: currentUser.uid,
+                    score: finalScore,
+                    maxScore: quiz.questions.length,
+                    date: new Date().toISOString(),
+                    rewardsEarned: { points: pointsEarned, pixi: pixiEarned },
+                    answers: finalAnswers,
+                    audioUrls: audioUrls,
+                    aiAnalysis: aiAnalysis,
+                    type: quiz.type || 'QUIZ',
+                    attemptId
+                };
+
+                await contextSubmitQuiz(payload);
                 
                 // Success! Clear local storage
                 localStorage.removeItem(STORAGE_KEY);
@@ -246,56 +269,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         }
     };
 
-    const saveResultsToFirebase = async (finalScore: number, finalAnswers: any, audioUrls: any, aiAnalysis: any) => {
-        if (!currentUser) return;
-
-        const ratio = finalScore / quiz.questions.length;
-        const pointsEarned = Math.floor(quiz.rewardPoints * ratio);
-        const pixiEarned = Math.floor(quiz.rewardPixi * ratio);
-
-        await runTransaction(db, async (transaction) => {
-            const agency = agencies.find(a => a.members.some(m => m.id === currentUser.uid));
-            if (!agency) throw new Error("Agence introuvable");
-
-            const agencyRef = doc(db, "agencies", agency.id);
-            const agencyDoc = await transaction.get(agencyRef);
-            if (!agencyDoc.exists()) throw new Error("Agence introuvable");
-
-            const agencyData = agencyDoc.data();
-            const updatedMembers = agencyData.members.map((m: any) => {
-                if (m.id === currentUser.uid) {
-                    return {
-                        ...m,
-                        individualScore: Math.min(100, (m.individualScore || 0) + pointsEarned),
-                        wallet: (m.wallet || 0) + pixiEarned
-                    };
-                }
-                return m;
-            });
-
-            // Sauvegarde de la tentative complète
-            let attemptId = `${quiz.id}_${currentUser.uid}`;
-            if (quiz.frequency === 'WEEKLY') {
-                attemptId += `_${Date.now()}`;
-            }
-
-            const attemptRef = doc(db, "quiz_attempts", attemptId);
-            transaction.set(attemptRef, {
-                quizId: quiz.id,
-                studentId: currentUser.uid,
-                score: finalScore,
-                maxScore: quiz.questions.length,
-                date: new Date().toISOString(),
-                rewardsEarned: { points: pointsEarned, pixi: pixiEarned },
-                answers: finalAnswers,
-                audioUrls: audioUrls,
-                aiAnalysis: aiAnalysis,
-                type: quiz.type || 'QUIZ'
-            });
-
-            transaction.update(agencyRef, { members: updatedMembers });
-        });
-    };
+    // removed saveResultsToFirebase as it's now handled by contextSubmitQuiz
 
     // RENDER HELPERS
     const isNextDisabled = () => {

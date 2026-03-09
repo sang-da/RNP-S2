@@ -623,6 +623,59 @@ export const useFinanceLogic = (
       toast('success', `Dette de ${student.name} effacée.`);
   };
 
+  const executeSubmitQuiz = async (payload: any) => {
+      const { quizId, studentId, score, maxScore, answers, audioUrls, aiAnalysis, type, rewardsEarned } = payload;
+      
+      try {
+          await runTransaction(db, async (transaction) => {
+              const agency = agencies.find(a => a.members.some(m => m.id === studentId));
+              if (!agency) throw new Error("Agence introuvable");
+
+              const agencyRef = doc(db, "agencies", agency.id);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+
+              const agencyData = agencyDoc.data() as Agency;
+              const updatedMembers = agencyData.members.map((m: any) => {
+                  if (m.id === studentId) {
+                      return {
+                          ...m,
+                          individualScore: Math.min(100, (m.individualScore || 0) + (rewardsEarned?.points || 0)),
+                          wallet: (m.wallet || 0) + (rewardsEarned?.pixi || 0)
+                      };
+                  }
+                  return m;
+              });
+
+              // Sauvegarde de la tentative complète
+              let attemptId = `${quizId}_${studentId}`;
+              // Si c'est un sondage hebdo ou autre, on peut vouloir plusieurs tentatives, 
+              // mais par défaut on écrase ou on génère un ID unique.
+              // Ici on suit la logique de QuizModal : si WEEKLY on ajoute un timestamp
+              // Mais l'action processor reçoit un payload déjà préparé.
+              
+              const attemptRef = doc(db, "quiz_attempts", payload.attemptId || `${quizId}_${studentId}_${Date.now()}`);
+              transaction.set(attemptRef, {
+                  quizId,
+                  studentId,
+                  score,
+                  maxScore,
+                  date: payload.date || new Date().toISOString(),
+                  rewardsEarned: rewardsEarned || { points: 0, pixi: 0 },
+                  answers,
+                  audioUrls,
+                  aiAnalysis,
+                  type: type || 'QUIZ'
+              });
+
+              transaction.update(agencyRef, { members: updatedMembers });
+          });
+      } catch (e) {
+          console.error("Error in executeSubmitQuiz:", e);
+          throw e;
+      }
+  };
+
   return { 
       processFinance, 
       transferFunds, 
@@ -632,10 +685,18 @@ export const useFinanceLogic = (
       manageSavings, 
       manageLoan, 
       wipeDebt,
+      submitQuiz: async (payload: any) => {
+          if (role === 'admin') {
+              await executeSubmitQuiz(payload);
+          } else {
+              await dispatchAction('SUBMIT_QUIZ', payload, payload.studentId, 'unknown');
+          }
+      },
       executeTransferFunds,
       executeInjectCapital,
       executeRequestScorePurchase,
       executeManageSavings,
-      executeManageLoan
+      executeManageLoan,
+      executeSubmitQuiz
   };
 };
