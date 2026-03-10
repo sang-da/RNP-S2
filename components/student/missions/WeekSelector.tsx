@@ -53,9 +53,9 @@ export const WeekSelector: React.FC<WeekSelectorProps> = ({ cycleWeeks, activeWe
                             </div>
                         )}
 
-                        <span className="font-display font-bold text-lg">SEM {week.id}</span>
+                        <span className="font-display font-bold text-lg">{week.id === 'SPECIAL' ? 'SPÉCIAL' : `SEM ${week.id}`}</span>
                         <span className={`text-[8px] font-black uppercase mt-0.5 ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
-                            {isVisible ? (isLive ? 'En cours' : 'Ouvert') : 'Bientôt'}
+                            {week.id === 'SPECIAL' ? 'Hors-Cycle' : (isVisible ? (isLive ? 'En cours' : 'Ouvert') : 'Bientôt')}
                         </span>
                     </button>
                 );

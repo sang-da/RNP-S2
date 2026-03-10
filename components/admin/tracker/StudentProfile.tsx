@@ -348,7 +348,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                 {portfolio.map((work, i) => (
                                     <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                                         <div className="flex justify-between items-start">
-                                            <span className="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 rounded">S{work.week}</span>
+                                            <span className={`text-[10px] font-bold px-1.5 rounded ${work.isSpecial ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>
+                                                {work.isSpecial ? 'SPÉCIAL' : `S${work.week}`}
+                                            </span>
                                             <div className="flex gap-1">
                                                 {work.isMvp && <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 rounded flex items-center gap-1"><Crown size={10}/> MVP</span>}
                                                 <span className={`text-[9px] font-bold px-1.5 rounded ${work.score === 'A' ? 'bg-emerald-100 text-emerald-700' : work.score === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{work.score}</span>

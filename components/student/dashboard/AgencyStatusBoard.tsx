@@ -31,7 +31,7 @@ export const AgencyStatusBoard: React.FC<AgencyStatusBoardProps> = ({ agency, on
         const specials: { del: Deliverable, weekId: string }[] = [];
         Object.values(agency.progress).forEach((week: any) => {
             week.deliverables.forEach((d: Deliverable) => {
-                if (d.id.startsWith('d_special_') && (d.status === 'pending' || d.status === 'rejected')) {
+                if ((d.id.startsWith('d_special_') || d.type === 'SPECIAL_LOGO' || d.type === 'SPECIAL_BANNER' || d.type === 'FORM_CHARTER' || d.type === 'FORM_NAMING') && (d.status === 'pending' || d.status === 'rejected')) {
                     specials.push({ del: d, weekId: week.id });
                 }
             });
@@ -53,7 +53,7 @@ export const AgencyStatusBoard: React.FC<AgencyStatusBoardProps> = ({ agency, on
         // Missions Passées (Validées ou Ratées)
         Object.entries(agency.progress).forEach(([weekId, weekData]) => {
             weekData.deliverables.forEach(d => {
-                if (d.id.startsWith('d_special_') && (d.status === 'validated')) {
+                if ((d.id.startsWith('d_special_') || d.type === 'SPECIAL_LOGO' || d.type === 'SPECIAL_BANNER' || d.type === 'FORM_CHARTER' || d.type === 'FORM_NAMING') && (d.status === 'validated')) {
                      events.push({ 
                          type: 'MISSION', 
                          date: `Semaine ${weekId}`, 

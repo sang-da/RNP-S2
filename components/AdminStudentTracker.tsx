@@ -145,6 +145,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                     
                     if ((d.status === 'validated' || d.status === 'rejected') && (isMvp || wasInAgencyThisWeek || a.members.some(m => m.id === targetStudent.id))) {
                         const scoreLabel = d.grading?.quality || (d.status === 'rejected' ? 'REJECTED' : '?');
+                        const isSpecial = d.id.startsWith('d_special_') || d.type === 'SPECIAL_LOGO' || d.type === 'SPECIAL_BANNER' || d.type === 'FORM_CHARTER' || d.type === 'FORM_NAMING';
                         works.push({
                             week: week.id,
                             name: d.name,
@@ -152,7 +153,8 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                             score: scoreLabel,
                             agency: a.name,
                             file: d.fileUrl,
-                            finalDelta: d.grading?.finalDelta || 0
+                            finalDelta: d.grading?.finalDelta || 0,
+                            isSpecial
                         });
 
                         if (!performanceByWeek[week.id]) performanceByWeek[week.id] = 0;
@@ -180,7 +182,11 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         ];
 
         return { 
-            portfolio: works.sort((a,b) => parseInt(b.week) - parseInt(a.week)),
+            portfolio: works.sort((a,b) => {
+                if (a.isSpecial && !b.isSpecial) return -1;
+                if (!a.isSpecial && b.isSpecial) return 1;
+                return parseInt(b.week) - parseInt(a.week);
+            }),
             chartData,
             gradeDistribution: gradeData
         };

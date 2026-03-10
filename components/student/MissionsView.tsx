@@ -25,10 +25,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const { gameConfig, weeks: globalWeeks } = useGame(); 
   
   // 1. CYCLE ACTIF
-  const [selectedCycle, setSelectedCycle] = useState<number>(1);
+  const [selectedCycle, setSelectedCycle] = useState<number | 'SPECIAL'>(1);
 
   useEffect(() => {
-      if (gameConfig && gameConfig.currentCycle) {
+      if (gameConfig && gameConfig.currentCycle && selectedCycle !== 'SPECIAL') {
           setSelectedCycle(Number(gameConfig.currentCycle));
       }
   }, [gameConfig.currentCycle]);
@@ -47,6 +47,18 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
               }
           });
       }
+
+      // Add special week
+      merged['SPECIAL'] = {
+          id: 'SPECIAL',
+          title: 'Missions Spéciales',
+          description: 'Toutes vos missions hors-cycle',
+          cycleId: 'SPECIAL' as any,
+          isVisible: true,
+          deliverables: [],
+          schedule: { classA: { date: '', slot: 'MATIN' }, classB: { date: '', slot: 'MATIN' } }
+      };
+
       return merged;
   }, [globalWeeks]);
 
@@ -54,7 +66,10 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const cycleWeeks = useMemo(() => {
       return Object.values(activeWeekData)
           .filter((w: WeekModule) => w.cycleId === selectedCycle)
-          .sort((a: WeekModule, b: WeekModule) => parseInt(a.id) - parseInt(b.id));
+          .sort((a: WeekModule, b: WeekModule) => {
+              if (a.id === 'SPECIAL') return 0;
+              return parseInt(a.id) - parseInt(b.id);
+          });
   }, [activeWeekData, selectedCycle]);
 
   // 4. SEMAINE SÉLECTIONNÉE
@@ -85,6 +100,21 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const studentLocalData = agency.progress[activeWeekId];
 
   const displayDeliverables = useMemo(() => {
+      if (activeWeekId === 'SPECIAL') {
+          const specialDels: Deliverable[] = [];
+          if (agency.progress) {
+              Object.keys(agency.progress).forEach(weekId => {
+                  agency.progress[weekId].deliverables.forEach(d => {
+                      if (d.id.startsWith('d_special_') || d.type === 'SPECIAL_LOGO' || d.type === 'SPECIAL_BANNER' || d.type === 'FORM_CHARTER' || d.type === 'FORM_NAMING') {
+                          // Keep track of the original weekId so we can upload to it
+                          specialDels.push({ ...d, _originalWeekId: weekId } as any);
+                      }
+                  });
+              });
+          }
+          return specialDels;
+      }
+
       if (!currentWeekDef) return [];
       return currentWeekDef.deliverables.map(adminDel => {
           const studentDel = studentLocalData?.deliverables.find(d => d.id === adminDel.id);
@@ -100,7 +130,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
               deadline: adminDel.deadline // L'admin a toujours raison sur la deadline
           } as Deliverable;
       });
-  }, [currentWeekDef, studentLocalData]);
+  }, [currentWeekDef, studentLocalData, activeWeekId, agency.progress]);
 
   // --- LOGIQUE MODALES & UPLOAD ---
   const [targetDeliverableId, setTargetDeliverableId] = useState<string | null>(null);
@@ -143,23 +173,57 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         return;
     }
     setIsChecklistOpen(false); 
-    await handleFileUpload(file, targetDeliverableId, activeWeekId, selfAssessment, nominatedMvp);
+    
+    const targetDel = displayDeliverables.find(d => d.id === targetDeliverableId) as any;
+    const uploadWeekId = activeWeekId === 'SPECIAL' ? targetDel?._originalWeekId : activeWeekId;
+    
+    if (!uploadWeekId) return;
+
+    await handleFileUpload(file, targetDeliverableId, uploadWeekId, selfAssessment, nominatedMvp);
     setTargetDeliverableId(null);
   };
 
   const handleSubmitCharter = () => {
-      const updatedAgency = { ...agency, projectDef: { ...agency.projectDef, ...charterForm, isLocked: false } };
-      onUpdateAgency(updatedAgency);
+      const charterDeliverable = displayDeliverables.find(d => d.type === 'FORM_CHARTER') as any;
+      
+      let updatedAgency = { ...agency, projectDef: { ...agency.projectDef, ...charterForm, isLocked: false } };
+
+      if (charterDeliverable) {
+          const targetWeekId = activeWeekId === 'SPECIAL' ? charterDeliverable._originalWeekId : activeWeekId;
+          if (targetWeekId) {
+              const currentAgencyWeek = updatedAgency.progress[targetWeekId] || { ...currentWeekDef, deliverables: displayDeliverables };
+              
+              const updatedDeliverable: Deliverable = {
+                  ...charterDeliverable,
+                  status: 'validated',
+                  feedback: "Validation Automatique : Charte projet enregistrée.",
+                  submissionDate: new Date().toISOString(),
+                  grading: { quality: 'B', daysLate: 0, constraintBroken: false, finalDelta: 0 }
+              };
+
+              const updatedWeek = { 
+                  ...currentAgencyWeek, 
+                  deliverables: currentAgencyWeek.deliverables.map(d => d.id === charterDeliverable.id ? updatedDeliverable : d) 
+              };
+              
+              updatedAgency = { ...updatedAgency, progress: { ...updatedAgency.progress, [targetWeekId]: updatedWeek } };
+          }
+      }
+
+      onUpdateAgency(updatedAgency as any);
       setIsCharterModalOpen(false);
       toast('success', "Charte projet mise à jour.");
   };
 
   const handleSubmitNaming = () => {
-      const namingDeliverable = displayDeliverables.find(d => d.type === 'FORM_NAMING');
+      const namingDeliverable = displayDeliverables.find(d => d.type === 'FORM_NAMING') as any;
       if (!namingDeliverable) { setIsNamingModalOpen(false); return; }
 
       const autoBonusVE = 4;
-      const currentAgencyWeek = agency.progress[activeWeekId] || { ...currentWeekDef, deliverables: displayDeliverables };
+      const targetWeekId = activeWeekId === 'SPECIAL' ? namingDeliverable._originalWeekId : activeWeekId;
+      if (!targetWeekId) return;
+
+      const currentAgencyWeek = agency.progress[targetWeekId] || { ...currentWeekDef, deliverables: displayDeliverables };
       
       const updatedDeliverable: Deliverable = {
           ...namingDeliverable,
@@ -176,7 +240,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       
       const newEvent = { id: `evt-naming-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'VE_DELTA', label: 'Baptême Studio', deltaVE: autoBonusVE, description: `Changement de nom officiel : ${namingForm.name}. (+${autoBonusVE} VE Auto)` };
 
-      const updatedAgency = { ...agency, name: namingForm.name, tagline: namingForm.tagline, ve_current: agency.ve_current + autoBonusVE, eventLog: [...agency.eventLog, newEvent], progress: { ...agency.progress, [activeWeekId]: updatedWeek } };
+      const updatedAgency = { ...agency, name: namingForm.name, tagline: namingForm.tagline, ve_current: agency.ve_current + autoBonusVE, eventLog: [...agency.eventLog, newEvent], progress: { ...agency.progress, [targetWeekId]: updatedWeek } };
       onUpdateAgency(updatedAgency as any);
       setIsNamingModalOpen(false);
       toast('success', `Agence renommée : ${namingForm.name}`);
@@ -187,10 +251,15 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
         
         {/* CYCLE SELECTOR */}
         <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
-            {[1, 2, 3, 4].map(cycleId => (
+            {[1, 2, 3, 4, 'SPECIAL'].map(cycleId => (
                 <button
                     key={cycleId}
-                    onClick={() => setSelectedCycle(cycleId)}
+                    onClick={() => {
+                        setSelectedCycle(cycleId as any);
+                        if (cycleId === 'SPECIAL') {
+                            setActiveWeekId('SPECIAL');
+                        }
+                    }}
                     className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
                         selectedCycle === cycleId
                         ? 'bg-slate-900 text-white shadow-lg'
@@ -198,19 +267,21 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     }`}
                 >
                     <Layers size={14} className={selectedCycle === cycleId ? 'text-indigo-400' : 'text-slate-400'}/>
-                    Cycle {cycleId}
+                    {cycleId === 'SPECIAL' ? 'Missions Spéciales' : `Cycle ${cycleId}`}
                 </button>
             ))}
         </div>
 
         {/* WEEK SELECTOR */}
-        <WeekSelector 
-            cycleWeeks={cycleWeeks}
-            activeWeekId={activeWeekId}
-            setActiveWeekId={setActiveWeekId}
-            currentGlobalWeek={String(gameConfig.currentWeek)}
-            isLoading={false} // On force false car on utilise INITIAL_WEEKS
-        />
+        {selectedCycle !== 'SPECIAL' && (
+            <WeekSelector 
+                cycleWeeks={cycleWeeks}
+                activeWeekId={activeWeekId}
+                setActiveWeekId={setActiveWeekId}
+                currentGlobalWeek={String(gameConfig.currentWeek)}
+                isLoading={false} // On force false car on utilise INITIAL_WEEKS
+            />
+        )}
 
         {currentWeekDef ? (
             <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden transition-all duration-500">
@@ -224,7 +295,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
                     )}
                     <h3 className="text-2xl font-display font-bold text-slate-900 mb-2">{currentWeekDef.title}</h3>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                        Cycle {selectedCycle} en cours
+                        {selectedCycle === 'SPECIAL' ? 'Hors-Cycle' : `Cycle ${selectedCycle} en cours`}
                         {String(currentWeekDef.id) === String(gameConfig.currentWeek) && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] animate-pulse">Phase Active</span>}
                         {isLocallyUnlocked && !isGloballyVisible && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] border border-indigo-200">Débloqué via Intel</span>}
                     </p>
