@@ -450,11 +450,8 @@ export const useFinanceLogic = (
   };
 
   const injectCapital = async (studentId: string, agencyId: string, amount: number) => {
-      if (role === 'admin') {
-          await executeInjectCapital(studentId, agencyId, amount);
-      } else {
-          await dispatchAction('INJECT_CAPITAL', { studentId, agencyId, amount }, studentId, agencyId);
-      }
+      // Exécution directe pour que les étudiants n'aient pas à attendre que l'admin soit en ligne
+      await executeInjectCapital(studentId, agencyId, amount);
   };
 
   const executeRequestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 
@@ -466,11 +463,8 @@ export const useFinanceLogic = (
   };
 
   const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => {
-      if (role === 'admin') {
-          await executeRequestScorePurchase(studentId, agencyId, amountPixi, amountScore);
-      } else {
-          await dispatchAction('BUY_SCORE', { studentId, agencyId, amountPixi, amountScore }, studentId, agencyId);
-      }
+      // Exécution directe pour que la demande apparaisse immédiatement
+      await executeRequestScorePurchase(studentId, agencyId, amountPixi, amountScore);
   };
 
   const handleTransactionRequest = async (agency: Agency, request: TransactionRequest, approved: boolean) => {
@@ -686,11 +680,8 @@ export const useFinanceLogic = (
       manageLoan, 
       wipeDebt,
       submitQuiz: async (payload: any) => {
-          if (role === 'admin') {
-              await executeSubmitQuiz(payload);
-          } else {
-              await dispatchAction('SUBMIT_QUIZ', payload, payload.studentId, 'unknown');
-          }
+          // Exécution directe pour que les réponses soient enregistrées immédiatement
+          await executeSubmitQuiz(payload);
       },
       executeTransferFunds,
       executeInjectCapital,
