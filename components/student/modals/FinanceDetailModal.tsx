@@ -1,8 +1,8 @@
 import React from 'react';
 import { Modal } from '../../Modal';
 import { Agency } from '../../../types';
-import { GAME_RULES, MASCOTS } from '../../../constants';
-import { TrendingUp, Users, Building2, ArrowRight } from 'lucide-react';
+import { GAME_RULES, MASCOTS, HOLDING_RULES } from '../../../constants';
+import { TrendingUp, Users, Building2, ArrowRight, Award } from 'lucide-react';
 
 interface FinanceDetailModalProps {
     isOpen: boolean;
@@ -12,11 +12,38 @@ interface FinanceDetailModalProps {
 
 export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, onClose, agency }) => {
     
-    // Calculs financiers (Identiques à AgencyHeader)
-    const rawSalary = agency.members.reduce((acc, member) => acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
-    const weeklyCharges = rawSalary * (1 + (agency.weeklyTax || 0)) + GAME_RULES.AGENCY_RENT;
-    const veRevenue = agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER;
-    const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
+    // Calculs financiers détaillés
+    
+    // 1. Masse Salariale
+    const rawSalary = agency.members.reduce((acc, member) => {
+        const salary = Math.min(member.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+        return acc + salary;
+    }, 0);
+
+    // 2. Loyer
+    const rent = GAME_RULES.AGENCY_RENT;
+    
+    // 3. Revenus VE
+    let veMultiplier = GAME_RULES.REVENUE_VE_MULTIPLIER;
+    if (agency.type === 'HOLDING') {
+        const history = agency.ve_history || [];
+        if (history.length >= 2) {
+            const growth = history[history.length - 1].value - history[history.length - 2].value;
+            if (growth >= 10) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE;
+            else if (growth >= HOLDING_RULES.GROWTH_TARGET) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+            else veMultiplier = 30; // Pénalité
+        } else {
+            veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+        }
+    }
+    const veRevenue = agency.ve_current * veMultiplier;
+
+    // 4. Revenus Trophées / Bonus
+    const badgeRevenue = agency.weeklyRevenueModifier || 0;
+
+    // 5. Total
+    const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + badgeRevenue;
+    const weeklyCharges = rawSalary + rent; // Note: on ignore weeklyTax ici pour simplifier l'affichage de base, ou on l'ajoute si besoin
     const netWeekly = weeklyRevenue - weeklyCharges;
 
     // Mascotte
@@ -54,38 +81,71 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
                         <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wide">BILAN HEBDOMADAIRE ESTIMÉ</h4>
                     </div>
                     
-                    <div className="p-4 space-y-3">
+                    <div className="p-4 space-y-4">
                         {/* REVENUS */}
-                        <div className="flex items-center justify-between text-emerald-600">
-                            <div className="flex items-center gap-2">
-                                <TrendingUp size={16} />
-                                <span className="font-medium">Revenus (VE x {GAME_RULES.REVENUE_VE_MULTIPLIER})</span>
+                        <div>
+                            <h5 className="text-xs font-bold text-slate-400 uppercase mb-2">Revenus</h5>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-emerald-600 bg-emerald-50/50 p-2 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <TrendingUp size={16} />
+                                        <span className="font-medium">Valeur Estimée (VE x {veMultiplier})</span>
+                                    </div>
+                                    <span className="font-bold">+{veRevenue.toFixed(0)}</span>
+                                </div>
+                                {badgeRevenue > 0 && (
+                                    <div className="flex items-center justify-between text-emerald-600 bg-emerald-50/50 p-2 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <Award size={16} />
+                                            <span className="font-medium">Bonus Trophées / Événements</span>
+                                        </div>
+                                        <span className="font-bold">+{badgeRevenue.toFixed(0)}</span>
+                                    </div>
+                                )}
                             </div>
-                            <span className="font-bold">+{veRevenue.toFixed(0)}</span>
                         </div>
                         
-                        {/* SALAIRES */}
-                        <div className="flex items-center justify-between text-slate-500">
-                            <div className="flex items-center gap-2">
-                                <Users size={16} />
-                                <span className="font-medium">Masse Salariale</span>
-                            </div>
-                            <span className="font-medium">-{rawSalary.toFixed(0)}</span>
-                        </div>
+                        {/* CHARGES */}
+                        <div>
+                            <h5 className="text-xs font-bold text-slate-400 uppercase mb-2">Charges</h5>
+                            <div className="space-y-2">
+                                {/* LOYER */}
+                                <div className="flex items-center justify-between text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <Building2 size={16} />
+                                        <span className="font-medium">Loyer Studio</span>
+                                    </div>
+                                    <span className="font-medium">-{rent}</span>
+                                </div>
 
-                        {/* LOYER */}
-                        <div className="flex items-center justify-between text-slate-500 pb-3 border-b border-slate-100">
-                            <div className="flex items-center gap-2">
-                                <Building2 size={16} />
-                                <span className="font-medium">Loyer Studio</span>
+                                {/* SALAIRES DÉTAILLÉS */}
+                                <div className="bg-slate-50 p-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-slate-600 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Users size={16} />
+                                            <span className="font-medium">Masse Salariale Totale</span>
+                                        </div>
+                                        <span className="font-bold">-{rawSalary.toFixed(0)}</span>
+                                    </div>
+                                    <div className="pl-6 space-y-1 border-l-2 border-slate-200 ml-2">
+                                        {agency.members.map(member => {
+                                            const salary = Math.min(member.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+                                            return (
+                                                <div key={member.id} className="flex justify-between text-xs text-slate-500">
+                                                    <span>{member.name} (Score: {member.individualScore})</span>
+                                                    <span>-{salary.toFixed(0)}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                            <span className="font-medium">-{GAME_RULES.AGENCY_RENT}</span>
                         </div>
 
                         {/* TOTAL */}
-                        <div className="flex items-center justify-between pt-1">
-                            <span className="font-black text-slate-900 text-lg">Flux Net</span>
-                            <span className={`font-black text-lg ${netWeekly >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-200 mt-2">
+                            <span className="font-black text-slate-900 text-lg">Flux Net Hebdomadaire</span>
+                            <span className={`font-black text-xl ${netWeekly >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                 {netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)} PiXi
                             </span>
                         </div>
@@ -93,7 +153,7 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
                 </div>
 
                 <div className="text-center text-xs text-slate-400 italic">
-                    * Estimations basées sur les scores actuels. Mise à jour chaque Lundi matin.
+                    * Estimations basées sur les scores actuels. Mise à jour chaque Lundi matin. Le salaire max par étudiant est capé à {GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi.
                 </div>
 
             </div>
