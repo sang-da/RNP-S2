@@ -23,7 +23,7 @@ export const ConnectivityTest: React.FC = () => {
         addLog(`Listening for updates on action: ${lastPingId}`);
         // Listen for the specific ping action to be processed
         const unsub = onSnapshot(doc(db, 'action_queue', lastPingId), (docSnap) => {
-            if (docSnap.exists()) {
+            if (docSnap.exists) {
                 const data = docSnap.data();
                 addLog(`Update received for ${lastPingId}: Status=${data.status}`);
                 

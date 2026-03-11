@@ -63,7 +63,7 @@ interface GameContextType {
   dispatchAction: (type: any, payload: any, studentId: string, agencyId: string) => Promise<void>;
 }
 
-const GameContext = createContext<GameContextType | undefined>(undefined);
+export const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const useGame = () => {
   const context = useContext(GameContext);

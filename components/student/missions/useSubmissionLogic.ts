@@ -4,7 +4,7 @@ import { Agency, WeekModule, Deliverable, GameEvent } from '../../../types';
 import { ref, uploadBytes, getDownloadURL, storage } from '../../../services/firebase';
 import { useUI } from '../../../contexts/UIContext';
 
-export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) => void) => {
+export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) => void, isSimulation: boolean = false) => {
   const { toast } = useUI();
   const [isUploading, setIsUploading] = useState<string | null>(null);
 
@@ -34,13 +34,21 @@ export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) =
     toast('info', 'Envoi en cours...');
 
     try {
-      let storagePath = `submissions/${agency.id}/${weekId}/${deliverableId}_${file.name}`;
-      if (type === 'SPECIAL_LOGO') storagePath = `logos/${agency.id}_${Date.now()}`;
-      else if (type === 'SPECIAL_BANNER') storagePath = `banners/${agency.id}_${Date.now()}`;
+      let downloadUrl = '';
+      
+      if (isSimulation) {
+          // Mock upload for simulation
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          downloadUrl = `https://mock-storage.com/${file.name}`;
+      } else {
+          let storagePath = `submissions/${agency.id}/${weekId}/${deliverableId}_${file.name}`;
+          if (type === 'SPECIAL_LOGO') storagePath = `logos/${agency.id}_${Date.now()}`;
+          else if (type === 'SPECIAL_BANNER') storagePath = `banners/${agency.id}_${Date.now()}`;
 
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(storageRef);
+          const storageRef = ref(storage, storagePath);
+          await uploadBytes(storageRef, file);
+          downloadUrl = await getDownloadURL(storageRef);
+      }
 
       // --- CALCUL EARLY BIRD ---
       let bonusScore = 0;

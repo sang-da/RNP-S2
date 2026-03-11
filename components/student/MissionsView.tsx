@@ -144,7 +144,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const [selfAssessment, setSelfAssessment] = useState<'A'|'B'|'C'>('B');
   const [nominatedMvp, setNominatedMvp] = useState<string | null>(null);
 
-  const { isUploading, handleFileUpload, getDynamicDeadline } = useSubmissionLogic(agency, onUpdateAgency);
+  const { isUploading, handleFileUpload, getDynamicDeadline } = useSubmissionLogic(agency, onUpdateAgency, agency.id === 'mock-agency-id');
 
   useEffect(() => {
       if (agency.projectDef) setCharterForm({ ...agency.projectDef } as any);

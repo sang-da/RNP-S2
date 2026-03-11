@@ -9,6 +9,9 @@ import { WikiView } from '../student/WikiView';
 import { FAQView } from '../student/FAQView';
 import { QuizModal } from '../student/modals/QuizModal';
 import { Wallet, Target, Users, Briefcase, BookOpen, HelpCircle, X, Layout, MessageSquare } from 'lucide-react';
+import { Modal } from '../Modal';
+import { GameContext } from '../../contexts/GameContext';
+import { useUI } from '../../contexts/UIContext';
 
 interface StudentSpecialSimulationProps {
     onClose: () => void;
@@ -21,7 +24,41 @@ export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> =
     const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
     
     // Mock functions for simulation (no real impact)
-    const noop = () => console.log("Simulation: Action blocked in preview mode");
+    const { toast } = useUI();
+    const noop = (action: string) => {
+        console.log(`Simulation: Action blocked in preview mode - ${action}`);
+        toast('info', `Mode Simulation : Action "${action}" simulée avec succès.`);
+    };
+
+    const handleMockTransfer = async (fromId: string, toId: string, amount: number) => {
+        noop(`Virement de ${amount} PiXi vers ${toId}`);
+    };
+
+    const handleMockInject = async (studentId: string, agencyId: string, amount: number) => {
+        noop(`Injection de ${amount} PiXi dans l'agence`);
+    };
+
+    const handleMockScoreRequest = async (studentId: string, agencyId: string, cost: number, points: number) => {
+        noop(`Achat de ${points} points de score pour ${cost} PiXi`);
+    };
+
+    const handleMockUpdateAgency = (updatedAgency: Agency) => {
+        noop(`Mise à jour de l'agence (ex: validation mission, changement nom)`);
+    };
+
+    const handleMockUpdateAgencies = (updatedAgencies: Agency[]) => {
+        noop(`Mise à jour globale des agences (ex: candidature mercato)`);
+    };
+
+    // Override useGame context for simulation
+    const mockGameContext = {
+        manageSavings: async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
+            noop(`${type === 'DEPOSIT' ? 'Dépôt' : 'Retrait'} de ${amount} PiXi sur le livret d'épargne`);
+        },
+        manageLoan: async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
+            noop(`${type === 'TAKE' ? 'Emprunt' : 'Remboursement'} de ${amount} PiXi`);
+        }
+    };
 
     // MOCK DATA FOR ISOLATION
     const MOCK_AGENCY: Agency = {
@@ -169,18 +206,20 @@ export const StudentSpecialSimulation: React.FC<StudentSpecialSimulationProps> =
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
                     <div className="max-w-5xl mx-auto">
                         {activeTab === 'WALLET' && (
-                            <WalletView 
-                                student={selectedStudent} 
-                                agency={MOCK_AGENCY} 
-                                allStudents={ALL_MOCK_STUDENTS}
-                                onTransfer={noop}
-                                onInjectCapital={noop}
-                                onRequestScore={noop}
-                            />
+                            <GameContext.Provider value={mockGameContext as any}>
+                                <WalletView 
+                                    student={selectedStudent} 
+                                    agency={MOCK_AGENCY} 
+                                    allStudents={ALL_MOCK_STUDENTS}
+                                    onTransfer={handleMockTransfer}
+                                    onInjectCapital={handleMockInject}
+                                    onRequestScore={handleMockScoreRequest}
+                                />
+                            </GameContext.Provider>
                         )}
-                        {activeTab === 'MISSIONS' && <MissionsView agency={MOCK_AGENCY} onUpdateAgency={noop} />}
-                        {activeTab === 'TEAM' && <TeamView agency={MOCK_AGENCY} onUpdateAgency={noop} currentUserOverride={selectedStudent} />}
-                        {activeTab === 'MERCATO' && <MercatoView agency={MOCK_AGENCY} allAgencies={ALL_MOCK_AGENCIES} onUpdateAgency={noop} onUpdateAgencies={noop} currentUserOverride={selectedStudent} />}
+                        {activeTab === 'MISSIONS' && <MissionsView agency={MOCK_AGENCY} onUpdateAgency={handleMockUpdateAgency} />}
+                        {activeTab === 'TEAM' && <TeamView agency={MOCK_AGENCY} onUpdateAgency={handleMockUpdateAgency} currentUserOverride={selectedStudent} />}
+                        {activeTab === 'MERCATO' && <MercatoView agency={MOCK_AGENCY} allAgencies={ALL_MOCK_AGENCIES} onUpdateAgency={handleMockUpdateAgency} onUpdateAgencies={handleMockUpdateAgencies} currentUserOverride={selectedStudent} />}
                         {activeTab === 'WIKI' && <WikiView agency={MOCK_AGENCY} />}
                         {activeTab === 'FAQ' && <FAQView />}
                         

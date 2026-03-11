@@ -298,8 +298,8 @@ export const useFinanceLogic = (
             const sourceDoc = await transaction.get(sourceAgencyRef);
             const targetDoc = (sourceAgencyInfo.id === targetAgencyInfo.id) ? sourceDoc : await transaction.get(targetAgencyRef);
 
-            if (!sourceDoc.exists()) throw new Error("Agence source n'existe plus");
-            if (!targetDoc.exists()) throw new Error("Agence cible n'existe plus");
+            if (!sourceDoc.exists) throw new Error("Agence source n'existe plus");
+            if (!targetDoc.exists) throw new Error("Agence cible n'existe plus");
 
             const sourceData = sourceDoc.data() as Agency;
             const targetData = (sourceAgencyInfo.id === targetAgencyInfo.id) ? sourceData : targetDoc.data() as Agency;
@@ -396,7 +396,7 @@ export const useFinanceLogic = (
             const agencyRef = doc(db, "agencies", agencyId);
             const agencyDoc = await transaction.get(agencyRef);
             
-            if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+            if (!agencyDoc.exists) throw new Error("Agence introuvable");
             
             const agencyData = agencyDoc.data() as Agency;
             const student = agencyData.members.find(m => m.id === studentId);
@@ -627,7 +627,7 @@ export const useFinanceLogic = (
 
               const agencyRef = doc(db, "agencies", agency.id);
               const agencyDoc = await transaction.get(agencyRef);
-              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
 
               const agencyData = agencyDoc.data() as Agency;
               const updatedMembers = agencyData.members.map((m: any) => {
