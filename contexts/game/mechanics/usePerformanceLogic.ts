@@ -59,14 +59,13 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                 // --- 0. PENALITE PEER REVIEW MANQUANTE ---
                 // Si activé pour la semaine, on vérifie si le membre a fait sa review
                 if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && !isSoloMode) {
-                    // On cherche si ce membre a soumis une review pour cette semaine
-                    // Note: reviews contient TOUTES les reviews. On doit filtrer par reviewerId et weekId.
-                    const hasReviewed = reviews.some(r => 
-                        r.reviewerId === member.id && 
-                        r.weekId === currentWeekId
-                    );
+                    // On cherche si ce membre a soumis TOUTES ses reviews pour cette semaine
+                    const memberReviews = reviews.filter(r => r.reviewerId === member.id && r.weekId === currentWeekId);
+                    const uniqueTargets = new Set(memberReviews.map(r => r.targetId));
+                    const expectedReviews = agency.members.length - 1;
+                    const hasReviewedAll = uniqueTargets.size >= expectedReviews;
 
-                    if (!hasReviewed) {
+                    if (!hasReviewedAll) {
                         const penalty = currentWeekConfig.scoring.missingReviewPenalty;
                         if (penalty.type === 'score') {
                             scoreDelta -= penalty.amount;
@@ -173,9 +172,12 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             // A. VE PENALTY (PEER REVIEW)
             if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
                  let missingReviewCount = 0;
+                 const expectedReviews = agency.members.length - 1;
                  agency.members.forEach(member => {
-                     const hasReviewed = reviews.some(r => r.reviewerId === member.id && r.weekId === currentWeekId);
-                     if (!hasReviewed) missingReviewCount++;
+                     const memberReviews = reviews.filter(r => r.reviewerId === member.id && r.weekId === currentWeekId);
+                     const uniqueTargets = new Set(memberReviews.map(r => r.targetId));
+                     const hasReviewedAll = uniqueTargets.size >= expectedReviews;
+                     if (!hasReviewedAll) missingReviewCount++;
                  });
 
                  if (missingReviewCount > 0) {
