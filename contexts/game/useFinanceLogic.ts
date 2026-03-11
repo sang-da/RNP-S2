@@ -383,11 +383,8 @@ export const useFinanceLogic = (
   };
 
   const transferFunds = async (sourceId: string, targetId: string, amount: number) => {
-      if (role === 'admin') {
-          await executeTransferFunds(sourceId, targetId, amount);
-      } else {
-          await dispatchAction('TRANSFER_FUNDS', { sourceId, targetId, amount }, sourceId, 'unknown');
-      }
+      // Exécution directe pour les étudiants
+      await executeTransferFunds(sourceId, targetId, amount);
   };
 
   const executeInjectCapital = async (studentId: string, agencyId: string, amount: number) => { 
@@ -510,11 +507,8 @@ export const useFinanceLogic = (
   };
 
   const manageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
-      if (role === 'admin') {
-          await executeManageSavings(studentId, agencyId, amount, type);
-      } else {
-          await dispatchAction('MANAGE_SAVINGS', { studentId, agencyId, amount, type }, studentId, agencyId);
-      }
+      // Exécution directe pour les étudiants
+      await executeManageSavings(studentId, agencyId, amount, type);
   };
 
   const executeManageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
@@ -576,11 +570,8 @@ export const useFinanceLogic = (
   };
 
   const manageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
-      if (role === 'admin') {
-          await executeManageLoan(studentId, agencyId, amount, type);
-      } else {
-          await dispatchAction(type === 'TAKE' ? 'TAKE_LOAN' : 'REPAY_LOAN', { studentId, agencyId, amount, type }, studentId, agencyId);
-      }
+      // Exécution directe pour les étudiants
+      await executeManageLoan(studentId, agencyId, amount, type);
   };
 
   // NOUVEAU : FONCTION D'AMNISTIE
