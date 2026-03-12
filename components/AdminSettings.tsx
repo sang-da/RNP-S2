@@ -135,6 +135,37 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
                         </div>
                     </div>
 
+                    {/* GROQ CONFIGURATION */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                            <Database size={20} className="text-indigo-500"/> Configuration IA (Groq)
+                        </h3>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Configurez la clé API et l'URL pour Groq. Ces paramètres sont sauvegardés localement sur votre navigateur.
+                        </p>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Clé API Groq</label>
+                                <input 
+                                    type="password"
+                                    defaultValue={localStorage.getItem('GROQ_API_KEY') || ''}
+                                    placeholder="gsk_..."
+                                    onChange={e => localStorage.setItem('GROQ_API_KEY', e.target.value)}
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">URL API Groq</label>
+                                <input 
+                                    type="text"
+                                    defaultValue={localStorage.getItem('GROQ_API_URL') || 'https://api.groq.com/openai/v1/chat/completions'}
+                                    onChange={e => localStorage.setItem('GROQ_API_URL', e.target.value)}
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* SECTION EXPORT */}
                     <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
                         <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Agency, WeekModule, Deliverable, GameEvent } from '../../../types';
 import { ref, uploadBytes, getDownloadURL, storage } from '../../../services/firebase';
 import { useUI } from '../../../contexts/UIContext';
+import { notificationService } from '../../../services/notificationService';
 
 export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) => void, isSimulation: boolean = false) => {
   const { toast } = useUI();
@@ -113,6 +114,15 @@ export const useSubmissionLogic = (agency: Agency, onUpdateAgency: (a: Agency) =
       // Appel de la sauvegarde
       onUpdateAgency(updatedAgencyPayload);
       
+      // Envoi de la notification au groupe
+      const memberIds = agency.members.map(m => m.id);
+      notificationService.createGroupNotification(
+          memberIds,
+          "Livrable déposé",
+          `Le livrable "${targetDeliverable?.name}" a été soumis avec succès.`,
+          "SUCCESS"
+      );
+
       if (bonusScore > 0) toast('success', `Early Bird ! +${bonusScore} points de score.`);
       else toast('success', "Fichier enregistré !");
 

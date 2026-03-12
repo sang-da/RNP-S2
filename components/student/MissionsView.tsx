@@ -52,7 +52,9 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
       merged['SPECIAL'] = {
           id: 'SPECIAL',
           title: 'Missions Spéciales',
-          description: 'Toutes vos missions hors-cycle',
+          type: 'FUN/CHILL',
+          objectives: ['Toutes vos missions hors-cycle'],
+          status: 'active',
           cycleId: 'SPECIAL' as any,
           isVisible: true,
           deliverables: [],

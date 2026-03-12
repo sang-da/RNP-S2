@@ -2,6 +2,7 @@
 import React from 'react';
 import { LayoutDashboard, LogOut, Moon, Sun, Menu } from 'lucide-react';
 import { MASCOTS } from '../constants';
+import { NotificationBell } from './notifications/NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, role, switchRole, onLo
             </div>
 
             <div className="flex items-center gap-4">
+                <NotificationBell />
                 <button 
                   onClick={switchRole}
                   className={`text-xs font-bold px-4 py-2 rounded-full border transition-all ${

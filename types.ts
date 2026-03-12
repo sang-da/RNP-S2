@@ -91,6 +91,17 @@ export interface GameEvent {
     deltaBudgetReal?: number;
 }
 
+export interface AppNotification {
+    id: string;
+    userId: string;
+    title: string;
+    message: string;
+    type: 'INFO' | 'WARNING' | 'SUCCESS' | 'ERROR';
+    read: boolean;
+    createdAt: string;
+    link?: string;
+}
+
 export type DeliverableType = 'FILE' | 'LINK' | 'SPECIAL_LOGO' | 'SPECIAL_BANNER' | 'FORM_CHARTER' | 'FORM_NAMING';
 
 export interface GradingConfig {
@@ -319,7 +330,7 @@ export interface QuizAttempt {
 
 export interface GameAction {
     id: string;
-    type: 'MANAGE_SAVINGS' | 'SUBMIT_QUIZ' | 'TRANSFER_FUNDS' | 'INJECT_CAPITAL' | 'BUY_SCORE' | 'TAKE_LOAN' | 'REPAY_LOAN' | 'PING';
+    type: 'MANAGE_SAVINGS' | 'SUBMIT_QUIZ' | 'TRANSFER_FUNDS' | 'INJECT_CAPITAL' | 'BUY_SCORE' | 'TAKE_LOAN' | 'REPAY_LOAN' | 'PING' | 'BLACK_OP' | 'PROPOSE_MERGER' | 'FINALIZE_MERGER' | 'SEND_CHALLENGE' | 'SUBMIT_CHALLENGE_VOTE' | 'PURCHASE_INTEL' | 'TRIGGER_VULTURE_BUYOUT';
     payload: any;
     studentId: string;
     agencyId: string;

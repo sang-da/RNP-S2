@@ -2,6 +2,7 @@
 import { doc, db, runTransaction } from '../../../services/firebase';
 import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
 import { GAME_RULES, HOLDING_RULES } from '../../../constants';
+import { notificationService } from '../../../services/notificationService';
 
 export const useOperationsLogic = (
     agencies: Agency[], 
@@ -139,6 +140,15 @@ export const useOperationsLogic = (
                   });
               }
 
+              // Notification for the group
+              const memberIds = agency.members.map(m => m.id);
+              notificationService.createGroupNotification(
+                  memberIds,
+                  "Opération effectuée",
+                  `L'opération ${opType} a été exécutée par ${student.name}.`,
+                  "INFO"
+              );
+
               if (opType === 'AUDIT_HOSTILE' && target && targetRef) {
                   const isFragile = target.ve_current < 40 || target.budget_real < 0;
                   if (isFragile) {
@@ -205,6 +215,15 @@ export const useOperationsLogic = (
               transaction.update(targetRef, {
                   mergerRequests: [...(target.mergerRequests || []), request]
               });
+
+              // Notification for target agency
+              const targetMemberIds = target.members.map(m => m.id);
+              notificationService.createGroupNotification(
+                  targetMemberIds,
+                  "Proposition de rachat",
+                  `L'agence ${source.name} vous a fait une proposition de rachat.`,
+                  "WARNING"
+              );
           });
           toast('success', "Proposition de rachat envoyée.");
       } catch (e: any) {
@@ -258,6 +277,15 @@ export const useOperationsLogic = (
               });
 
               transaction.delete(targetRef);
+
+              // Notification for source agency
+              const sourceMemberIds = source.members.map(m => m.id);
+              notificationService.createGroupNotification(
+                  sourceMemberIds,
+                  "Fusion complétée",
+                  `L'agence ${target.name} a accepté votre proposition de rachat.`,
+                  "SUCCESS"
+              );
           });
           toast(approved ? 'success' : 'info', approved ? "Fusion confirmée !" : "Fusion refusée.");
       } catch (e: any) {
@@ -297,6 +325,15 @@ export const useOperationsLogic = (
               transaction.update(targetRef, {
                   challenges: [...(target.challenges || []), challenge]
               });
+
+              // Notification for target agency
+              const targetMemberIds = target.members.map(m => m.id);
+              notificationService.createGroupNotification(
+                  targetMemberIds,
+                  "Nouveau Challenge",
+                  `Un nouveau challenge a été proposé à votre agence : ${title}`,
+                  "INFO"
+              );
           });
           toast('success', "Challenge envoyé !");
       } catch (e: any) {
@@ -353,6 +390,15 @@ export const useOperationsLogic = (
                               label: 'Contrat Signé', deltaVE: 0, description: `Nouvelle mission ajoutée au planning: "${challenge.title}"`
                           }]
                       });
+
+                      // Notification for the group
+                      const memberIds = agency.members.map(m => m.id);
+                      notificationService.createGroupNotification(
+                          memberIds,
+                          "Challenge accepté",
+                          `Le challenge "${challenge.title}" a été accepté par l'équipe et ajouté au planning.`,
+                          "SUCCESS"
+                      );
                   } else {
                       throw new Error("Impossible de trouver la semaine en cours.");
                   }
@@ -454,6 +500,15 @@ export const useOperationsLogic = (
               });
               
               transaction.delete(targetRef);
+
+              // Notification for the new combined agency
+              const combinedMemberIds = newMembers.map(m => m.id);
+              notificationService.createGroupNotification(
+                  combinedMemberIds,
+                  "Rachat Vautour",
+                  `L'agence ${target.name} a été absorbée par ${source.name}.`,
+                  "WARNING"
+              );
           });
           toast('success', `Rachat Vautour effectué !`);
       } catch (e: any) {

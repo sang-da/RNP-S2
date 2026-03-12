@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Agency, CrisisPreset, GameEvent, Student } from '../types';
 import { Crown, User, UserMinus, Sparkles, Gavel, Briefcase, FileWarning, ShieldAlert, BadgeCheck, Heart, Medal, Star, TrendingUp, TrendingDown, Coins, Plus, Minus, Send } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
+import { notificationService } from '../services/notificationService';
 
 interface AdminCrisisStudentProps {
   agencies: Agency[];
@@ -105,6 +106,17 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
                   description: `${form.label}: ${form.reason} (Score: ${form.deltaScore}, PiXi: ${form.deltaWallet})`
               }]
           });
+
+          // Notification for the student
+          const notificationType = form.deltaScore < 0 || form.deltaWallet < 0 ? 'ERROR' : 'SUCCESS';
+          const notificationTitle = form.deltaScore < 0 || form.deltaWallet < 0 ? 'Sanction RH' : 'Bonus RH';
+          notificationService.createNotification(
+              selectedStudentId,
+              notificationTitle,
+              `${form.label} : ${form.reason} (Score: ${form.deltaScore > 0 ? '+' : ''}${form.deltaScore}, PiXi: ${form.deltaWallet > 0 ? '+' : ''}${form.deltaWallet})`,
+              notificationType
+          );
+
           toast('success', "Arbitrage appliqué.");
           setForm({label: "", reason: "", deltaScore: 0, deltaWallet: 0});
       }

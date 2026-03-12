@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Quiz, QuizAttempt } from '../../../types';
 import { Brain, Sparkles, AlertCircle, CheckCircle, TrendingUp, BarChart2 } from 'lucide-react';
-import { analyzeQuizResults, QuizAnalysisResult } from '../../../services/geminiService';
+import { analyzeQuizResultsWithGroq, QuizAnalysisResult } from '../../../services/groqService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
 interface AIAnalysisSectionProps {
@@ -50,7 +50,7 @@ export const AIAnalysisSection: React.FC<AIAnalysisSectionProps> = ({ quiz, atte
                 return answers;
             });
 
-            const result = await analyzeQuizResults(quiz.title, quiz.description || '', dataToAnalyze);
+            const result = await analyzeQuizResultsWithGroq(quiz.title, quiz.description || '', dataToAnalyze);
             
             if (result) {
                 setAnalysisResult(result);
@@ -101,18 +101,18 @@ export const AIAnalysisSection: React.FC<AIAnalysisSectionProps> = ({ quiz, atte
             }
 
             if (q.type === 'rating') {
-                if (q.ratingCriteria && q.ratingCriteria.length > 0) {
+                if (q.criteria && q.criteria.length > 0) {
                     // Radar chart for criteria
                     const criteriaSums: Record<string, number> = {};
                     const criteriaCounts: Record<string, number> = {};
                     
-                    q.ratingCriteria.forEach(c => {
+                    q.criteria.forEach(c => {
                         criteriaSums[c] = 0;
                         criteriaCounts[c] = 0;
                     });
 
                     attempts.forEach(a => {
-                        const ans = a.answers?.[q.id] as Record<string, number>;
+                        const ans = a.answers?.[q.id] as unknown as Record<string, number>;
                         if (ans && typeof ans === 'object') {
                             Object.entries(ans).forEach(([crit, val]) => {
                                 if (criteriaSums[crit] !== undefined) {
@@ -123,7 +123,7 @@ export const AIAnalysisSection: React.FC<AIAnalysisSectionProps> = ({ quiz, atte
                         }
                     });
 
-                    const chartData = q.ratingCriteria.map(c => ({
+                    const chartData = q.criteria.map(c => ({
                         subject: c,
                         A: criteriaCounts[c] > 0 ? (criteriaSums[c] / criteriaCounts[c]).toFixed(1) : 0,
                         fullMark: 5,

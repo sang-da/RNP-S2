@@ -283,13 +283,17 @@ const GameContainer: React.FC = () => {
   return <WaitingScreen />;
 };
 
+import { NotificationProvider } from './contexts/NotificationContext';
+
 const App: React.FC = () => {
   return (
     <UIProvider>
         <AuthProvider>
-            <GameProvider>
-                <GameContainer />
-            </GameProvider>
+            <NotificationProvider>
+                <GameProvider>
+                    <GameContainer />
+                </GameProvider>
+            </NotificationProvider>
         </AuthProvider>
     </UIProvider>
   );

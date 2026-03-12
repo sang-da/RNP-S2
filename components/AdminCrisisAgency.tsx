@@ -4,6 +4,7 @@ import { Agency, CrisisPreset, GameEvent } from '../types';
 import { Flame, Target, Send, Trophy, Wallet, Percent, Banknote, Megaphone, AlertOctagon, Heart, Zap, Medal, Compass, Mic, Eye, Crown, Gift, RefreshCw } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { getAgencyPerformanceMultiplier } from '../constants';
+import { notificationService } from '../services/notificationService';
 
 interface AdminCrisisAgencyProps {
   agencies: Agency[];
@@ -136,6 +137,17 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
                       weeklyRevenueModifier: (agency.weeklyRevenueModifier || 0) + form.weeklyBonus, // MISE À JOUR DE LA RENTE
                       eventLog: [...agency.eventLog, newEvent]
                   }, isBonus); // ALLOW OVER CAP SI C'EST UN BONUS
+
+                  // Notification for the agency
+                  const memberIds = agency.members.map(m => m.id);
+                  const notificationType = presetType === 'CRISIS' ? 'ERROR' : 'SUCCESS';
+                  const notificationTitle = presetType === 'CRISIS' ? 'Alerte Crise' : 'Récompense';
+                  notificationService.createGroupNotification(
+                      memberIds,
+                      notificationTitle,
+                      `${form.label} : ${description}`,
+                      notificationType
+                  );
               }
           });
           toast('success', "Action globale appliquée.");

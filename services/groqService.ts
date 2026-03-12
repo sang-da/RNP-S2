@@ -1,6 +1,6 @@
 
 import { Agency, AIInsight } from '../types';
-import { GROQ_KEY, GROQ_MODEL, GROQ_API_URL } from '../functions/groqConfig';
+import { getGroqKey, GROQ_MODEL, getGroqApiUrl } from '../functions/groqConfig';
 
 const SYSTEM_PROMPT_BRIEFING = `
 Tu es le "Chief Operating Officer" (COO) IA d'une école de design. Tu assistes l'enseignant principal.
@@ -42,15 +42,17 @@ const formatAgenciesForAI = (agencies: Agency[]) => {
 };
 
 export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIInsight[]> => {
-    if (!GROQ_KEY || GROQ_KEY.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
     const gameContext = formatAgenciesForAI(agencies);
 
     try {
-        const response = await fetch(GROQ_API_URL, {
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -90,13 +92,15 @@ export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIIns
 
 // --- NOUVELLE FONCTION GÉNÉRIQUE POUR LE CO-PILOTE ---
 export const askGroq = async (prompt: string, contextData: any, systemRole: string = "Tu es un assistant pédagogique expert."): Promise<string> => {
-    if (!GROQ_KEY || GROQ_KEY.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
     try {
-        const response = await fetch(GROQ_API_URL, {
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -124,10 +128,76 @@ export const askGroq = async (prompt: string, contextData: any, systemRole: stri
     }
 };
 
+export interface QuizAnalysisResult {
+    summary: string;
+    averageSentiment: string;
+    positivePoints: string[];
+    negativePoints: string[];
+    actionPlan: string[];
+}
+
+export const analyzeQuizResultsWithGroq = async (quizTitle: string, quizDescription: string, answersData: any[]): Promise<QuizAnalysisResult | null> => {
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const systemPrompt = `
+Tu es un expert en analyse de données et en pédagogie.
+Voici les résultats d'un quiz ou sondage intitulé "${quizTitle}" (${quizDescription}).
+
+Analyse ces données et fournis un résumé structuré.
+Concentre-toi sur les opinions générales, les points forts, les points faibles, et propose un plan d'action (ce qu'il faut retenir ou faire).
+
+IMPORTANT : Tu dois retourner UNIQUEMENT un objet JSON valide. Pas de texte avant ou après.
+Format attendu :
+{
+    "summary": "Résumé général des opinions et des résultats.",
+    "averageSentiment": "Sentiment général (ex: Positif, Mitigé, Négatif, Enthousiaste, etc.).",
+    "positivePoints": ["Point positif 1", "Point positif 2"],
+    "negativePoints": ["Point d'attention 1", "Point d'attention 2"],
+    "actionPlan": ["Action 1", "Action 2"]
+}
+`;
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Données des réponses (format JSON) : ${JSON.stringify(answersData)}` }
+                ],
+                temperature: 0.5,
+                max_tokens: 2048,
+                response_format: { type: "json_object" }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        
+        const jsonResponse = JSON.parse(content);
+        return jsonResponse as QuizAnalysisResult;
+
+    } catch (error) {
+        console.error("Groq Quiz Analysis Failed", error);
+        return null;
+    }
+};
+
 // --- NOUVELLE FONCTION POUR LA TRANSCRIPTION AUDIO (WHISPER) ---
 export const transcribeAudioWithGroq = async (audioBlob: Blob, promptContext: string = ""): Promise<string> => {
-    if (!GROQ_KEY || GROQ_KEY.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
-
+    const apiKey = getGroqKey();
     try {
         const formData = new FormData();
         formData.append("file", audioBlob, "audio.webm");
@@ -140,7 +210,7 @@ export const transcribeAudioWithGroq = async (audioBlob: Blob, promptContext: st
         const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_KEY}`
+                'Authorization': `Bearer ${apiKey}`
             },
             body: formData
         });
