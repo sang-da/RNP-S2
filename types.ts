@@ -206,6 +206,7 @@ export interface Agency {
     ve_current: number;
     veCapOverride?: number;
     ve_history?: { week: string, value: number }[]; // Pour calculer la croissance
+    pendingEffects?: { type: string, amount: number, label: string }[]; // Pour les effets différés (ex: Pump & Dump)
     status: 'stable' | 'fragile' | 'critique';
     classId: 'A' | 'B' | 'ALL';
     budget_real: number;

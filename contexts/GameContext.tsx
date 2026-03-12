@@ -42,7 +42,7 @@ interface GameContextType {
   tradeScoreForCash: (studentId: string, scoreAmount: number) => Promise<void>;
   injectCapital: (studentId: string, agencyId: string, amount: number) => Promise<void>;
   requestScorePurchase: (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => Promise<void>;
-  handleTransactionRequest: (agency: Agency, request: TransactionRequest, approved: boolean) => Promise<void>;
+  handleTransactionRequest: (agencyId: string, request: TransactionRequest, approved: boolean) => Promise<void>;
   manageSavings: (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => Promise<void>;
   manageLoan: (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => Promise<void>;
   wipeDebt: (studentId: string, agencyId: string) => Promise<void>; // NOUVEAU

@@ -3,6 +3,7 @@ import { Quiz, QuizAttempt, Student } from '../../../types';
 import { ArrowLeft, User, Calendar, Star, Mic, MessageSquare, Download } from 'lucide-react';
 import { collection, query, where, getDocs, db } from '../../../services/firebase';
 import { useGame } from '../../../contexts/GameContext';
+import { AIAnalysisSection } from './AIAnalysisSection';
 
 interface QuizResultsProps {
     quiz: Quiz;
@@ -70,6 +71,8 @@ export const QuizResults: React.FC<QuizResultsProps> = ({ quiz, onBack }) => {
                     <Download size={16}/> Exporter CSV
                 </button>
             </div>
+
+            <AIAnalysisSection quiz={quiz} attempts={attempts} />
 
             <div className="grid grid-cols-1 gap-4">
                 {attempts.map(attempt => (

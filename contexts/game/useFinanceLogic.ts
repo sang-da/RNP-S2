@@ -15,6 +15,7 @@ export const useFinanceLogic = (
       try {
         const batch = writeBatch(db);
         let processedCount = 0;
+        let totalGarnishedForCentralBank = 0;
 
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
@@ -165,6 +166,7 @@ export const useFinanceLogic = (
                         currentDebt -= seizure;
                         netSalary -= seizure;
                         debtRepayment = seizure;
+                        totalGarnishedForCentralBank += seizure;
                     }
 
                     // D. Calculate Surplus Score for VE Conversion
@@ -271,6 +273,17 @@ export const useFinanceLogic = (
 
         if (processedCount > 0) {
             await batch.commit();
+            
+            if (totalGarnishedForCentralBank > 0) {
+                // Update central bank in a separate transaction to avoid mixing batch and transaction
+                await runTransaction(db, async (transaction) => {
+                    const cbRef = doc(db, "globals", "central_bank");
+                    const cbDoc = await transaction.get(cbRef);
+                    const currentTreasury = cbDoc.exists ? cbDoc.data().treasury || 0 : 0;
+                    transaction.set(cbRef, { treasury: currentTreasury + totalGarnishedForCentralBank }, { merge: true });
+                });
+            }
+
             toast('success', `Finance ${targetClass}: Traitement de ${processedCount} agences terminé.`);
         } else {
             toast('info', "Aucune agence à traiter pour ce filtre.");
@@ -452,11 +465,35 @@ export const useFinanceLogic = (
   };
 
   const executeRequestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => { 
-     const agency = agencies.find(a => a.id === agencyId);
-     if(!agency) return;
-     const newRequest: TransactionRequest = { id: `req-score-${Date.now()}`, studentId, studentName: agency.members.find(m=>m.id===studentId)?.name || '', type: 'BUY_SCORE', amountPixi, amountScore, status: 'PENDING', date: new Date().toISOString().split('T')[0] };
-     await updateDoc(doc(db, "agencies", agency.id), { transactionRequests: [...(agency.transactionRequests || []), newRequest] });
-     toast('success', "Demande envoyée");
+      try {
+          await runTransaction(db, async (transaction) => {
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+
+              const student = agency.members.find(m => m.id === studentId);
+              if (!student) throw new Error("Étudiant introuvable");
+
+              const newRequest: TransactionRequest = { 
+                  id: `req-score-${Date.now()}`, 
+                  studentId, 
+                  studentName: student.name, 
+                  type: 'BUY_SCORE', 
+                  amountPixi, 
+                  amountScore, 
+                  status: 'PENDING', 
+                  date: new Date().toISOString().split('T')[0] 
+              };
+
+              transaction.update(agencyRef, { 
+                  transactionRequests: [...(agency.transactionRequests || []), newRequest] 
+              });
+          });
+          toast('success', "Demande envoyée");
+      } catch (e: any) {
+          toast('error', e.message);
+      }
   };
 
   const requestScorePurchase = async (studentId: string, agencyId: string, amountPixi: number, amountScore: number) => {
@@ -464,46 +501,77 @@ export const useFinanceLogic = (
       await executeRequestScorePurchase(studentId, agencyId, amountPixi, amountScore);
   };
 
-  const handleTransactionRequest = async (agency: Agency, request: TransactionRequest, approved: boolean) => {
-      const batch = writeBatch(db);
-      const agencyRef = doc(db, "agencies", agency.id);
-      const updatedRequests = (agency.transactionRequests || []).filter(r => r.id !== request.id);
-      if (!approved) { batch.update(agencyRef, { transactionRequests: updatedRequests }); await batch.commit(); return; }
-      
-      const updatedMembers = agency.members.map(m => m.id === request.studentId ? { ...m, wallet: (m.wallet || 0) - request.amountPixi, individualScore: Math.min(100, m.individualScore + request.amountScore) } : m);
-      batch.update(agencyRef, { transactionRequests: updatedRequests, members: updatedMembers });
-      await batch.commit();
-      toast('success', "Transaction validée");
+  const handleTransactionRequest = async (agencyId: string, request: TransactionRequest, approved: boolean) => {
+      try {
+          await runTransaction(db, async (transaction) => {
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+
+              const updatedRequests = (agency.transactionRequests || []).filter(r => r.id !== request.id);
+              
+              if (!approved) { 
+                  transaction.update(agencyRef, { transactionRequests: updatedRequests }); 
+                  return; 
+              }
+              
+              const updatedMembers = agency.members.map(m => 
+                  m.id === request.studentId ? { 
+                      ...m, 
+                      wallet: (m.wallet || 0) - request.amountPixi, 
+                      individualScore: Math.min(100, m.individualScore + request.amountScore) 
+                  } : m
+              );
+              
+              transaction.update(agencyRef, { 
+                  transactionRequests: updatedRequests, 
+                  members: updatedMembers 
+              });
+          });
+          toast('success', "Transaction traitée");
+      } catch (e: any) {
+          toast('error', e.message);
+      }
   };
 
   const executeManageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
-      const agency = agencies.find(a => a.id === agencyId);
-      if (!agency) return;
-      const student = agency.members.find(m => m.id === studentId);
-      if (!student) return;
+      try {
+          await runTransaction(db, async (transaction) => {
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+              
+              const student = agency.members.find(m => m.id === studentId);
+              if (!student) throw new Error("Étudiant introuvable");
 
-      const wallet = student.wallet || 0;
-      const savings = student.savings || 0;
+              const wallet = student.wallet || 0;
+              const savings = student.savings || 0;
 
-      let newWallet = wallet;
-      let newSavings = savings;
+              let newWallet = wallet;
+              let newSavings = savings;
 
-      if (type === 'DEPOSIT') {
-          if (amount > wallet) { toast('error', 'Fonds insuffisants'); return; }
-          newWallet -= amount;
-          newSavings += amount;
-      } else {
-          if (amount > savings) { toast('error', 'Épargne insuffisante'); return; }
-          newWallet += amount;
-          newSavings -= amount;
+              if (type === 'DEPOSIT') {
+                  if (amount > wallet) throw new Error('Fonds insuffisants');
+                  newWallet -= amount;
+                  newSavings += amount;
+              } else {
+                  if (amount > savings) throw new Error('Épargne insuffisante');
+                  newWallet += amount;
+                  newSavings -= amount;
+              }
+
+              const updatedMembers = agency.members.map(m => 
+                  m.id === studentId ? { ...m, wallet: newWallet, savings: newSavings } : m
+              );
+
+              transaction.update(agencyRef, { members: updatedMembers });
+          });
+          toast('success', type === 'DEPOSIT' ? `Placé : ${amount} PiXi` : `Retiré : ${amount} PiXi`);
+      } catch (e: any) {
+          toast('error', e.message);
       }
-
-      const updatedMembers = agency.members.map(m => 
-          m.id === studentId ? { ...m, wallet: newWallet, savings: newSavings } : m
-      );
-
-      await updateDoc(doc(db, "agencies", agencyId), { members: updatedMembers });
-      toast('success', type === 'DEPOSIT' ? `Placé : ${amount} PiXi` : `Retiré : ${amount} PiXi`);
   };
 
   const manageSavings = async (studentId: string, agencyId: string, amount: number, type: 'DEPOSIT' | 'WITHDRAW') => {
@@ -512,61 +580,77 @@ export const useFinanceLogic = (
   };
 
   const executeManageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {
-      const agency = agencies.find(a => a.id === agencyId);
-      if (!agency) return;
-      const student = agency.members.find(m => m.id === studentId);
-      if (!student) return;
+      try {
+          await runTransaction(db, async (transaction) => {
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+              
+              const student = agency.members.find(m => m.id === studentId);
+              if (!student) throw new Error("Étudiant introuvable");
 
-      const wallet = student.wallet || 0;
-      const debt = student.loanDebt || 0;
-      
-      let newWallet = wallet;
-      let newDebt = debt;
-      let logEvent: GameEvent | null = null;
+              const cbRef = doc(db, "globals", "central_bank");
+              const cbDoc = await transaction.get(cbRef);
+              let cbTreasury = cbDoc.exists ? cbDoc.data().treasury || 0 : 0;
 
-      if (type === 'TAKE') {
-          const maxCapacity = (student.individualScore * 30) - debt;
-          if (amount > maxCapacity) { toast('error', `Capacité dépassée (Max: ${maxCapacity})`); return; }
-          
-          newWallet += amount;
-          newDebt += Math.floor(amount * 1.5);
+              const wallet = student.wallet || 0;
+              const debt = student.loanDebt || 0;
+              
+              let newWallet = wallet;
+              let newDebt = debt;
+              let logEvent: GameEvent | null = null;
 
-          logEvent = {
-              id: `loan-take-${Date.now()}`,
-              date: new Date().toISOString().split('T')[0],
-              type: 'INFO', 
-              label: 'Prêt Étudiant Accordé',
-              deltaBudgetReal: 0,
-              description: `${student.name} emprunte ${amount} PiXi. Dette totale: ${newDebt}.`
-          };
+              if (type === 'TAKE') {
+                  const maxCapacity = (student.individualScore * 30) - debt;
+                  if (amount > maxCapacity) throw new Error(`Capacité dépassée (Max: ${maxCapacity})`);
+                  
+                  newWallet += amount;
+                  newDebt += Math.floor(amount * 1.5);
+                  cbTreasury -= amount;
 
-      } else {
-          const repaymentAmount = Math.min(amount, debt); 
-          if (repaymentAmount > wallet) { toast('error', 'Fonds insuffisants pour rembourser'); return; }
-          
-          newWallet -= repaymentAmount;
-          newDebt -= repaymentAmount;
+                  logEvent = {
+                      id: `loan-take-${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: 'INFO', 
+                      label: 'Prêt Étudiant Accordé',
+                      deltaBudgetReal: 0,
+                      description: `${student.name} emprunte ${amount} PiXi. Dette totale: ${newDebt}.`
+                  };
 
-          logEvent = {
-              id: `loan-repay-${Date.now()}`,
-              date: new Date().toISOString().split('T')[0],
-              type: 'INFO',
-              label: 'Remboursement Anticipé',
-              deltaBudgetReal: 0,
-              description: `${student.name} rembourse ${repaymentAmount} PiXi. Reste dû: ${newDebt}.`
-          };
+              } else {
+                  const repaymentAmount = Math.min(amount, debt); 
+                  if (repaymentAmount > wallet) throw new Error('Fonds insuffisants pour rembourser');
+                  
+                  newWallet -= repaymentAmount;
+                  newDebt -= repaymentAmount;
+                  cbTreasury += repaymentAmount;
+
+                  logEvent = {
+                      id: `loan-repay-${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: 'INFO',
+                      label: 'Remboursement Anticipé',
+                      deltaBudgetReal: 0,
+                      description: `${student.name} rembourse ${repaymentAmount} PiXi. Reste dû: ${newDebt}.`
+                  };
+              }
+
+              const updatedMembers = agency.members.map(m => 
+                  m.id === studentId ? { ...m, wallet: newWallet, loanDebt: newDebt } : m
+              );
+
+              transaction.update(agencyRef, { 
+                  members: updatedMembers,
+                  eventLog: logEvent ? [...agency.eventLog, logEvent] : agency.eventLog
+              });
+
+              transaction.set(cbRef, { treasury: cbTreasury }, { merge: true });
+          });
+          toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
+      } catch (e: any) {
+          toast('error', e.message);
       }
-
-      const updatedMembers = agency.members.map(m => 
-          m.id === studentId ? { ...m, wallet: newWallet, loanDebt: newDebt } : m
-      );
-
-      await updateDoc(doc(db, "agencies", agencyId), { 
-          members: updatedMembers,
-          eventLog: logEvent ? [...agency.eventLog, logEvent] : agency.eventLog
-      });
-      
-      toast('success', type === 'TAKE' ? `Crédit accepté (+${amount} cash)` : `Dette remboursée (-${amount})`);
   };
 
   const manageLoan = async (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => {

@@ -143,8 +143,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                                     </p>
                                 </div>
                                 <div className="flex gap-1">
-                                    <button onClick={() => handleTransactionRequest(agency, request, false)} className="p-1 bg-white hover:bg-red-100 text-red-500 rounded border border-red-100"><X size={14}/></button>
-                                    <button onClick={() => handleTransactionRequest(agency, request, true)} className="p-1 bg-white hover:bg-emerald-100 text-emerald-500 rounded border border-emerald-100"><Check size={14}/></button>
+                                    <button onClick={() => handleTransactionRequest(agency.id, request, false)} className="p-1 bg-white hover:bg-red-100 text-red-500 rounded border border-red-100"><X size={14}/></button>
+                                    <button onClick={() => handleTransactionRequest(agency.id, request, true)} className="p-1 bg-white hover:bg-emerald-100 text-emerald-500 rounded border border-emerald-100"><Check size={14}/></button>
                                 </div>
                             </div>
                         ))}

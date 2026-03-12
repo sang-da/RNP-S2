@@ -63,13 +63,14 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                     const memberReviews = reviews.filter(r => r.reviewerId === member.id && r.weekId === currentWeekId);
                     const uniqueTargets = new Set(memberReviews.map(r => r.targetId));
                     const expectedReviews = agency.members.length - 1;
-                    const hasReviewedAll = uniqueTargets.size >= expectedReviews;
+                    const missingForThisMember = expectedReviews - uniqueTargets.size;
 
-                    if (!hasReviewedAll) {
+                    if (missingForThisMember > 0) {
                         const penalty = currentWeekConfig.scoring.missingReviewPenalty;
                         if (penalty.type === 'score') {
-                            scoreDelta -= penalty.amount;
-                            eventsDescription += ` [Malus Review: -${penalty.amount}]`;
+                            const penaltyAmount = penalty.amount * missingForThisMember;
+                            scoreDelta -= penaltyAmount;
+                            eventsDescription += ` [Malus Review: -${penaltyAmount}]`;
                         } else if (penalty.type === 'VE') {
                             // Le malus VE est appliqué à l'agence, pas au membre individuellement ici
                             // On le gère plus bas dans la section VE
@@ -169,19 +170,36 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             // --- 3. CALCUL VE (AVEC TOLÉRANCE OVERCAP) ---
             let veAdjustment = 0;
             
+            // 0. PENDING EFFECTS (ex: Pump & Dump Crash)
+            if (agency.pendingEffects && agency.pendingEffects.length > 0) {
+                agency.pendingEffects.forEach(effect => {
+                    veAdjustment += effect.amount;
+                    logEvents.push({
+                        id: `pending-eff-${Date.now()}-${agency.id}`,
+                        date: today,
+                        type: effect.amount > 0 ? 'VE_DELTA' : 'CRISIS',
+                        label: effect.label,
+                        deltaVE: effect.amount,
+                        description: `Effet différé appliqué (${effect.amount > 0 ? '+' : ''}${effect.amount} VE).`
+                    });
+                });
+            }
+
             // A. VE PENALTY (PEER REVIEW)
             if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
-                 let missingReviewCount = 0;
-                 const expectedReviews = agency.members.length - 1;
+                 let totalMissingReviews = 0;
+                 const expectedReviewsPerMember = agency.members.length - 1;
                  agency.members.forEach(member => {
                      const memberReviews = reviews.filter(r => r.reviewerId === member.id && r.weekId === currentWeekId);
                      const uniqueTargets = new Set(memberReviews.map(r => r.targetId));
-                     const hasReviewedAll = uniqueTargets.size >= expectedReviews;
-                     if (!hasReviewedAll) missingReviewCount++;
+                     const missingForThisMember = expectedReviewsPerMember - uniqueTargets.size;
+                     if (missingForThisMember > 0) {
+                         totalMissingReviews += missingForThisMember;
+                     }
                  });
 
-                 if (missingReviewCount > 0) {
-                     const penaltyAmount = currentWeekConfig.scoring.missingReviewPenalty.amount * missingReviewCount;
+                 if (totalMissingReviews > 0) {
+                     const penaltyAmount = currentWeekConfig.scoring.missingReviewPenalty.amount * totalMissingReviews;
                      veAdjustment -= penaltyAmount;
                      logEvents.push({ 
                         id: `perf-penalty-review-${Date.now()}-${agency.id}`, 
@@ -189,7 +207,7 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                         type: 'CRISIS', 
                         label: 'Malus Peer Review', 
                         deltaVE: -penaltyAmount, 
-                        description: `${missingReviewCount} membre(s) n'ont pas voté (-${penaltyAmount} VE).` 
+                        description: `${totalMissingReviews} review(s) manquante(s) (-${penaltyAmount} VE).` 
                      });
                  }
             }
@@ -247,7 +265,8 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                 ve_history: newHistory,
                 // peerReviews: [], // PLUS BESOIN DE VIDER L'ARRAY LOCAL
                 eventLog: [...agency.eventLog, ...logEvents],
-                status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique'
+                status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique',
+                pendingEffects: [] // On vide les effets différés
             });
         });
 
