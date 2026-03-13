@@ -45,7 +45,56 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const { getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote } = useGame();
   
   // Si l'étudiant est "unassigned", on démarre sur RECRUITMENT, sinon MARKET
-  const [activeTab, setActiveTab] = useState<TabType>(agency.id === 'unassigned' ? 'RECRUITMENT' : 'MARKET');
+  const defaultTab = agency.id === 'unassigned' ? 'RECRUITMENT' : 'MARKET';
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
+    const hash = window.location.hash.replace('#', '');
+    return ['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP'].includes(hash) ? (hash as TabType) : defaultTab;
+  });
+  const [isMenuOpen, setIsMenuOpen] = useState(() => window.location.hash === '#MENU');
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'MENU') {
+        setIsMenuOpen(true);
+        return;
+      }
+      setIsMenuOpen(false);
+      if (['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP'].includes(hash)) {
+        setActiveTabState(hash as TabType);
+      } else {
+        setActiveTabState(defaultTab);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [defaultTab]);
+
+  const setActiveTab = (tab: TabType) => {
+    if (isMenuOpen) {
+        // Replace the MENU hash with the new tab so back button doesn't reopen menu
+        window.history.replaceState(null, '', `#${tab}`);
+        setActiveTabState(tab);
+        setIsMenuOpen(false);
+    } else if (window.location.hash === `#${tab}`) {
+        setActiveTabState(tab);
+    } else {
+        window.location.hash = tab;
+    }
+  };
+
+  const openMenu = () => {
+      window.location.hash = 'MENU';
+  };
+
+  const closeMenu = () => {
+      if (window.history.length > 1) {
+          window.history.back();
+      } else {
+          window.location.hash = activeTab;
+      }
+  };
+
   const [showVERules, setShowVERules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showBackdoor, setShowBackdoor] = useState(false);
@@ -170,6 +219,9 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             setActiveTab={setActiveTab}
             agency={agency}
             theme={theme}
+            isMenuOpen={isMenuOpen}
+            openMenu={openMenu}
+            closeMenu={closeMenu}
         />
 
         {/* SETTINGS MODAL */}

@@ -29,15 +29,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const unsubscribe = notificationService.subscribeToNotifications(currentUser.uid, (notifs) => {
             setNotifications(notifs);
             
-            // Si on a les permissions Push, on pourrait déclencher une notification locale ici
-            // pour les nouvelles notifications non lues (simplification pour PWA)
+            // Si on a les permissions Push, on déclenche une notification locale
+            // On utilise le Service Worker pour que ça fonctionne sur mobile (PWA)
             if (Notification.permission === 'granted') {
                 const newUnread = notifs.filter(n => !n.read && new Date(n.createdAt).getTime() > Date.now() - 5000);
                 newUnread.forEach(n => {
-                    new Notification(n.title, {
-                        body: n.message,
-                        icon: '/vite.svg' // Remplacer par l'icône de l'app
-                    });
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.ready.then(registration => {
+                            registration.showNotification(n.title, {
+                                body: n.message,
+                                icon: '/vite.svg',
+                                badge: '/vite.svg',
+                                vibrate: [100, 50, 100],
+                                tag: n.id // Évite les doublons
+                            } as any);
+                        });
+                    } else {
+                        new Notification(n.title, {
+                            body: n.message,
+                            icon: '/vite.svg'
+                        });
+                    }
                 });
             }
         });

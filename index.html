@@ -64,13 +64,14 @@
         }
       };
 
-      // Force unregister Service Worker to clear broken cache
+      // Register Service Worker for PWA and Notifications
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-            console.log('SW unregistered from index.html');
-          }
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
         });
       }
     </script>
