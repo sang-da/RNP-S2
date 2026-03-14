@@ -87,15 +87,25 @@ export const AdminCrisisStudent: React.FC<AdminCrisisStudentProps> = ({ agencies
           const agency = agencies.find(a => a.id === targetInfo.agencyId);
           if(!agency) return;
 
-          const updatedMembers = agency.members.map(m => 
-              m.id === selectedStudentId 
-              ? { 
-                  ...m, 
-                  individualScore: Math.max(0, Math.min(100, m.individualScore + form.deltaScore)),
-                  wallet: (m.wallet || 0) + form.deltaWallet
-                } 
-              : m
-          );
+          const updatedMembers = agency.members.map(m => {
+              if (m.id === selectedStudentId) {
+                  const newNote = {
+                      id: `note-${Date.now()}-${m.id}`,
+                      date: new Date().toISOString().split('T')[0],
+                      authorName: "Game Master",
+                      content: `Arbitrage RH: "${form.label}" (Score: ${form.deltaScore > 0 ? '+' : ''}${form.deltaScore}, PiXi: ${form.deltaWallet > 0 ? '+' : ''}${form.deltaWallet}).`,
+                      visibility: 'PRIVATE' as const,
+                      type: form.deltaScore < 0 || form.deltaWallet < 0 ? 'NEGATIVE' as const : 'POSITIVE' as const
+                  };
+                  return { 
+                      ...m, 
+                      individualScore: Math.max(0, Math.min(100, m.individualScore + form.deltaScore)),
+                      wallet: (m.wallet || 0) + form.deltaWallet,
+                      notes: [...(m.notes || []), newNote]
+                  };
+              }
+              return m;
+          });
 
           onUpdateAgency({
               ...agency,

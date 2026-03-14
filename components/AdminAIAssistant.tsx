@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Agency } from '../types';
 import { MessageSquare, Zap, Fingerprint, Sparkles, Bot } from 'lucide-react';
-import { OracleChat } from './admin/ai/OracleChat';
+import { AssistantChat } from './admin/ai/AssistantChat';
 import { CrisisGenerator } from './admin/ai/CrisisGenerator';
 import { CreativeDirector } from './admin/ai/CreativeDirector';
 import { Profiler } from './admin/ai/Profiler';
@@ -11,10 +11,10 @@ interface AdminAIAssistantProps {
     agencies: Agency[];
 }
 
-type Mode = 'ORACLE' | 'GENERATOR_CRISIS' | 'GENERATOR_CREA' | 'PROFILER';
+type Mode = 'ASSISTANT' | 'GENERATOR_CRISIS' | 'GENERATOR_CREA' | 'PROFILER';
 
 export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) => {
-    const [mode, setMode] = useState<Mode>('ORACLE');
+    const [mode, setMode] = useState<Mode>('ASSISTANT');
 
     return (
         <div className="animate-in fade-in duration-500 pb-20 h-[calc(100vh-100px)] flex flex-col">
@@ -28,8 +28,8 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
                 </div>
 
                 <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-                    <button onClick={() => setMode('ORACLE')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${mode === 'ORACLE' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <MessageSquare size={16}/> Oracle
+                    <button onClick={() => setMode('ASSISTANT')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${mode === 'ASSISTANT' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <MessageSquare size={16}/> Assistant
                     </button>
                     <button onClick={() => setMode('GENERATOR_CRISIS')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${mode === 'GENERATOR_CRISIS' ? 'bg-red-500 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Zap size={16}/> Crises
@@ -45,7 +45,7 @@ export const AdminAIAssistant: React.FC<AdminAIAssistantProps> = ({ agencies }) 
 
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col relative">
-                {mode === 'ORACLE' && <OracleChat agencies={agencies} />}
+                {mode === 'ASSISTANT' && <AssistantChat agencies={agencies} />}
                 {mode === 'GENERATOR_CRISIS' && <CrisisGenerator agencies={agencies} />}
                 {mode === 'GENERATOR_CREA' && <CreativeDirector agencies={agencies} />}
                 {mode === 'PROFILER' && <Profiler agencies={agencies} />}

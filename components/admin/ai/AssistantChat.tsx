@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Agency } from '../../../types';
-import { askGroq } from '../../../services/groqService';
-import { RefreshCw, Send, Bot, BrainCircuit } from 'lucide-react';
+import { askGroq, analyzeAgenciesWithGroq } from '../../../services/groqService';
+import { RefreshCw, Send, Bot, BrainCircuit, Sparkles } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
 import { GAME_RULES } from '../../../constants';
+import Markdown from 'react-markdown';
 
-export const OracleChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
+export const AssistantChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
     const { toast } = useUI();
     const [chatInput, setChatInput] = useState("");
     const [chatHistory, setChatHistory] = useState<{role: 'user'|'ai', content: string}[]>([]);
@@ -30,9 +31,50 @@ export const OracleChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
                 project: {
                     theme: a.projectDef.theme || "Non défini",
                     problem: a.projectDef.problem || "Non défini",
-                }
+                },
+                recent_events: a.eventLog.slice(-10).map(e => {
+                    const impacts = [];
+                    if (e.deltaVE) impacts.push(`${e.deltaVE > 0 ? '+' : ''}${e.deltaVE} VE`);
+                    if (e.deltaBudgetReal) impacts.push(`${e.deltaBudgetReal > 0 ? '+' : ''}${e.deltaBudgetReal} PiXi`);
+                    const impactStr = impacts.length > 0 ? ` (Impact: ${impacts.join(', ')})` : '';
+                    return `${e.date.split('T')[0]} - ${e.type}: ${e.label}${impactStr}`;
+                }),
+                members: a.members.map(m => ({
+                    name: m.name,
+                    history: m.history?.slice(-3).map(h => `${h.date}: ${h.action} (${h.agencyName})`) || [],
+                    notes: m.notes?.slice(-3).map(n => `${n.date}: [${n.type}] ${n.content}`) || []
+                }))
             };
         });
+    };
+
+    const handleRunGMAudit = async () => {
+        setLoading(true);
+        try {
+            const insights = await analyzeAgenciesWithGroq(agencies);
+            
+            let message = "### 🎲 Rapport du Game Master\n\n";
+            if (insights.length === 0) {
+                message += "Aucune intervention nécessaire. Les agences sont stables.";
+            } else {
+                insights.forEach(insight => {
+                    message += `**[${insight.type}] ${insight.title}**\n`;
+                    message += `*Cible : ${agencies.find(a => a.id === insight.targetAgencyId)?.name || 'Inconnue'}*\n`;
+                    message += `> ${insight.analysis}\n`;
+                    if (insight.suggestedAction) {
+                        message += `👉 **Action suggérée :** ${insight.suggestedAction.label} (${insight.suggestedAction.actionType})\n`;
+                    }
+                    message += `\n---\n\n`;
+                });
+                message += "Voulez-vous que je rédige l'un de ces événements en détail pour l'envoyer aux étudiants ?";
+            }
+            
+            setChatHistory(prev => [...prev, { role: 'ai', content: message }]);
+        } catch (error) {
+            toast('error', "Erreur lors de l'audit GM.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleChatSubmit = async (e?: React.FormEvent) => {
@@ -47,10 +89,10 @@ export const OracleChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
         try {
             const context = getRichContextData();
             const systemPrompt = `
-                Tu es le Directeur Stratégique du RNP. Tu as accès aux données financières et aux projets.
-                Si on parle d'argent, sois cynique. Si on parle de projet, sois un Directeur Artistique exigeant.
+                Tu es le Game Master et Directeur Stratégique du RNP. Tu as accès aux données financières et aux projets.
+                Si on te demande de rédiger un événement (crise, challenge, bonus), rédige un texte immersif et court (max 280 caractères) destiné aux étudiants, en précisant les impacts (ex: -500 PiXi, -10 VE).
             `;
-            const answer = await askGroq(userMsg, context, systemPrompt);
+            const answer = await askGroq(userMsg, context, systemPrompt, chatHistory);
             setChatHistory(prev => [...prev, { role: 'ai', content: answer }]);
         } catch (error) {
             toast('error', "Erreur IA.");
@@ -61,6 +103,16 @@ export const OracleChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
 
     return (
         <div className="flex flex-col h-full">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-600">Discussion avec l'Assistant</span>
+                <button 
+                    onClick={handleRunGMAudit}
+                    disabled={loading}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                >
+                    <Sparkles size={16} /> Lancer l'Audit Game Master
+                </button>
+            </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50 custom-scrollbar">
                 {chatHistory.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
@@ -77,7 +129,13 @@ export const OracleChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
                             : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
                         }`}>
                             {msg.role === 'ai' && <Bot size={16} className="mb-2 text-indigo-500"/>}
-                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                            {msg.role === 'ai' ? (
+                                <div className="markdown-body">
+                                    <Markdown>{msg.content}</Markdown>
+                                </div>
+                            ) : (
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                            )}
                         </div>
                     </div>
                 ))}

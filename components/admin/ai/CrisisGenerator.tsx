@@ -57,12 +57,32 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
     const getPromptContext = () => {
         if (!targetAgency) return "";
         
+        const recentEvents = targetAgency.eventLog.slice(-10).map(e => {
+            const impacts = [];
+            if (e.deltaVE) impacts.push(`${e.deltaVE > 0 ? '+' : ''}${e.deltaVE} VE`);
+            if (e.deltaBudgetReal) impacts.push(`${e.deltaBudgetReal > 0 ? '+' : ''}${e.deltaBudgetReal} PiXi`);
+            const impactStr = impacts.length > 0 ? ` (Impact: ${impacts.join(', ')})` : '';
+            return `${e.date.split('T')[0]} - ${e.type}: ${e.label}${impactStr}`;
+        }).join('\n        ');
+
+        const membersInfo = targetAgency.members.map(m => {
+            const history = m.history?.slice(-3).map(h => `${h.date}: ${h.action} (${h.agencyName})`).join(', ') || 'Aucun historique';
+            const notes = m.notes?.slice(-3).map(n => `${n.date}: [${n.type}] ${n.content}`).join(', ') || 'Aucune note';
+            return `- ${m.name} (${m.role}) | Historique: ${history} | Notes: ${notes}`;
+        }).join('\n        ');
+
         let context = `
         AGENCE CIBLE : "${targetAgency.name}"
         - Effectif : ${targetAgency.members.length} membres.
         - Trésorerie : ${targetAgency.budget_real} PiXi.
         - VE Actuelle : ${targetAgency.ve_current}.
         - Projet : ${targetAgency.projectDef.theme} (${targetAgency.projectDef.location}).
+        
+        HISTORIQUE RÉCENT DE L'AGENCE (10 derniers événements) :
+        ${recentEvents || 'Aucun événement récent.'}
+
+        HISTORIQUE DES MEMBRES :
+        ${membersInfo}
         `;
 
         // Add Selected Deliverables Info
@@ -167,11 +187,27 @@ export const CrisisGenerator: React.FC<CrisisGeneratorProps> = ({ agencies }) =>
             deltaBudgetReal: budgetDelta
         };
 
+        const updatedMembers = targetAgency.members.map(member => {
+            const newNote = {
+                id: `note-${Date.now()}-${member.id}`,
+                date: new Date().toISOString().split('T')[0],
+                authorName: "Game Master",
+                content: `A subi la crise "${generatedCrisis.title}" (Impact: ${veDelta} VE, ${budgetDelta} PiXi).`,
+                visibility: 'PRIVATE' as const,
+                type: 'NEGATIVE' as const
+            };
+            return {
+                ...member,
+                notes: [...(member.notes || []), newNote]
+            };
+        });
+
         updateAgency({
             ...targetAgency,
             ve_current: Math.max(0, targetAgency.ve_current + veDelta),
             budget_real: targetAgency.budget_real + budgetDelta,
-            eventLog: [...targetAgency.eventLog, newEvent]
+            eventLog: [...targetAgency.eventLog, newEvent],
+            members: updatedMembers
         });
         
         toast('success', "Crise déclenchée avec succès.");

@@ -3,11 +3,20 @@ import { Agency, AIInsight } from '../types';
 import { getGroqKey, GROQ_MODEL, getGroqApiUrl } from '../functions/groqConfig';
 
 const SYSTEM_PROMPT_BRIEFING = `
-Tu es le "Chief Operating Officer" (COO) IA d'une école de design. Tu assistes l'enseignant principal.
-Ta mission est d'analyser les données financières, pédagogiques et humaines des agences étudiantes pour détecter :
-1. URGENT : Risques de faillite imminente (-5000 PiXi), décrochage technique grave, ou conflit humain.
-2. WARNING : Signaux faibles (baisse de VE, trésorerie qui fond trop vite, passager clandestin).
-3. OPPORTUNITY : Groupes qui sur-performent et s'ennuient, méritant un challenge "Dungeon Master" ou un investissement.
+Tu es le "Game Master" IA d'une simulation d'agences étudiantes.
+Ta mission est d'analyser les données (notamment overdue_count, financial_status, ve_status, et l'historique des événements) pour proposer des événements narratifs ciblés qui animent le jeu sans le détruire.
+
+RÈGLES D'ANALYSE :
+1. Le Retardataire (Sleeper) : overdue_count > 0. Action : URGENT (Sanction légère/Avertissement).
+2. Le Sur-Performant : ve_status = EXCELLENT et financial_status = WEALTHY et overdue_count = 0. Action : OPPORTUNITY (Challenge/Crise de croissance).
+3. Le Survivant : ve_status = DANGER ou financial_status = CRITICAL, mais overdue_count = 0. Action : OPPORTUNITY (Coup de pouce/Bonus).
+4. Le Bon Élève : Tout est STABLE/AVERAGE et overdue_count = 0. Action : Ne rien faire (ne pas surcharger le jeu).
+
+RÈGLES DE JUSTICE ET D'HISTORIQUE (TRÈS IMPORTANT) :
+- Vérifie TOUJOURS "recent_events" et "members_history" pour voir si l'agence ou ses membres ont déjà subi une crise ou reçu un bonus récemment.
+- Évalue la sévérité des crises passées (ex: un retrait de 50 VE est une sanction très lourde).
+- ÉVITE de sanctionner plusieurs fois de suite les mêmes individus ou la même agence. Laisse-leur le temps de récupérer.
+- Si une agence mérite une sanction mais a déjà subi une crise sévère récemment, propose plutôt un "WARNING" ou un "MESSAGE" sans impact chiffré.
 
 IMPORTANT : Tu dois retourner UNIQUEMENT un tableau JSON valide. Pas de texte avant ou après.
 Format :
@@ -15,11 +24,11 @@ Format :
   {
     "id": "unique_string",
     "type": "URGENT" | "WARNING" | "OPPORTUNITY",
-    "title": "Titre court",
-    "analysis": "Analyse concise.",
+    "title": "Titre de l'événement (ex: Client VIP, Bad Buzz)",
+    "analysis": "Explication de ton choix basée sur les metrics et l'historique (ex: '2 livrables en retard, mais ayant déjà perdu 50 VE hier, simple avertissement').",
     "targetAgencyId": "id_agence",
     "suggestedAction": {
-        "label": "Action",
+        "label": "Texte court de l'événement pour l'étudiant (ex: 'Un client exige un audit immédiat (-500 PiXi)')",
         "actionType": "CRISIS" | "REWARD" | "MESSAGE" | "AUDIT"
     }
   }
@@ -27,18 +36,61 @@ Format :
 `;
 
 const formatAgenciesForAI = (agencies: Agency[]) => {
+    const now = new Date();
     return agencies
         .filter(a => a.id !== 'unassigned')
-        .map(a => ({
-            id: a.id,
-            name: a.name,
-            class: a.classId,
-            ve: a.ve_current,
-            budget: a.budget_real,
-            members: a.members.map(m => ({ name: m.name, score: m.individualScore, role: m.role })),
-            project: a.projectDef.problem ? `${a.projectDef.problem} (${a.projectDef.target})` : "Non défini",
-            recent_events: a.eventLog.slice(-3).map(e => `${e.type}: ${e.label} (${e.deltaVE} VE)`),
-        }));
+        .map(a => {
+            // 1. Calcul des retards (overdue_count)
+            let overdue_count = 0;
+            if (a.progress) {
+                Object.values(a.progress).forEach(week => {
+                    week.deliverables.forEach(d => {
+                        if (d.deadline && (d.status === 'pending' || d.status === 'rejected')) {
+                            const deadlineDate = new Date(d.deadline);
+                            if (deadlineDate < now) {
+                                overdue_count++;
+                            }
+                        }
+                    });
+                });
+            }
+
+            // 2. Statut financier
+            let financial_status = 'STABLE';
+            if (a.budget_real < 1000) financial_status = 'CRITICAL';
+            else if (a.budget_real > 5000) financial_status = 'WEALTHY';
+
+            // 3. Statut VE (Vitalité)
+            let ve_status = 'AVERAGE';
+            if (a.ve_current < 30) ve_status = 'DANGER';
+            else if (a.ve_current > 80) ve_status = 'EXCELLENT';
+
+            return {
+                id: a.id,
+                name: a.name,
+                class: a.classId,
+                ve: a.ve_current,
+                ve_status,
+                budget: a.budget_real,
+                financial_status,
+                overdue_count,
+                members: a.members.map(m => ({ 
+                    name: m.name, 
+                    score: m.individualScore, 
+                    role: m.role,
+                    history: m.history?.slice(-3).map(h => `${h.date}: ${h.action} (${h.agencyName})`) || [],
+                    notes: m.notes?.slice(-3).map(n => `${n.date}: [${n.type}] ${n.content}`) || []
+                })),
+                project: a.projectDef.problem ? `${a.projectDef.problem} (${a.projectDef.target})` : "Non défini",
+                recent_events: a.eventLog.slice(-10).map(e => {
+                    const impacts = [];
+                    if (e.deltaVE) impacts.push(`${e.deltaVE > 0 ? '+' : ''}${e.deltaVE} VE`);
+                    if (e.deltaBudgetReal) impacts.push(`${e.deltaBudgetReal > 0 ? '+' : ''}${e.deltaBudgetReal} PiXi`);
+                    const impactStr = impacts.length > 0 ? ` (Impact: ${impacts.join(', ')})` : '';
+                    return `${e.date.split('T')[0]} - ${e.type}: ${e.label}${impactStr}`;
+                }),
+            };
+        });
 };
 
 export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIInsight[]> => {
@@ -91,12 +143,23 @@ export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIIns
 };
 
 // --- NOUVELLE FONCTION GÉNÉRIQUE POUR LE CO-PILOTE ---
-export const askGroq = async (prompt: string, contextData: any, systemRole: string = "Tu es un assistant pédagogique expert."): Promise<string> => {
+export const askGroq = async (
+    prompt: string, 
+    contextData: any, 
+    systemRole: string = "Tu es un assistant pédagogique expert.",
+    history: {role: 'user'|'ai', content: string}[] = []
+): Promise<string> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
     try {
+        const messages = [
+            { role: "system", content: `${systemRole} Voici les données actuelles du jeu : ${JSON.stringify(contextData)}` },
+            ...history.map(h => ({ role: h.role === 'ai' ? 'assistant' : 'user', content: h.content })),
+            { role: "user", content: prompt }
+        ];
+
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
@@ -105,10 +168,7 @@ export const askGroq = async (prompt: string, contextData: any, systemRole: stri
             },
             body: JSON.stringify({
                 model: GROQ_MODEL,
-                messages: [
-                    { role: "system", content: `${systemRole} Voici les données actuelles du jeu : ${JSON.stringify(contextData)}` },
-                    { role: "user", content: prompt }
-                ],
+                messages: messages,
                 temperature: 0.7,
                 max_tokens: 1024
             })

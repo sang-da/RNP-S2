@@ -40,9 +40,9 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({ agencies, onApplyAction 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div>
                         <h3 className="text-2xl font-display font-bold flex items-center gap-2">
-                            <Sparkles className="text-yellow-400 animate-pulse" /> Morning Briefing
+                            <Sparkles className="text-yellow-400 animate-pulse" /> Morning Briefing (Game Master)
                         </h3>
-                        <p className="text-slate-400 text-sm">Analyste virtuel : Llama 3.3 70B (Groq)</p>
+                        <p className="text-slate-400 text-sm">Assistant narratif : Llama 3.3 70B (Groq)</p>
                     </div>
                     
                     <button 
@@ -58,7 +58,7 @@ export const AIBriefing: React.FC<AIBriefingProps> = ({ agencies, onApplyAction 
                 {loading ? (
                     <div className="h-40 flex flex-col items-center justify-center text-slate-400 gap-3">
                         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="animate-pulse text-sm">Analyse des bilans financiers et signaux faibles...</p>
+                        <p className="animate-pulse text-sm">Analyse des retards, finances et vitalité...</p>
                     </div>
                 ) : insights.length === 0 ? (
                     <div className="h-32 flex items-center justify-center border-2 border-dashed border-slate-700 rounded-2xl bg-white/5">

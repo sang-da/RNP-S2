@@ -130,12 +130,28 @@ export const AdminCrisisAgency: React.FC<AdminCrisisAgencyProps> = ({ agencies, 
 
                   const isBonus = presetType === 'REWARD' || presetType === 'CEREMONY';
 
+                  const updatedMembers = agency.members.map(member => {
+                      const newNote = {
+                          id: `note-${Date.now()}-${member.id}`,
+                          date: new Date().toISOString().split('T')[0],
+                          authorName: "Game Master",
+                          content: `A subi l'événement "${form.label}" (Impact: ${finalVEDelta} VE, ${budgetDeltaReal} PiXi).`,
+                          visibility: 'PRIVATE' as const,
+                          type: presetType === 'CRISIS' ? 'NEGATIVE' as const : 'POSITIVE' as const
+                      };
+                      return {
+                          ...member,
+                          notes: [...(member.notes || []), newNote]
+                      };
+                  });
+
                   onUpdateAgency({
                       ...agency,
                       budget_real: agency.budget_real + budgetDeltaReal,
                       ve_current: Math.max(0, agency.ve_current + finalVEDelta),
                       weeklyRevenueModifier: (agency.weeklyRevenueModifier || 0) + form.weeklyBonus, // MISE À JOUR DE LA RENTE
-                      eventLog: [...agency.eventLog, newEvent]
+                      eventLog: [...agency.eventLog, newEvent],
+                      members: updatedMembers
                   }, isBonus); // ALLOW OVER CAP SI C'EST UN BONUS
 
                   // Notification for the agency
