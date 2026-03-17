@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, PeerReview } from '../../types';
-import { HeartHandshake } from 'lucide-react';
+import { HeartHandshake, RefreshCw } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext'; // USE GLOBAL REVIEWS
 
 // SUB-COMPONENTS
@@ -18,7 +18,14 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     const [filterClass, setFilterClass] = useState<'ALL' | 'A' | 'B'>('ALL');
     const [filterWeek, setFilterWeek] = useState<string>('ALL');
     const [filterAgencyId, setFilterAgencyId] = useState<string>('ALL');
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const { reviews: globalReviews } = useGame(); // GET GLOBAL REVIEWS
+
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        // Simulate a refresh delay since data is synced via onSnapshot
+        setTimeout(() => setIsRefreshing(false), 800);
+    };
 
     // 1. ENRICHISSEMENT DES DONNÉES (Pour l'affichage)
     const enrichedReviews = useMemo(() => {
@@ -74,6 +81,13 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                         <span className="font-bold text-slate-700 ml-1">{globalReviews.length} avis enregistrés.</span>
                     </p>
                 </div>
+                <button 
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                    <RefreshCw size={18} className={isRefreshing ? "animate-spin text-indigo-600" : ""} />
+                    <span className="font-medium">Rafraîchir les données</span>
+                </button>
             </div>
 
             {/* STATS RAPIDES */}

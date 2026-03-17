@@ -2,11 +2,18 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, db } from '../../../services/firebase';
 import { PeerReview } from '../../../types';
+import { useAuth } from '../../AuthContext';
 
 export const useReviewsSync = () => {
   const [reviews, setReviews] = useState<PeerReview[]>([]);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
+    if (!currentUser) {
+      setReviews([]);
+      return;
+    }
+
     const unsubscribe = onSnapshot(collection(db, "reviews"), 
       (snapshot) => {
         const reviewsData: PeerReview[] = [];
@@ -18,7 +25,7 @@ export const useReviewsSync = () => {
       (error) => console.warn("[SYNC REVIEWS] Skipped/Error", error)
     );
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   return { reviews };
 };

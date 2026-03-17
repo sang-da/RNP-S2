@@ -1,6 +1,6 @@
 import React from 'react';
 import { Quiz, QuizAttempt } from '../../../types';
-import { MessageSquare, HelpCircle, Calendar, List, Award, Lock, Edit2, Trash2, Eye, Users, BarChart2 } from 'lucide-react';
+import { MessageSquare, HelpCircle, Calendar, List, Award, Lock, Edit2, Trash2, Eye, Users, BarChart2, RefreshCw } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 
 interface QuizListProps {
@@ -10,9 +10,11 @@ interface QuizListProps {
     onDelete: (id: string) => void;
     onViewResults: (quiz: Quiz) => void;
     onCreate: () => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 }
 
-export const QuizList: React.FC<QuizListProps> = ({ quizzes, attempts, onEdit, onDelete, onViewResults, onCreate }) => {
+export const QuizList: React.FC<QuizListProps> = ({ quizzes, attempts, onEdit, onDelete, onViewResults, onCreate, onRefresh, isRefreshing }) => {
     const { agencies } = useGame();
 
     // Helper to get student name
@@ -31,12 +33,23 @@ export const QuizList: React.FC<QuizListProps> = ({ quizzes, attempts, onEdit, o
                     <h2 className="text-2xl font-bold text-slate-900">Gestion des Quiz & Sondages</h2>
                     <p className="text-slate-500">Créez des évaluations ou récoltez du feedback.</p>
                 </div>
-                <button
-                    onClick={onCreate}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/25 flex items-center gap-2"
-                >
-                    <span className="text-xl">+</span> Nouveau
-                </button>
+                <div className="flex items-center gap-3">
+                    {onRefresh && (
+                        <button 
+                            onClick={onRefresh}
+                            className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                        >
+                            <RefreshCw size={18} className={isRefreshing ? "animate-spin text-indigo-600" : ""} />
+                            <span className="font-medium hidden sm:inline">Rafraîchir</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={onCreate}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/25 flex items-center gap-2"
+                    >
+                        <span className="text-xl">+</span> Nouveau
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">

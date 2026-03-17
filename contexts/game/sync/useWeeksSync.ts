@@ -4,12 +4,19 @@ import { collection, onSnapshot, doc, writeBatch } from '../../../services/fireb
 import { db } from '../../../services/firebase';
 import { WeekModule } from '../../../types';
 import { INITIAL_WEEKS } from '../../../constants';
+import { useAuth } from '../../AuthContext';
 
 export const useWeeksSync = () => {
   const [weeks, setWeeks] = useState<{ [key: string]: WeekModule }>(INITIAL_WEEKS);
   const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onSnapshot(collection(db, "weeks"), 
       (snapshot) => {
         const weeksData: { [key: string]: WeekModule } = {};
@@ -46,7 +53,7 @@ export const useWeeksSync = () => {
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   return { weeks, loadingWeeks: loading };
 };

@@ -27,6 +27,13 @@ service cloud.firestore {
       return isSuperAdmin() || isDBAdmin();
     }
 
+    // Vérifie si l'utilisateur est superviseur ou admin
+    function isSupervisorOrAdmin() {
+       return isAuthenticated() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'supervisor'];
+    }
+
     // --- RÈGLES PAR COLLECTION ---
 
     // 1. CONFIGURATION DU JEU (Game State, Auto-pilot)
@@ -92,7 +99,7 @@ service cloud.firestore {
 
     // 7. QUIZ ATTEMPTS (Réponses aux quiz)
     match /quiz_attempts/{attemptId} {
-       allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isAdmin());
+       allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isSuperAdmin() || isSupervisorOrAdmin());
        allow create: if isAuthenticated();
        allow update: if isAdmin(); // On ne modifie pas une tentative, sauf admin
     }

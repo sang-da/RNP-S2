@@ -71,16 +71,6 @@ const GameContainer: React.FC = () => {
       window.location.reload();
   };
 
-  if (loading) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          </div>
-      );
-  }
-
-  if (!currentUser) return <LandingPage />;
-
   // CAS 1 : ADMIN OU SUPERVISEUR
   if (userData?.role === 'admin' || userData?.role === 'supervisor') {
       const isSupervisor = userData.role === 'supervisor';
@@ -285,14 +275,32 @@ const GameContainer: React.FC = () => {
 
 import { NotificationProvider } from './contexts/NotificationContext';
 
+const MainApp: React.FC = () => {
+    const { currentUser, loading } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
+    }
+
+    if (!currentUser) return <LandingPage />;
+
+    return (
+        <GameProvider>
+            <GameContainer />
+        </GameProvider>
+    );
+};
+
 const App: React.FC = () => {
   return (
     <UIProvider>
         <AuthProvider>
             <NotificationProvider>
-                <GameProvider>
-                    <GameContainer />
-                </GameProvider>
+                <MainApp />
             </NotificationProvider>
         </AuthProvider>
     </UIProvider>

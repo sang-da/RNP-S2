@@ -24,6 +24,12 @@ export const AdminQuizzes: React.FC = () => {
         isVisible: false,
         unlockWeek: 1
     });
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        setTimeout(() => setIsRefreshing(false), 800);
+    };
 
     useEffect(() => {
         if (gameConfig?.quizzes) {
@@ -167,6 +173,8 @@ export const AdminQuizzes: React.FC = () => {
             onEdit={handleEdit} 
             onDelete={handleDeleteQuiz} 
             onViewResults={handleViewResults}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
         />
     );
 };
