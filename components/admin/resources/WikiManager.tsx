@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { WikiResource } from '../../../types';
-import { Plus, Trash2, ExternalLink, FileText, Video, Link, Box } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, FileText, Video, Link, Box, Upload } from 'lucide-react';
+import { storage } from '../../../services/firebase';
 
 interface WikiManagerProps {
     resources: WikiResource[];
@@ -14,6 +15,25 @@ export const WikiManager: React.FC<WikiManagerProps> = ({ resources, onAdd, onDe
     const [wikiForm, setWikiForm] = useState<{title: string, url: string, type: 'PDF' | 'VIDEO' | 'LINK' | 'ASSET', targetClass: 'ALL' | 'A' | 'B'}>({
         title: '', url: '', type: 'PDF', targetClass: 'ALL'
     });
+    const [uploading, setUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const storageRef = storage.ref(`wiki/${Date.now()}_${file.name}`);
+            await storageRef.put(file);
+            const url = await storageRef.getDownloadURL();
+            setWikiForm(prev => ({ ...prev, url }));
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            alert("Erreur lors de l'upload du fichier.");
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleAdd = async () => {
         if(!wikiForm.title || !wikiForm.url) return;
@@ -41,8 +61,15 @@ export const WikiManager: React.FC<WikiManagerProps> = ({ resources, onAdd, onDe
                         <input value={wikiForm.title} onChange={e => setWikiForm({...wikiForm, title: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="Ex: Cours Lighting"/>
                     </div>
                     <div className="md:col-span-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-400">URL</label>
-                        <input value={wikiForm.url} onChange={e => setWikiForm({...wikiForm, url: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="https://..."/>
+                        <label className="text-[10px] font-bold uppercase text-slate-400">URL ou Fichier</label>
+                        <div className="flex gap-2">
+                            <input value={wikiForm.url} onChange={e => setWikiForm({...wikiForm, url: e.target.value})} className="w-full p-2 border rounded-lg text-sm" placeholder="https://..."/>
+                            <label className="cursor-pointer p-2 bg-slate-100 rounded-lg hover:bg-slate-200">
+                                <Upload size={18} className="text-slate-600"/>
+                                <input type="file" className="hidden" onChange={handleFileChange} />
+                            </label>
+                        </div>
+                        {uploading && <p className="text-[10px] text-cyan-600 mt-1">Upload en cours...</p>}
                     </div>
                     <div className="md:col-span-1 flex gap-2">
                         <div className="flex-1">

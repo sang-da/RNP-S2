@@ -286,11 +286,9 @@ const MainApp: React.FC = () => {
         );
     }
 
-    if (!currentUser) return <LandingPage />;
-
     return (
         <GameProvider>
-            <GameContainer />
+            {!currentUser ? <LandingPage /> : <GameContainer />}
         </GameProvider>
     );
 };
