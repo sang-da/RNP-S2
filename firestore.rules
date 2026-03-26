@@ -104,6 +104,19 @@ service cloud.firestore {
        allow update: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isAdmin());
     }
 
+    // 8. BOUTIQUE DU JURY (Marché Noir)
+    match /shop_items/{itemId} {
+       allow read: if isAuthenticated();
+       allow create, delete: if isAdmin();
+       allow update: if isAuthenticated(); // Les étudiants peuvent acheter / enchérir
+    }
+
+    // 9. PARAMÈTRES GLOBAUX
+    match /settings/{docId} {
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
+    }
+
     // Règle par défaut (Sécurité)
     match /{document=**} {
       allow read, write: if isAdmin();

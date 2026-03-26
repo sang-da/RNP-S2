@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { TrendingUp, Target, Users, BookOpen, Briefcase, HelpCircle, Menu, X, LogOut, Settings } from 'lucide-react';
+import { TrendingUp, Target, Users, BookOpen, Briefcase, HelpCircle, Menu, X, LogOut, Settings, ShoppingCart } from 'lucide-react';
 import { Agency } from '../../../types';
 import { signOut, auth } from '../../../services/firebase';
 
-type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'RESOURCES' | 'HELP';
+type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'RESOURCES' | 'HELP' | 'SHOP';
 
 interface AgencyNavProps {
     activeTab: TabType;
@@ -64,6 +64,13 @@ export const AgencyNav: React.FC<AgencyNavProps> = ({ activeTab, setActiveTab, a
                         onClick={() => setActiveTab('RECRUITMENT')} 
                         icon={<Briefcase size={24} />} 
                         label={agency.id === 'unassigned' ? "Mon Statut" : "Recrutement & Mercato"} 
+                        theme={theme} 
+                    />
+                    <MenuButton 
+                        active={activeTab === 'SHOP'} 
+                        onClick={() => setActiveTab('SHOP')} 
+                        icon={<ShoppingCart size={24} />} 
+                        label="Boutique du Jury" 
                         theme={theme} 
                     />
                     <MenuButton 

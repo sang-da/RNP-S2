@@ -32,11 +32,12 @@ import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
 import { AdminQuizzes } from './components/AdminQuizzes';
+import { AdminShop } from './components/admin/shop/AdminShop';
 import { QuizButton } from './components/student/QuizButton';
 import { ConnectivityTest } from './components/student/ConnectivityTest';
 
 // NOTE: Le type AdminViewType doit correspondre aux IDs dans adminMenu.ts
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES' | 'SHOP';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -192,6 +193,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'CRISIS' && <AdminCrisis agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'RESOURCES' && <AdminResources agencies={agencies} readOnly={isViewReadOnly} />}
                     {adminView === 'QUIZZES' && <AdminQuizzes />}
+                    {adminView === 'SHOP' && <AdminShop agencies={agencies} readOnly={isViewReadOnly} />}
                 </div>
             </div>
 

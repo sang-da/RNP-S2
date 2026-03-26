@@ -745,6 +745,137 @@ export const useFinanceLogic = (
       }
   };
 
+  const executeBuyShopItem = async (studentId: string, agencyId: string, itemId: string) => {
+      try {
+          await runTransaction(db, async (transaction) => {
+              const itemRef = doc(db, "shop_items", itemId);
+              const itemDoc = await transaction.get(itemRef);
+              if (!itemDoc.exists()) throw new Error("Objet introuvable");
+              const item = itemDoc.data() as any;
+
+              if (item.type !== 'FIXED') throw new Error("Cet objet n'est pas à prix fixe");
+              if (!item.isVisible) throw new Error("Cet objet n'est plus disponible");
+              if (item.stock !== undefined && item.stock <= 0) throw new Error("Rupture de stock");
+
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+
+              if (agency.budget_real < (item.price || 0)) throw new Error("Budget agence insuffisant");
+
+              // Deduct price from agency budget
+              transaction.update(agencyRef, {
+                  budget_real: agency.budget_real - (item.price || 0),
+                  eventLog: [...agency.eventLog, {
+                      id: `shop-buy-${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: 'INFO',
+                      label: 'Achat Boutique',
+                      deltaBudgetReal: -(item.price || 0),
+                      description: `Achat de : ${item.title}`
+                  }]
+              });
+
+              // Update item stock and purchases
+              const newPurchase = {
+                  agencyId,
+                  agencyName: agency.name,
+                  timestamp: new Date().toISOString()
+              };
+              
+              const updateData: any = {
+                  purchases: [...(item.purchases || []), newPurchase]
+              };
+              if (item.stock !== undefined) {
+                  updateData.stock = item.stock - 1;
+              }
+              
+              transaction.update(itemRef, updateData);
+          });
+          toast('success', "Achat réussi !");
+      } catch (e: any) {
+          console.error("Buy Shop Item Error:", e);
+          toast('error', `Erreur achat: ${e.message}`);
+      }
+  };
+
+  const executePlaceBid = async (studentId: string, agencyId: string, itemId: string, bidAmount: number) => {
+      try {
+          await runTransaction(db, async (transaction) => {
+              const itemRef = doc(db, "shop_items", itemId);
+              const itemDoc = await transaction.get(itemRef);
+              if (!itemDoc.exists()) throw new Error("Enchère introuvable");
+              const item = itemDoc.data() as any;
+
+              if (item.type !== 'AUCTION') throw new Error("Cet objet n'est pas une enchère");
+              if (!item.isVisible || item.isClosed) throw new Error("Cette enchère est fermée");
+              
+              const minBid = (item.currentPrice || item.startingPrice || 0) + 10; // Minimum increment of 10
+              if (bidAmount < minBid) throw new Error(`L'enchère minimum est de ${minBid} PiXi`);
+
+              const agencyRef = doc(db, "agencies", agencyId);
+              const agencyDoc = await transaction.get(agencyRef);
+              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+              const agency = agencyDoc.data() as Agency;
+
+              if (agency.budget_real < bidAmount) throw new Error("Budget agence insuffisant");
+
+              // If there's a previous highest bidder, refund them
+              if (item.highestBidderId && item.highestBidderId !== agencyId) {
+                  const prevBidderRef = doc(db, "agencies", item.highestBidderId);
+                  const prevBidderDoc = await transaction.get(prevBidderRef);
+                  if (prevBidderDoc.exists()) {
+                      const prevBidder = prevBidderDoc.data() as Agency;
+                      transaction.update(prevBidderRef, {
+                          budget_real: prevBidder.budget_real + (item.currentPrice || 0),
+                          eventLog: [...prevBidder.eventLog, {
+                              id: `shop-refund-${Date.now()}`,
+                              date: new Date().toISOString().split('T')[0],
+                              type: 'INFO',
+                              label: 'Remboursement Enchère',
+                              deltaBudgetReal: (item.currentPrice || 0),
+                              description: `Vous avez été surenchéri sur : ${item.title}`
+                          }]
+                      });
+                  }
+              }
+
+              // Deduct bid from current agency
+              transaction.update(agencyRef, {
+                  budget_real: agency.budget_real - bidAmount,
+                  eventLog: [...agency.eventLog, {
+                      id: `shop-bid-${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: 'INFO',
+                      label: 'Enchère Placée',
+                      deltaBudgetReal: -bidAmount,
+                      description: `Enchère de ${bidAmount} PiXi sur : ${item.title}`
+                  }]
+              });
+
+              // Update item with new highest bid
+              const newBid = {
+                  agencyId,
+                  agencyName: agency.name,
+                  amount: bidAmount,
+                  timestamp: new Date().toISOString()
+              };
+              
+              transaction.update(itemRef, {
+                  currentPrice: bidAmount,
+                  highestBidderId: agencyId,
+                  highestBidderName: agency.name,
+                  bidsHistory: [...(item.bidsHistory || []), newBid]
+              });
+          });
+          toast('success', "Enchère placée avec succès !");
+      } catch (e: any) {
+          console.error("Place Bid Error:", e);
+          toast('error', `Erreur enchère: ${e.message}`);
+      }
+  };
+
   return { 
       processFinance, 
       transferFunds, 
@@ -763,6 +894,8 @@ export const useFinanceLogic = (
       executeRequestScorePurchase,
       executeManageSavings,
       executeManageLoan,
-      executeSubmitQuiz
+      executeSubmitQuiz,
+      executeBuyShopItem,
+      executePlaceBid
   };
 };

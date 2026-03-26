@@ -381,3 +381,38 @@ export interface CrisisPreset {
     category: string;
     description: string;
 }
+
+// --- JURY SHOP TYPES ---
+export type ShopItemType = 'FIXED' | 'AUCTION';
+
+export interface ShopPurchase {
+    agencyId: string;
+    agencyName: string;
+    timestamp: string;
+}
+
+export interface ShopBid {
+    agencyId: string;
+    agencyName: string;
+    amount: number;
+    timestamp: string;
+}
+
+export interface ShopItem {
+    id: string;
+    title: string;
+    description: string;
+    type: ShopItemType;
+    isVisible: boolean;
+    // For FIXED
+    price?: number;
+    stock?: number;
+    purchases?: ShopPurchase[];
+    // For AUCTION
+    startingPrice?: number;
+    currentPrice?: number;
+    highestBidderId?: string;
+    highestBidderName?: string;
+    bidsHistory?: ShopBid[];
+    isClosed?: boolean;
+}

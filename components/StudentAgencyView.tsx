@@ -8,6 +8,7 @@ import { TeamView } from './student/TeamView';
 import { MercatoView } from './student/MercatoView';
 import { WikiView } from './student/WikiView';
 import { FAQView } from './student/FAQView';
+import { StudentShop } from './student/StudentShop';
 import { TheBackdoor } from './student/TheBackdoor';
 import { Modal } from './Modal';
 import { GAME_RULES, calculateMarketVE } from '../constants';
@@ -29,7 +30,7 @@ interface StudentViewProps {
   onUpdateAgency: (agency: Agency) => void;
 }
 
-type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'RESOURCES' | 'HELP';
+type TabType = 'MARKET' | 'MISSIONS' | 'TEAM' | 'RECRUITMENT' | 'RESOURCES' | 'HELP' | 'SHOP';
 
 const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
     indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600' },
@@ -48,7 +49,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
   const defaultTab = agency.id === 'unassigned' ? 'RECRUITMENT' : 'MARKET';
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
     const hash = window.location.hash.replace('#', '');
-    return ['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP'].includes(hash) ? (hash as TabType) : defaultTab;
+    return ['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP', 'SHOP'].includes(hash) ? (hash as TabType) : defaultTab;
   });
   const [isMenuOpen, setIsMenuOpen] = useState(() => window.location.hash === '#MENU');
 
@@ -60,7 +61,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
         return;
       }
       setIsMenuOpen(false);
-      if (['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP'].includes(hash)) {
+      if (['MARKET', 'MISSIONS', 'TEAM', 'RECRUITMENT', 'RESOURCES', 'HELP', 'SHOP'].includes(hash)) {
         setActiveTabState(hash as TabType);
       } else {
         setActiveTabState(defaultTab);
@@ -211,6 +212,7 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             
             {activeTab === 'RESOURCES' && <WikiView agency={agency} />}
             {activeTab === 'HELP' && <FAQView />}
+            {activeTab === 'SHOP' && <StudentShop agency={agency} />}
         </div>
 
         {/* FOOTER NAV */}

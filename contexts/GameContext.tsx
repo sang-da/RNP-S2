@@ -47,6 +47,8 @@ interface GameContextType {
   manageLoan: (studentId: string, agencyId: string, amount: number, type: 'TAKE' | 'REPAY') => Promise<void>;
   wipeDebt: (studentId: string, agencyId: string) => Promise<void>; // NOUVEAU
   submitQuiz: (payload: any) => Promise<void>;
+  executeBuyShopItem: (studentId: string, agencyId: string, itemId: string) => Promise<void>;
+  executePlaceBid: (studentId: string, agencyId: string, itemId: string, amount: number) => Promise<void>;
   
   submitMercatoVote: (agencyId: string, requestId: string, voterId: string, vote: 'APPROVE' | 'REJECT') => Promise<void>;
 
@@ -240,6 +242,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       manageLoan: finance.manageLoan,
       wipeDebt: finance.wipeDebt, // EXPORT
       submitQuiz: finance.submitQuiz,
+      executeBuyShopItem: finance.executeBuyShopItem,
+      executePlaceBid: finance.executePlaceBid,
       tradeScoreForCash: async (studentId: string, scoreAmount: number) => {}, // Placeholder implementation
       submitMercatoVote: mechanics.submitMercatoVote,
       performBlackOp: mechanics.performBlackOp,
