@@ -403,8 +403,21 @@ export const useOperationsLogic = (
                       throw new Error("Impossible de trouver la semaine en cours.");
                   }
               } else {
-                  const updatedChallenges = agency.challenges?.map(c => c.id === challengeId ? { ...c, votes: newVotes } : c);
-                  transaction.update(agencyRef, { challenges: updatedChallenges });
+                  const rejections = Object.values(newVotes).filter(v => v === 'REJECT').length;
+                  if (rejections / totalVoters >= (1 - GAME_RULES.VOTE_THRESHOLD_CHALLENGE)) {
+                      // Reject the challenge completely
+                      transaction.update(agencyRef, {
+                          challenges: agency.challenges?.filter(c => c.id !== challengeId),
+                          eventLog: [...agency.eventLog, {
+                              id: `chall-reject-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
+                              label: 'Contrat Refusé', deltaVE: 0, description: `La mission "${challenge.title}" a été refusée par l'équipe.`
+                          }]
+                      });
+                  } else {
+                      // Just update the votes
+                      const updatedChallenges = agency.challenges?.map(c => c.id === challengeId ? { ...c, votes: newVotes } : c);
+                      transaction.update(agencyRef, { challenges: updatedChallenges });
+                  }
               }
           });
           toast('success', "Vote enregistré.");

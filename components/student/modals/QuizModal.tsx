@@ -231,8 +231,8 @@ export const QuizModal: React.FC<QuizModalProps> = ({ quiz, onClose }) => {
         if (currentUser) {
             try {
                 const ratio = finalScore / quiz.questions.length;
-                const pointsEarned = Math.floor(quiz.rewardPoints * ratio);
-                const pixiEarned = Math.floor(quiz.rewardPixi * ratio);
+                const pointsEarned = Math.floor((quiz.rewardPoints || 0) * ratio);
+                const pixiEarned = Math.floor((quiz.rewardPixi || 0) * ratio);
 
                 let attemptId = `${quiz.id}_${currentUser.uid}`;
                 if (quiz.frequency === 'WEEKLY') {

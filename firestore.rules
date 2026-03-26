@@ -101,7 +101,7 @@ service cloud.firestore {
     match /quiz_attempts/{attemptId} {
        allow read: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isSuperAdmin() || isSupervisorOrAdmin());
        allow create: if isAuthenticated();
-       allow update: if isAdmin(); // On ne modifie pas une tentative, sauf admin
+       allow update: if isAuthenticated() && (request.auth.uid == resource.data.studentId || isAdmin());
     }
 
     // Règle par défaut (Sécurité)

@@ -126,7 +126,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ quiz: initialQuiz, onSav
                             <input
                                 type="number"
                                 value={currentQuiz.rewardPoints}
-                                onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPoints: parseInt(e.target.value) }))}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPoints: parseInt(e.target.value) || 0 }))}
                                 className="w-full p-3 border border-slate-200 rounded-xl"
                             />
                         </div>
@@ -135,7 +135,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ quiz: initialQuiz, onSav
                             <input
                                 type="number"
                                 value={currentQuiz.rewardPixi}
-                                onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPixi: parseInt(e.target.value) }))}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, rewardPixi: parseInt(e.target.value) || 0 }))}
                                 className="w-full p-3 border border-slate-200 rounded-xl"
                             />
                         </div>
@@ -144,7 +144,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ quiz: initialQuiz, onSav
                             <input
                                 type="number"
                                 value={currentQuiz.unlockWeek || 1}
-                                onChange={e => setCurrentQuiz(prev => ({ ...prev, unlockWeek: parseInt(e.target.value) }))}
+                                onChange={e => setCurrentQuiz(prev => ({ ...prev, unlockWeek: parseInt(e.target.value) || 1 }))}
                                 className="w-full p-3 border border-slate-200 rounded-xl"
                             />
                         </div>

@@ -30,6 +30,13 @@ export const VotingSystem: React.FC<VotingSystemProps> = ({ agency, currentUser,
 };
 
 const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}> = ({agency, currentUser, onVote}) => {
+    const [hasVoted, setHasVoted] = React.useState(false);
+    
+    // Reset hasVoted if the pending vote changes (e.g., a new vote appears)
+    React.useEffect(() => {
+        setHasVoted(false);
+    }, [agency.mercatoRequests.length]);
+
     const pendingVote = agency.mercatoRequests.find(req => {
         if (req.status !== 'PENDING') return false;
         if (req.votes && req.votes[currentUser.id]) return false;
@@ -37,8 +44,13 @@ const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}>
         return true;
     });
 
-    if (!pendingVote) return null;
+    if (!pendingVote || hasVoted) return null;
     const isHire = pendingVote.type === 'HIRE';
+
+    const handleVote = (vote: 'APPROVE' | 'REJECT') => {
+        setHasVoted(true);
+        onVote(agency.id, pendingVote.id, currentUser.id, vote);
+    };
 
     return (
         <Modal isOpen={true} onClose={() => {}} title="Session de Vote en cours">
@@ -65,14 +77,14 @@ const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}>
 
                 <div className="grid grid-cols-2 gap-4">
                     <button 
-                        onClick={() => onVote(agency.id, pendingVote.id, currentUser.id, 'REJECT')}
+                        onClick={() => handleVote('REJECT')}
                         className="py-4 bg-white border-2 border-slate-200 text-slate-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 font-bold rounded-xl transition-all flex flex-col items-center gap-1"
                     >
                         <X size={24}/>
                         NON (Refuser)
                     </button>
                     <button 
-                        onClick={() => onVote(agency.id, pendingVote.id, currentUser.id, 'APPROVE')}
+                        onClick={() => handleVote('APPROVE')}
                         className="py-4 bg-slate-900 text-white hover:bg-emerald-600 font-bold rounded-xl transition-all flex flex-col items-center gap-1 shadow-lg"
                     >
                         <Check size={24}/>
@@ -85,8 +97,20 @@ const VotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}>
 };
 
 const ChallengeVotingBooth: React.FC<{agency: Agency, currentUser: Student, onVote: any}> = ({agency, currentUser, onVote}) => {
+    const [hasVoted, setHasVoted] = React.useState(false);
+
+    // Reset hasVoted if the pending challenge changes
+    React.useEffect(() => {
+        setHasVoted(false);
+    }, [agency.challenges?.length]);
+
     const pendingChallenge = agency.challenges?.find(c => c.status === 'PENDING_VOTE' && (!c.votes || !c.votes[currentUser.id]));
-    if (!pendingChallenge) return null;
+    if (!pendingChallenge || hasVoted) return null;
+
+    const handleVote = (vote: 'APPROVE' | 'REJECT') => {
+        setHasVoted(true);
+        onVote(agency.id, pendingChallenge.id, currentUser.id, vote);
+    };
 
     return (
         <Modal isOpen={true} onClose={() => {}} title="⚡ OFFRE DE MISSION SPÉCIALE">
@@ -121,13 +145,13 @@ const ChallengeVotingBooth: React.FC<{agency: Agency, currentUser: Student, onVo
                     </p>
                     <div className="grid grid-cols-2 gap-4">
                         <button 
-                            onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'REJECT')}
+                            onClick={() => handleVote('REJECT')}
                             className="py-4 bg-white border-2 border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 font-bold rounded-xl transition-all"
                         >
                             Refuser l'offre
                         </button>
                         <button 
-                            onClick={() => onVote(agency.id, pendingChallenge.id, currentUser.id, 'APPROVE')}
+                            onClick={() => handleVote('APPROVE')}
                             className="py-4 bg-emerald-600 text-white hover:bg-emerald-500 font-bold rounded-xl transition-all shadow-lg shadow-emerald-200 flex flex-col items-center justify-center gap-1"
                         >
                             <span className="flex items-center gap-2"><Check size={18}/> Accepter & Signer</span>
