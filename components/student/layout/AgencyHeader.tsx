@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Agency, BrandColor, Student } from '../../../types';
 import { Settings, Wallet, Landmark, HelpCircle, Shield, Crown, Sparkles, Star, History } from 'lucide-react';
-import { GAME_RULES, calculateVECap, calculateMarketVE } from '../../../constants';
+import { GAME_RULES, HOLDING_RULES, calculateVECap, calculateMarketVE } from '../../../constants';
 
 interface AgencyHeaderProps {
     agency: Agency;
@@ -26,12 +26,46 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
     onOpenFinance
 }) => {
     
-    // Calculs financiers pour l'affichage
-    const rawSalary = agency.members.reduce((acc, member) => acc + (member.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
-    const weeklyCharges = rawSalary * (1 + (agency.weeklyTax || 0)) + GAME_RULES.AGENCY_RENT;
-    const veRevenue = agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER;
-    const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + (agency.weeklyRevenueModifier || 0);
-    const netWeekly = weeklyRevenue - weeklyCharges;
+    // Calculs financiers pour l'affichage (Synchronisés avec useFinanceLogic)
+    const isHolding = agency.type === 'HOLDING';
+    
+    // 1. REVENUS
+    let multiplier = GAME_RULES.REVENUE_VE_MULTIPLIER; // 30
+    if (isHolding) {
+        const history = agency.ve_history || [];
+        if (history.length >= 2) {
+            const growth = history[history.length - 1].value - history[history.length - 2].value;
+            if (growth >= 10) multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE; // 70
+            else if (growth >= HOLDING_RULES.GROWTH_TARGET) multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD; // 50
+            else multiplier = 30; // Pénalité
+        } else {
+            multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD; // 50
+        }
+    }
+    const veRevenue = agency.ve_current * multiplier;
+    const weeklyRevenue = veRevenue + (agency.weeklyRevenueModifier || 0) + GAME_RULES.REVENUE_BASE;
+
+    // 2. CHARGES
+    const rent = GAME_RULES.AGENCY_RENT;
+    const totalSalaries = agency.members.reduce((acc, member) => {
+        const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+        return acc + Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+    }, 0);
+    const weeklyCharges = rent + totalSalaries;
+
+    // 3. DIVIDENDES (Si Holding)
+    let dividends = 0;
+    if (isHolding && agency.seniorityMap) {
+        const seniorMembers = agency.members.filter(m => agency.seniorityMap?.[m.id] === 'SENIOR');
+        if (seniorMembers.length > 0) {
+            let dividendRate = HOLDING_RULES.DIVIDEND_RATE_LOW;
+            if (agency.ve_current >= 80) dividendRate = HOLDING_RULES.DIVIDEND_RATE_HIGH;
+            else if (agency.ve_current >= 60) dividendRate = HOLDING_RULES.DIVIDEND_RATE_MID;
+            dividends = Math.floor(weeklyRevenue * dividendRate);
+        }
+    }
+
+    const netWeekly = weeklyRevenue - weeklyCharges - dividends;
 
     // VE Calculations
     const maxVE = calculateVECap(agency);
@@ -39,7 +73,6 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
 
     // --- 100 VE GOD MODE CHECK ---
     const isElite = agency.ve_current >= 100;
-    const isHolding = agency.type === 'HOLDING';
 
     return (
         <div className={`relative mb-8 rounded-b-3xl md:rounded-3xl overflow-hidden min-h-[200px] md:min-h-[240px] shadow-md group transition-all duration-700 ${

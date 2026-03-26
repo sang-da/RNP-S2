@@ -41,10 +41,22 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
     // 4. Revenus Trophées / Bonus
     const badgeRevenue = agency.weeklyRevenueModifier || 0;
 
-    // 5. Total
+    // 5. Dividendes (Si Holding)
+    let dividends = 0;
+    if (agency.type === 'HOLDING' && agency.seniorityMap) {
+        const seniorMembers = agency.members.filter(m => agency.seniorityMap?.[m.id] === 'SENIOR');
+        if (seniorMembers.length > 0) {
+            let dividendRate = HOLDING_RULES.DIVIDEND_RATE_LOW;
+            if (agency.ve_current >= 80) dividendRate = HOLDING_RULES.DIVIDEND_RATE_HIGH;
+            else if (agency.ve_current >= 60) dividendRate = HOLDING_RULES.DIVIDEND_RATE_MID;
+            dividends = Math.floor((veRevenue + badgeRevenue + GAME_RULES.REVENUE_BASE) * dividendRate);
+        }
+    }
+
+    // 6. Total
     const weeklyRevenue = GAME_RULES.REVENUE_BASE + veRevenue + badgeRevenue;
-    const weeklyCharges = rawSalary + rent; // Note: on ignore weeklyTax ici pour simplifier l'affichage de base, ou on l'ajoute si besoin
-    const netWeekly = weeklyRevenue - weeklyCharges;
+    const weeklyCharges = rawSalary + rent; 
+    const netWeekly = weeklyRevenue - weeklyCharges - dividends;
 
     // Mascotte
     const getMascot = () => {
@@ -100,6 +112,15 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
                                             <span className="font-medium">Bonus Trophées / Événements</span>
                                         </div>
                                         <span className="font-bold">+{badgeRevenue.toFixed(0)}</span>
+                                    </div>
+                                )}
+                                {dividends > 0 && (
+                                    <div className="flex items-center justify-between text-red-600 bg-red-50/50 p-2 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <Users size={16} className="text-red-400" />
+                                            <span className="font-medium">Dividendes Seniors</span>
+                                        </div>
+                                        <span className="font-bold">-{dividends.toFixed(0)}</span>
                                     </div>
                                 )}
                             </div>
