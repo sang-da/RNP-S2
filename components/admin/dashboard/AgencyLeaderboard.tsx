@@ -2,6 +2,7 @@
 import React from 'react';
 import { Agency } from '../../../types';
 import { Trophy, TrendingDown, ArrowRight } from 'lucide-react';
+import { calculateMarketVE } from '../../../constants';
 
 interface AgencyLeaderboardProps {
     activeAgencies: Agency[];
@@ -11,7 +12,7 @@ interface AgencyLeaderboardProps {
 
 export const AgencyLeaderboard: React.FC<AgencyLeaderboardProps> = ({ activeAgencies, onSelectAgency, onNavigate }) => {
     
-    const leaderboard = [...activeAgencies].sort((a,b) => b.ve_current - a.ve_current);
+    const leaderboard = [...activeAgencies].sort((a,b) => calculateMarketVE(b) - calculateMarketVE(a));
     const top3 = leaderboard.slice(0, 3);
     const flop3 = [...leaderboard].reverse().slice(0, 3);
 

@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { Agency } from '../types';
 import { MarketGraph } from './MarketGraph';
-import { TrendingUp, TrendingDown, Wallet, Users, X, Activity, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Users, X, Activity, DollarSign, Sparkles, Loader2 } from 'lucide-react';
 import { MASCOTS, GAME_RULES, HOLDING_RULES, calculateMarketVE, calculateVECap } from '../constants';
 import { Modal } from './Modal';
+import { askGroq } from '../services/groqService';
 
 interface AdminMarketProps {
     agencies: Agency[];
@@ -12,6 +13,46 @@ interface AdminMarketProps {
 
 export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
     const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+    const [aiRecap, setAiRecap] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const generateRecap = async (agency: Agency) => {
+        setIsGenerating(true);
+        setAiRecap(null);
+        try {
+            const projectData = {
+                name: agency.name,
+                problem: agency.projectDef.problem,
+                target: agency.projectDef.target,
+                location: agency.projectDef.location,
+                gesture: agency.projectDef.gesture,
+                theme: agency.projectDef.theme,
+                context: agency.projectDef.context,
+                direction: agency.projectDef.direction,
+                progress: Object.entries(agency.progress).map(([week, data]) => ({
+                    week,
+                    deliverables: data.deliverables.map(d => ({ name: d.name, status: d.status }))
+                }))
+            };
+
+            const prompt = `Résume en 2-3 phrases l'essence du projet de cette agence, ses points forts et sa progression globale. Sois synthétique et professionnel.`;
+            const recap = await askGroq(prompt, projectData, "Tu es un consultant expert en stratégie d'agence.");
+            setAiRecap(recap);
+        } catch (error) {
+            console.error("AI Recap failed:", error);
+            setAiRecap("Impossible de générer le récapitulatif pour le moment.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    React.useEffect(() => {
+        if (selectedAgency) {
+            generateRecap(selectedAgency);
+        } else {
+            setAiRecap(null);
+        }
+    }, [selectedAgency?.id]);
 
     const getMascot = (budget: number) => {
         if (budget <= 0) return MASCOTS.MARKET_POOR;
@@ -87,7 +128,7 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                 <Activity size={20}/> Cotations & Finances
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {agencies.filter(a => a.id !== 'unassigned').sort((a,b) => b.ve_current - a.ve_current).map((agency, i) => {
+                {agencies.filter(a => a.id !== 'unassigned').sort((a,b) => calculateMarketVE(b) - calculateMarketVE(a)).map((agency, i) => {
                     const health = getFinancialHealth(agency);
                     return (
                         <div 
@@ -173,6 +214,26 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                                     <div className={`p-4 rounded-xl border text-center ${selectedAgency.budget_real < 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
                                         <p className={`text-xs font-bold uppercase mb-1 ${selectedAgency.budget_real < 0 ? 'text-red-400' : 'text-emerald-400'}`}>Trésorerie</p>
                                         <p className={`text-4xl font-black ${selectedAgency.budget_real < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{selectedAgency.budget_real} px</p>
+                                    </div>
+
+                                    {/* AI PROJECT RECAP */}
+                                    <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 relative overflow-hidden">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Sparkles size={18} className="text-indigo-600" />
+                                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-wide">Analyse du Projet (IA)</h4>
+                                        </div>
+                                        {isGenerating ? (
+                                            <div className="flex items-center gap-3 text-slate-400 text-sm animate-pulse">
+                                                <Loader2 size={16} className="animate-spin" />
+                                                Génération du récapitulatif...
+                                            </div>
+                                        ) : aiRecap ? (
+                                            <p className="text-sm text-slate-700 leading-relaxed italic">
+                                                "{aiRecap}"
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-slate-400 italic">Aucune donnée de projet disponible.</p>
+                                        )}
                                     </div>
 
                                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

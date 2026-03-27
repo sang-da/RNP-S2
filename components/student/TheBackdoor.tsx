@@ -4,7 +4,7 @@ import { Agency, Student } from '../../types';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
 import { Clock } from 'lucide-react';
-import { BLACK_MARKET_ITEMS, GAME_RULES } from '../../constants';
+import { BLACK_MARKET_ITEMS, GAME_RULES, calculateMarketVE } from '../../constants';
 
 interface TheBackdoorProps {
     agency: Agency;
@@ -175,7 +175,9 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                     onChange={(e) => setTargetId(e.target.value)}
                 >
                     <option value="">-- SÉLECTIONNER CIBLE --</option>
-                    {rivalAgencies.map(a => <option key={a.id} value={a.id}>{a.name} (VE: {a.ve_current})</option>)}
+                    {rivalAgencies.sort((a,b) => calculateMarketVE(b) - calculateMarketVE(a)).map(a => (
+                        <option key={a.id} value={a.id}>{a.name} (VE Marché: {calculateMarketVE(a)})</option>
+                    ))}
                 </select>
             );
         }
