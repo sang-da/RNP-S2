@@ -8,7 +8,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { SoloPanel } from './team/SoloPanel';
 import { doc, setDoc, db } from '../../services/firebase'; // Direct Write for Reviews
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
 import { transcribeAudioWithGroq, askGroq } from '../../services/groqService';
 
@@ -288,32 +287,48 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                         </div>
                     </div>
 
-                    {/* RADAR CHART (PRIVATE) */}
+                    {/* LOLLIPOP BARS (PRIVATE) */}
                     {selectedMember.id === currentUser?.id && radarData.length > 0 && (
-                        <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                        <div className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 opacity-5">
-                                <TrendingUp size={100} />
+                                <TrendingUp size={80} />
                             </div>
-                            <h5 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2 relative z-10">
+                            <h5 className="text-sm font-bold text-slate-700 mb-5 flex items-center gap-2 relative z-10">
                                 <TrendingUp size={16} className="text-indigo-500"/> Analyse 360° (Privé)
                             </h5>
-                            <div className="h-[200px] w-full relative z-10">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                                        <PolarGrid stroke="#e2e8f0" />
-                                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
-                                        <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />
-                                        <Radar
-                                            name="Moyenne"
-                                            dataKey="A"
-                                            stroke="#4f46e5"
-                                            fill="#6366f1"
-                                            fillOpacity={0.3}
-                                        />
-                                    </RadarChart>
-                                </ResponsiveContainer>
+                            
+                            <div className="space-y-5 relative z-10">
+                                {radarData.map((item, idx) => {
+                                    const colors = [
+                                        { bar: 'bg-indigo-100', dot: 'bg-indigo-500', text: 'text-indigo-600' },
+                                        { bar: 'bg-emerald-100', dot: 'bg-emerald-500', text: 'text-emerald-600' },
+                                        { bar: 'bg-amber-100', dot: 'bg-amber-500', text: 'text-amber-600' }
+                                    ];
+                                    const color = colors[idx % colors.length];
+                                    const percentage = (item.A / 5) * 100;
+
+                                    return (
+                                        <div key={item.subject} className="space-y-1.5">
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                <span>{item.subject}</span>
+                                                <span className={color.text}>{item.A} / 5</span>
+                                            </div>
+                                            <div className="relative h-1.5 w-full bg-slate-50 rounded-full overflow-visible">
+                                                <div 
+                                                    className={`absolute top-0 left-0 h-full rounded-full ${color.bar} transition-all duration-1000`}
+                                                    style={{ width: `${percentage}%` }}
+                                                />
+                                                <div 
+                                                    className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow-sm ${color.dot} transition-all duration-1000`}
+                                                    style={{ left: `calc(${percentage}% - 6px)` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            <p className="text-[10px] text-center text-slate-400 mt-2 italic relative z-10">
+
+                            <p className="text-[10px] text-center text-slate-400 mt-6 italic relative z-10">
                                 Basé sur les évaluations anonymes de vos collègues
                             </p>
                         </div>
