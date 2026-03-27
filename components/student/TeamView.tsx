@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save, ShoppingBag } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
@@ -187,8 +187,44 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
 
         {showSalaryInfo && (
             <Modal isOpen={true} onClose={() => setShowSalaryInfo(false)} title="Règles Salariales">
-               {/* Contenu identique... */}
-               <button onClick={() => setShowSalaryInfo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Compris</button>
+                <div className="space-y-6 py-4">
+                    <section>
+                        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
+                            <Coins className="w-5 h-5 text-yellow-500" />
+                            Revenus (PiXi)
+                        </h3>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
+                            <p>• <span className="font-bold text-slate-900">Salaire de base</span> : Votre Score Individuel × {GAME_RULES.SALARY_MULTIPLIER}.</p>
+                            <p>• <span className="font-bold text-slate-900">Plafond Individuel</span> : Le salaire est capé à <span className="text-emerald-600 font-bold">{GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi</span>.</p>
+                            <p className="text-xs italic text-slate-400">Note : L'excédent au-delà du plafond est automatiquement réinjecté dans le budget de l'agence pour couvrir les frais de structure.</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
+                            <TrendingUp className="w-5 h-5 text-indigo-500" />
+                            Performance (VE)
+                        </h3>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
+                            <p>• <span className="font-bold text-slate-900">Expertise</span> : Votre score contribue à la croissance de la VE de l'agence.</p>
+                            <p>• <span className="font-bold text-slate-900">Limites collectives</span> : Le plafond de VE de l'agence dépend de sa taille (60 VE pour 1 membre, 80 VE pour 2-3, 100 VE pour 4+).</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
+                            <ShoppingBag className="w-5 h-5 text-red-500" />
+                            Dépenses & Taxes
+                        </h3>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
+                            <p>• <span className="font-bold text-slate-900">Coût de la vie</span> : <span className="text-red-600 font-bold">-{GAME_RULES.COST_OF_LIVING} PiXi</span> prélevés automatiquement chaque semaine.</p>
+                            <p>• <span className="font-bold text-slate-900">Malus de pauvreté</span> : Si votre solde est négatif, vous subissez un malus de <span className="text-red-600 font-bold">-{GAME_RULES.POVERTY_SCORE_PENALTY} points</span> sur votre score.</p>
+                        </div>
+                    </section>
+                </div>
+                <button onClick={() => setShowSalaryInfo(false)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors">
+                    J'ai compris
+                </button>
             </Modal>
         )}
 
