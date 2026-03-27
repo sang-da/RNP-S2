@@ -48,7 +48,7 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
     // 2. CHARGES
     const rent = GAME_RULES.AGENCY_RENT;
     const totalSalaries = agency.members.reduce((acc, member) => {
-        const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+        const rawSalary = Math.round(member.individualScore * GAME_RULES.SALARY_MULTIPLIER);
         return acc + Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
     }, 0);
     const weeklyCharges = rent + totalSalaries;
@@ -182,7 +182,7 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                                 <Wallet size={12}/> Mon Solde
                             </span>
                             <div className="text-lg font-bold text-white flex items-center md:justify-end gap-2">
-                                <span className={`font-mono ${myMemberProfile.wallet && myMemberProfile.wallet < 0 ? 'text-red-400' : 'text-yellow-400'}`}>{myMemberProfile.wallet || 0} PiXi</span>
+                                <span className={`font-mono ${myMemberProfile.wallet && myMemberProfile.wallet < 0 ? 'text-red-400' : 'text-yellow-400'}`}>{(myMemberProfile.wallet || 0).toFixed(0)} PiXi</span>
                             </div>
                         </div>
                     )}

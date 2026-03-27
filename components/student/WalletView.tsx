@@ -48,7 +48,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
         if(!targetId || val <= 0) return;
         
         const targetStudent = allStudents.find(s => s.id === targetId);
-        const remaining = walletBalance - val;
+        const remaining = Math.round(walletBalance - val);
 
         const confirmed = await confirm({
             title: "Confirmer le virement",
@@ -76,8 +76,8 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
         const currentTax = totalTaxDue - previousTaxPaid;
         const netReceived = val - currentTax;
         
-        const newAgencyBudget = agency.budget_real + netReceived;
-        const remaining = walletBalance - val;
+        const newAgencyBudget = Math.round(agency.budget_real + netReceived);
+        const remaining = Math.round(walletBalance - val);
 
         const confirmed = await confirm({
             title: "Confirmer l'Investissement",
@@ -96,7 +96,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
         const pts = Number(scoreToBuy);
         if(pts <= 0) return;
         const cost = pts * 200;
-        const remaining = walletBalance - cost;
+        const remaining = Math.round(walletBalance - cost);
 
         const confirmed = await confirm({
             title: "Confirmer l'Achat de Formation",
@@ -197,7 +197,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                         <div className="absolute top-0 right-0 p-20 bg-white/5 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
                         <div className="relative z-10 text-center md:text-left mb-4 md:mb-0">
                             <p className={`text-sm font-bold uppercase mb-1 tracking-widest ${isPrecarious ? 'text-red-200' : 'text-indigo-200'}`}>Mon Solde Courant</p>
-                            <p className="text-5xl font-display font-bold text-yellow-400">{walletBalance} <span className="text-2xl text-yellow-200">PiXi</span></p>
+                            <p className="text-5xl font-display font-bold text-yellow-400">{walletBalance.toFixed(0)} <span className="text-2xl text-yellow-200">PiXi</span></p>
                             {isPrecarious && <p className="text-xs font-bold mt-2 bg-red-800 px-2 py-1 rounded inline-block">⚠️ STATUT PRÉCAIRE : Malus Score Actif</p>}
                         </div>
                         <div className="relative z-10 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/20 text-right">

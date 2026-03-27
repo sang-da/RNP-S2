@@ -237,7 +237,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
       );
   }
 
-  const potentialTargets = allAgencies.filter(a => a.id !== 'unassigned' && a.id !== agency.id && a.ve_current < GAME_RULES.MERGER_VE_THRESHOLD && a.classId === agency.classId);
+  const potentialTargets = allAgencies.filter(a => a.id !== 'unassigned' && a.id !== agency.id && a.classId === agency.classId);
 
   return (
     <div className="animate-in fade-in space-y-8">
@@ -295,8 +295,8 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
 
                 <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl">
                     <p className="text-sm text-indigo-800 mb-4">
-                        Vous pouvez proposer de racheter une agence en difficulté (VE &lt; {GAME_RULES.MERGER_VE_THRESHOLD}). 
-                        <br/><strong>Condition :</strong> Vous absorbez leurs membres (Max {GAME_RULES.MERGER_MAX_MEMBERS} total) et leurs dettes.
+                        Vous pouvez proposer de fusionner avec une autre agence pour créer une Holding.
+                        <br/><strong>Condition :</strong> Vous absorbez leurs membres (Max {GAME_RULES.MERGER_MAX_MEMBERS} total), leurs actifs/dettes, <strong>et leur VE</strong>.
                     </p>
                     
                     {potentialTargets.length > 0 ? (
@@ -306,7 +306,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                                     <div>
                                         <h4 className="font-bold text-slate-900">{target.name}</h4>
                                         <div className="flex gap-2 text-xs mt-1">
-                                            <span className="text-red-500 font-bold">VE: {target.ve_current}</span>
+                                            <span className={`font-bold ${target.ve_current >= 40 ? 'text-emerald-500' : 'text-red-500'}`}>VE: {target.ve_current}</span>
                                             <span className="text-slate-500">{target.members.length} membres</span>
                                         </div>
                                     </div>
@@ -314,14 +314,14 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                                         onClick={() => handleProposeMerger(target.id)}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors"
                                     >
-                                        Proposer Rachat
+                                        Proposer Fusion
                                     </button>
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <div className="text-center py-4 text-slate-400 text-sm italic">
-                            Aucune cible potentielle (VE &lt; 40) disponible sur le marché.
+                            Aucune cible potentielle disponible sur le marché.
                         </div>
                     )}
                 </div>

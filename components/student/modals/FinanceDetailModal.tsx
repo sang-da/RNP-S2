@@ -16,7 +16,7 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
     
     // 1. Masse Salariale
     const rawSalary = agency.members.reduce((acc, member) => {
-        const salary = Math.min(member.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+        const salary = Math.min(Math.round(member.individualScore * GAME_RULES.SALARY_MULTIPLIER), GAME_RULES.SALARY_CAP_FOR_STUDENT);
         return acc + salary;
     }, 0);
 
@@ -150,7 +150,7 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
                                     </div>
                                     <div className="pl-6 space-y-1 border-l-2 border-slate-200 ml-2">
                                         {agency.members.map(member => {
-                                            const salary = Math.min(member.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+                                            const salary = Math.min(Math.round(member.individualScore * GAME_RULES.SALARY_MULTIPLIER), GAME_RULES.SALARY_CAP_FOR_STUDENT);
                                             return (
                                                 <div key={member.id} className="flex justify-between text-xs text-slate-500">
                                                     <span>{member.name} (Score: {member.individualScore})</span>

@@ -153,7 +153,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Score</span>
                                 </div>
                                 <div className="flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-100">
-                                    <Wallet size={10}/> {member.wallet || 0}
+                                    <Wallet size={10}/> {(member.wallet || 0).toFixed(0)}
                                 </div>
                             </div>
                         </div>
@@ -248,7 +248,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                         </div>
                         <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                             <p className="text-[10px] font-bold text-emerald-400 uppercase mb-1">Fortune</p>
-                            <p className="text-2xl font-black text-emerald-600">{selectedMember.wallet} <span className="text-xs">PiXi</span></p>
+                            <p className="text-2xl font-black text-emerald-600">{(selectedMember.wallet || 0).toFixed(0)} <span className="text-xs">PiXi</span></p>
                         </div>
                     </div>
 
@@ -301,10 +301,10 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                     <div className="p-4 bg-slate-900 rounded-2xl text-white">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-xs font-bold opacity-60 uppercase tracking-widest">Salaire Hebdo</span>
-                            <span className="text-lg font-black">{selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi</span>
+                            <span className="text-lg font-black">{Math.min(selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT)} PiXi</span>
                         </div>
                         <p className="text-[10px] opacity-50 leading-relaxed">
-                            Le salaire est calculé sur la base du score individuel. Maintenez un score élevé pour maximiser vos revenus.
+                            Le salaire est calculé sur la base du score individuel (Score x {GAME_RULES.SALARY_MULTIPLIER}). Le salaire maximum est plafonné à {GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi par semaine.
                         </p>
                     </div>
 

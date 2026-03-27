@@ -152,7 +152,7 @@ export const useFinanceLogic = (
                     }
 
                     // B. Calcul Salaire
-                    const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER; 
+                    const rawSalary = Math.round(member.individualScore * GAME_RULES.SALARY_MULTIPLIER); 
                     const grossSalary = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                     
                     // C. Saisie sur salaire pour Dette (Garnishment)

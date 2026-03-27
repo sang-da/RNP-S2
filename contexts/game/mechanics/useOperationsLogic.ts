@@ -202,6 +202,10 @@ export const useOperationsLogic = (
               const source = sourceDoc.data() as Agency;
               const target = targetDoc.data() as Agency;
 
+              if (source.members.length + target.members.length > GAME_RULES.MERGER_MAX_MEMBERS) {
+                  throw new Error(`Le nombre total de membres ne peut pas dépasser ${GAME_RULES.MERGER_MAX_MEMBERS}.`);
+              }
+
               const request = {
                   id: `merger-${Date.now()}`,
                   requesterAgencyId: source.id,
@@ -264,15 +268,22 @@ export const useOperationsLogic = (
                   return;
               }
 
+              if (source.members.length + target.members.length > GAME_RULES.MERGER_MAX_MEMBERS) {
+                  throw new Error(`Le nombre total de membres ne peut pas dépasser ${GAME_RULES.MERGER_MAX_MEMBERS}.`);
+              }
+
               const combinedMembers = [...source.members, ...target.members];
               const combinedBudget = source.budget_real + target.budget_real; 
+              const combinedVE = source.ve_current + target.ve_current;
               
               transaction.update(sourceRef, {
                   members: combinedMembers,
                   budget_real: combinedBudget,
+                  ve_current: combinedVE,
+                  type: 'HOLDING',
                   eventLog: [...source.eventLog, {
                       id: `merger-success-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
-                      label: 'Fusion Complétée', deltaVE: 0, description: `Absorption de ${target.name}.`
+                      label: 'Fusion Complétée', deltaVE: target.ve_current, description: `Absorption de ${target.name}. L'agence devient une Holding.`
                   }]
               });
 

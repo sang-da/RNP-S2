@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Agency } from '../types';
 import { MarketGraph } from './MarketGraph';
 import { TrendingUp, TrendingDown, Wallet, Users, X, Activity, DollarSign } from 'lucide-react';
-import { MASCOTS, GAME_RULES } from '../constants';
+import { MASCOTS, GAME_RULES, HOLDING_RULES } from '../constants';
 import { Modal } from './Modal';
 
 interface AdminMarketProps {
@@ -21,13 +21,44 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
 
     const getFinancialHealth = (agency: Agency) => {
         // Calculs à la volée pour l'affichage
-        const totalSalary = agency.members.reduce((acc, m) => acc + (m.individualScore * GAME_RULES.SALARY_MULTIPLIER), 0);
+        const totalSalary = agency.members.reduce((acc, m) => {
+            const rawSalary = Math.round(m.individualScore * GAME_RULES.SALARY_MULTIPLIER);
+            return acc + Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
+        }, 0);
         const rent = GAME_RULES.AGENCY_RENT;
         const totalCharges = totalSalary + rent;
-        const revenue = (agency.ve_current * GAME_RULES.REVENUE_VE_MULTIPLIER) + (agency.weeklyRevenueModifier || 0);
-        const netFlow = revenue - totalCharges;
         
-        return { totalSalary, rent, totalCharges, revenue, netFlow };
+        let veMultiplier = GAME_RULES.REVENUE_VE_MULTIPLIER;
+        if (agency.type === 'HOLDING') {
+            const history = agency.ve_history || [];
+            if (history.length >= 2) {
+                const growth = history[history.length - 1].value - history[history.length - 2].value;
+                if (growth >= 10) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE;
+                else if (growth >= HOLDING_RULES.GROWTH_TARGET) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+                else veMultiplier = 30;
+            } else {
+                veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+            }
+        }
+        
+        const veRevenue = agency.ve_current * veMultiplier;
+        const badgeRevenue = agency.weeklyRevenueModifier || 0;
+        const revenue = veRevenue + badgeRevenue;
+        
+        let dividends = 0;
+        if (agency.type === 'HOLDING' && agency.seniorityMap) {
+            const seniorMembers = agency.members.filter(m => agency.seniorityMap?.[m.id] === 'SENIOR');
+            if (seniorMembers.length > 0) {
+                let dividendRate = HOLDING_RULES.DIVIDEND_RATE_LOW;
+                if (agency.ve_current >= 80) dividendRate = HOLDING_RULES.DIVIDEND_RATE_HIGH;
+                else if (agency.ve_current >= 60) dividendRate = HOLDING_RULES.DIVIDEND_RATE_MID;
+                dividends = Math.floor((veRevenue + badgeRevenue + GAME_RULES.REVENUE_BASE) * dividendRate);
+            }
+        }
+        
+        const netFlow = revenue - totalCharges - dividends;
+        
+        return { totalSalary, rent, totalCharges, revenue, netFlow, dividends };
     };
 
     return (
@@ -136,8 +167,8 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                                         </div>
                                         <div className="p-4 space-y-2 text-sm">
                                             <div className="flex justify-between text-emerald-600">
-                                                <span className="flex items-center gap-2"><TrendingUp size={14}/> Revenus (VE x 30)</span>
-                                                <span className="font-bold">+{h.revenue}</span>
+                                                <span className="flex items-center gap-2"><TrendingUp size={14}/> Revenus Estimés</span>
+                                                <span className="font-bold">+{h.revenue.toFixed(0)}</span>
                                             </div>
                                             <div className="flex justify-between text-slate-600">
                                                 <span className="flex items-center gap-2"><Users size={14}/> Masse Salariale</span>
@@ -147,10 +178,16 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                                                 <span className="flex items-center gap-2"><DollarSign size={14}/> Loyer Studio</span>
                                                 <span>-{h.rent}</span>
                                             </div>
+                                            {h.dividends > 0 && (
+                                                <div className="flex justify-between text-red-600">
+                                                    <span className="flex items-center gap-2"><Users size={14}/> Dividendes Seniors</span>
+                                                    <span>-{h.dividends}</span>
+                                                </div>
+                                            )}
                                             <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between font-black text-base">
                                                 <span>Flux Net</span>
                                                 <span className={h.netFlow >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                                                    {h.netFlow > 0 ? '+' : ''}{h.netFlow} PiXi
+                                                    {h.netFlow > 0 ? '+' : ''}{h.netFlow.toFixed(0)} PiXi
                                                 </span>
                                             </div>
                                         </div>
