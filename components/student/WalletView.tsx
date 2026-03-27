@@ -152,7 +152,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                     </div>
                     <div>
                         <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest">Trésorerie de l'Entreprise</p>
-                        <p className="text-3xl font-display font-bold text-white">{agency.budget_real} <span className="text-sm text-slate-500">PiXi</span></p>
+                        <p className="text-3xl font-display font-bold text-white">{Math.round(agency.budget_real)} <span className="text-sm text-slate-500">PiXi</span></p>
                     </div>
                 </div>
                 <div className="flex flex-col items-center md:items-end">
@@ -202,7 +202,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                         </div>
                         <div className="relative z-10 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/20 text-right">
                             <p className="text-xs opacity-70 mb-1">Salaire Hebdo</p>
-                            <p className="font-bold text-white text-lg">+{student.individualScore * GAME_RULES.SALARY_MULTIPLIER} PiXi</p>
+                            <p className="font-bold text-white text-lg">+{Math.round(student.individualScore * GAME_RULES.SALARY_MULTIPLIER)} PiXi</p>
                             <div className="w-full h-px bg-white/20 my-2"></div>
                             <p className="text-xs opacity-70 mb-1">Coût Vie Hebdo</p>
                             <p className="font-bold text-red-300 text-lg">-{GAME_RULES.COST_OF_LIVING} PiXi</p>
@@ -289,7 +289,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm inline-block min-w-[200px]">
                                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Solde Épargne</span>
-                                <span className="text-3xl font-display font-bold text-emerald-600">{savingsBalance} <span className="text-sm text-emerald-300">PiXi</span></span>
+                                <span className="text-3xl font-display font-bold text-emerald-600">{Math.round(savingsBalance)} <span className="text-sm text-emerald-300">PiXi</span></span>
                             </div>
                         </div>
                         <div className="w-full md:w-64 bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm space-y-3">
@@ -327,13 +327,13 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                                     <span className="block text-[10px] font-bold text-slate-400 uppercase">Dette Actuelle</span>
                                     <span className={`text-2xl font-display font-bold ${currentDebt > 0 ? 'text-red-500' : 'text-slate-900'}`}>
-                                        {currentDebt} PiXi
+                                        {Math.round(currentDebt)} PiXi
                                     </span>
                                 </div>
                                 <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                                     <span className="block text-[10px] font-bold text-slate-400 uppercase">Capacité d'Emprunt</span>
                                     <span className="text-2xl font-display font-bold text-indigo-600">
-                                        {loanCapacity} PiXi
+                                        {Math.round(loanCapacity)} PiXi
                                     </span>
                                 </div>
                             </div>

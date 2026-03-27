@@ -1,7 +1,7 @@
 
 import { writeBatch, doc, db, arrayUnion } from '../../../services/firebase';
 import { Agency, GameEvent, PeerReview, CareerStep, Badge, WeekModule } from '../../../types';
-import { calculateVECap, BADGE_DEFINITIONS, HOLDING_RULES } from '../../../constants';
+import { calculateVECap, calculateMarketVE, applyVEShield, BADGE_DEFINITIONS, HOLDING_RULES } from '../../../constants';
 
 export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], weeks: { [key: string]: WeekModule }, toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
@@ -232,28 +232,11 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             }
 
             const veCap = calculateVECap(agency);
+            const currentMarketVE = calculateMarketVE(agency);
             
-            // LOGIQUE OVERCAP :
-            // 1. On calcule la VE potentielle
-            let potentialVE = agency.ve_current + veAdjustment;
-            let finalVE = potentialVE;
-
-            // 2. Si on est en dessous du Cap, on applique le Cap (croissance organique bloquée)
-            if (agency.ve_current < veCap) {
-                finalVE = Math.min(potentialVE, veCap);
-            } 
-            // 3. Si on est DÉJÀ au dessus du Cap (grâce à des dividendes/bonus)
-            else {
-                // Si l'ajustement est positif (gain organique), on ne l'ajoute pas (le plafond bloque la croissance purement financière)
-                // MAIS on ne rabote pas le surplus existant.
-                if (veAdjustment > 0) {
-                    finalVE = agency.ve_current; // On garde le surplus, mais on ne monte pas plus via le budget
-                } 
-                // Si l'ajustement est négatif (dette), on perd de la VE normalement (le buffer sert à ça !)
-                else {
-                    finalVE = Math.max(0, potentialVE); 
-                }
-            }
+            // LOGIQUE BOUCLIER (SHIELD) :
+            // La VE Marché sert de réserve. Tant qu'elle est au-dessus du Cap, la VE actuelle reste au Cap.
+            const finalVE = applyVEShield(agency.ve_current, veAdjustment, currentMarketVE, veCap);
 
             // UPDATE VE HISTORY (Pour calcul croissance Holding)
             const newHistory = [...(agency.ve_history || []), { week: currentWeekId, value: finalVE }];

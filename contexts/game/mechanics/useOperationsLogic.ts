@@ -1,7 +1,7 @@
 
 import { doc, db, runTransaction } from '../../../services/firebase';
 import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
-import { GAME_RULES, HOLDING_RULES } from '../../../constants';
+import { GAME_RULES, HOLDING_RULES, calculateMarketVE, calculateVECap, applyVEShield } from '../../../constants';
 import { notificationService } from '../../../services/notificationService';
 
 export const useOperationsLogic = (
@@ -78,8 +78,12 @@ export const useOperationsLogic = (
                       description: "Hausse inexpliquée de la cotation. (Pump & Dump phase 1)"
                   };
                   
+                  const targetMarketVE = calculateMarketVE(target);
+                  const targetVECap = calculateVECap(target);
+                  const finalVE = applyVEShield(target.ve_current, 5, targetMarketVE, targetVECap);
+
                   transaction.update(targetRef, {
-                      ve_current: Math.min(100, target.ve_current + 5),
+                      ve_current: finalVE,
                       eventLog: [...target.eventLog, immediateEvent],
                       pendingEffects: [...(target.pendingEffects || []), { type: 'PUMP_DUMP_CRASH', amount: -12, label: 'Crash Boursier (Suite Pump&Dump)' }]
                   });
@@ -104,9 +108,13 @@ export const useOperationsLogic = (
                                   type: 'VE_DELTA', label: 'Glitch Exploité', deltaVE: 4, description: "L'administration a accepté le fichier corrompu."
                               };
 
+                              const veCap = calculateVECap(agency);
+                              const marketVE = calculateMarketVE(agency);
+                              const finalVE = applyVEShield(agency.ve_current, 4, marketVE, veCap);
+
                               transaction.update(agencyRef, {
                                   [`progress.${payload.weekId}`]: updatedWeek,
-                                  ve_current: agency.ve_current + 4,
+                                  ve_current: finalVE,
                                   eventLog: [...agency.eventLog, newEvent]
                               });
                               description = "Fichier corrompu accepté. Gain de temps.";
@@ -151,17 +159,25 @@ export const useOperationsLogic = (
 
               if (opType === 'AUDIT_HOSTILE' && target && targetRef) {
                   const isFragile = target.ve_current < 40 || target.budget_real < 0;
+                  const targetMarketVE = calculateMarketVE(target);
+                  const targetVECap = calculateVECap(target);
+                  const finalVE = applyVEShield(target.ve_current, -10, targetMarketVE, targetVECap);
+
                   if (isFragile) {
                       transaction.update(targetRef, { 
-                          ve_current: Math.max(0, target.ve_current - 10),
+                          ve_current: finalVE,
                           eventLog: [...target.eventLog, {
                               id: `audit-hit-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
                               label: 'Audit Hostile Subi', deltaVE: -10, description: "Des failles ont été exposées."
                           }]
                       });
                   } else {
+                      const sourceMarketVE = calculateMarketVE(agency);
+                      const sourceVECap = calculateVECap(agency);
+                      const finalSourceVE = applyVEShield(agency.ve_current, -20, sourceMarketVE, sourceVECap);
+
                       transaction.update(agencyRef, {
-                          ve_current: Math.max(0, agency.ve_current - 20),
+                          ve_current: finalSourceVE,
                           eventLog: [...agency.eventLog, newEvent, {
                               id: `audit-fail-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
                               label: 'Audit Abusif', deltaVE: -20, description: "Attaque ratée sur cible saine."
@@ -274,16 +290,25 @@ export const useOperationsLogic = (
 
               const combinedMembers = [...source.members, ...target.members];
               const combinedBudget = source.budget_real + target.budget_real; 
-              const combinedVE = source.ve_current + target.ve_current;
+              
+              const sourceMarketVE = calculateMarketVE(source);
+              const targetMarketVE = calculateMarketVE(target);
+              const combinedMarketVE = sourceMarketVE + targetMarketVE;
+              
+              // On recalcule le Cap pour la nouvelle taille
+              const newVECap = calculateVECap({ ...source, members: combinedMembers });
+              
+              // On applique le bouclier sur la somme des VE actuelles
+              const finalVE = applyVEShield(source.ve_current + target.ve_current, 0, combinedMarketVE, newVECap);
               
               transaction.update(sourceRef, {
                   members: combinedMembers,
                   budget_real: combinedBudget,
-                  ve_current: combinedVE,
+                  ve_current: finalVE,
                   type: 'HOLDING',
                   eventLog: [...source.eventLog, {
                       id: `merger-success-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'INFO',
-                      label: 'Fusion Complétée', deltaVE: target.ve_current, description: `Absorption de ${target.name}. L'agence devient une Holding.`
+                      label: 'Fusion Complétée', deltaVE: targetMarketVE, description: `Absorption de ${target.name}. L'agence devient une Holding.`
                   }]
               });
 
@@ -508,11 +533,22 @@ export const useOperationsLogic = (
               const newMembers = [...source.members, ...target.members];
               const newBudget = source.budget_real + target.budget_real;
               
+              const sourceMarketVE = calculateMarketVE(source);
+              const targetMarketVE = calculateMarketVE(target);
+              const combinedMarketVE = sourceMarketVE + targetMarketVE;
+              
+              // On recalcule le Cap pour la nouvelle taille
+              const newVECap = calculateVECap({ ...source, members: newMembers });
+              
+              // On applique le bouclier sur la somme des VE actuelles
+              const finalVE = applyVEShield(source.ve_current + target.ve_current, 0, combinedMarketVE, newVECap);
+              
               const buyoutEvent: GameEvent = {
                   id: `buyout-${Date.now()}`,
                   date: new Date().toISOString().split('T')[0],
                   type: 'INFO',
                   label: 'Rachat Vautour',
+                  deltaVE: targetMarketVE,
                   deltaBudgetReal: target.budget_real,
                   description: `Absorption forcée de ${target.name}.`
               };
@@ -520,6 +556,7 @@ export const useOperationsLogic = (
               transaction.update(sourceRef, {
                   members: newMembers,
                   budget_real: newBudget,
+                  ve_current: finalVE,
                   eventLog: [...source.eventLog, buyoutEvent]
               });
               

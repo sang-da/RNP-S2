@@ -64,9 +64,9 @@ export const useFinanceLogic = (
 
             const revenueVE = (agency.ve_current * multiplier);
             const bonuses = agency.weeklyRevenueModifier || 0;
-            const totalRevenue = revenueVE + bonuses + GAME_RULES.REVENUE_BASE;
+            const totalRevenue = Math.round(revenueVE + bonuses + GAME_RULES.REVENUE_BASE);
             
-            currentBudget += totalRevenue;
+            currentBudget = Math.round(currentBudget + totalRevenue);
             logEvents.push({ 
                 id: `fin-rev-${Date.now()}-${agency.id}`, 
                 date: today, 
@@ -89,10 +89,10 @@ export const useFinanceLogic = (
                     const perSenior = Math.floor(totalDividends / seniorMembers.length);
 
                     if (totalDividends > 0) {
-                        currentBudget -= totalDividends;
+                        currentBudget = Math.round(currentBudget - totalDividends);
                         agencyMembers = agencyMembers.map(m => {
                             if (agency.seniorityMap?.[m.id] === 'SENIOR') {
-                                return { ...m, wallet: (m.wallet || 0) + perSenior };
+                                return { ...m, wallet: Math.round((m.wallet || 0) + perSenior) };
                             }
                             return m;
                         });
@@ -133,7 +133,7 @@ export const useFinanceLogic = (
 
                 agencyMembers = agencyMembers.map(m => ({
                     ...m,
-                    wallet: (m.wallet || 0) - sharePerStudent
+                    wallet: Math.round((m.wallet || 0) - sharePerStudent)
                 }));
             }
 
@@ -156,17 +156,17 @@ export const useFinanceLogic = (
                     const grossSalary = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                     
                     // C. Saisie sur salaire pour Dette (Garnishment)
-                    let netSalary = grossSalary;
-                    let currentDebt = member.loanDebt || 0;
+                    let netSalary = Math.round(grossSalary);
+                    let currentDebt = Math.round(member.loanDebt || 0);
                     let debtRepayment = 0;
 
                     if (currentDebt > 0) {
                         // On saisit tout le salaire jusqu'à remboursement total
                         const seizure = Math.min(netSalary, currentDebt);
-                        currentDebt -= seizure;
-                        netSalary -= seizure;
-                        debtRepayment = seizure;
-                        totalGarnishedForCentralBank += seizure;
+                        currentDebt = Math.round(currentDebt - seizure);
+                        netSalary = Math.round(netSalary - seizure);
+                        debtRepayment = Math.round(seizure);
+                        totalGarnishedForCentralBank = Math.round(totalGarnishedForCentralBank + seizure);
                     }
 
                     // D. Calculate Surplus Score for VE Conversion
@@ -176,17 +176,17 @@ export const useFinanceLogic = (
                         totalVeBonusFromTalent += veGain;
                     }
 
-                    actualDisbursed += grossSalary; // L'agence paie le brut, peu importe si l'étudiant rembourse sa dette perso
+                    actualDisbursed = Math.round(actualDisbursed + grossSalary); // L'agence paie le brut, peu importe si l'étudiant rembourse sa dette perso
                     
                     return { 
                         ...member, 
-                        wallet: (member.wallet || 0) + netSalary,
-                        savings: currentSavings,
-                        loanDebt: currentDebt
+                        wallet: Math.round((member.wallet || 0) + netSalary),
+                        savings: Math.round(currentSavings),
+                        loanDebt: Math.round(currentDebt)
                     };
                 });
                 
-                currentBudget -= actualDisbursed;
+                currentBudget = Math.round(currentBudget - actualDisbursed);
                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires & Banque', deltaBudgetReal: -actualDisbursed, description: `Salaires versés. Intérêts épargne crédités. Saisies sur dettes effectuées.` });
             } else {
                 logEvents.push({ id: `fin-pay-${Date.now()}-${agency.id}`, date: today, type: 'PAYROLL', label: 'Salaires Gelés', deltaBudgetReal: 0, description: `Dette active. Pas de salaire.` });
@@ -209,7 +209,7 @@ export const useFinanceLogic = (
             // 5. COST OF LIVING & UNICORN BADGE
             let unicornAwarded = false;
             agencyMembers = agencyMembers.map(member => {
-                let newWallet = (member.wallet || 0) - GAME_RULES.COST_OF_LIVING;
+                let newWallet = Math.round((member.wallet || 0) - GAME_RULES.COST_OF_LIVING);
                 let newScore = member.individualScore;
                 let memberBadges = [...(member.badges || [])];
 
@@ -421,14 +421,14 @@ export const useFinanceLogic = (
             const totalTaxDue = Math.floor(newTotalInjection * GAME_RULES.INJECTION_TAX);
             const previousTaxPaid = Math.floor(previousInjection * GAME_RULES.INJECTION_TAX);
             
-            const currentTax = totalTaxDue - previousTaxPaid;
-            const netInjection = amount - currentTax;
+            const currentTax = Math.round(totalTaxDue - previousTaxPaid);
+            const netInjection = Math.round(amount - currentTax);
 
             const updatedMembers = agencyData.members.map(m => 
                 m.id === studentId 
                 ? { 
                     ...m, 
-                    wallet: (m.wallet || 0) - amount,
+                    wallet: Math.round((m.wallet || 0) - amount),
                     cumulativeInjection: newTotalInjection
                   } 
                 : m
@@ -440,13 +440,13 @@ export const useFinanceLogic = (
                 date: today,
                 type: 'INFO',
                 label: 'Injection Capital (Taxe Cumulative)',
-                deltaBudgetReal: netInjection,
+                deltaBudgetReal: Math.round(netInjection),
                 description: `${student.name} injecte ${amount} PiXi (Taxe ajustée: ${currentTax}).`
             };
 
             transaction.update(agencyRef, { 
                 members: updatedMembers, 
-                budget_real: agencyData.budget_real + netInjection,
+                budget_real: Math.round(agencyData.budget_real + netInjection),
                 eventLog: [...agencyData.eventLog, newEvent] 
             });
         });

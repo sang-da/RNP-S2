@@ -113,7 +113,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {agency.members.map(member => {
-                const salary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                const rawSalary = member.individualScore * GAME_RULES.SALARY_MULTIPLIER;
+                const salary = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                 const isMe = member.id === currentUser?.id;
                 const alreadyReviewed = hasReviewedMemberThisWeek(member.id);
                 
@@ -141,7 +142,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                                         className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-xs font-bold text-red-600 hover:bg-red-100 transition-colors"
                                     >
                                         <Coins size={12} />
-                                        -{salary} PiXi / sem
+                                        -{salary.toFixed(0)} PiXi / sem
                                         <HelpCircle size={10} className="opacity-50"/>
                                     </button>
                                 </div>
@@ -190,34 +191,56 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                     <section>
                         <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
                             <Coins className="w-5 h-5 text-yellow-500" />
-                            Revenus (PiXi)
+                            Revenus & Salaires (PiXi)
                         </h3>
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
-                            <p>• <span className="font-bold text-slate-900">Salaire de base</span> : Votre Score Individuel × {GAME_RULES.SALARY_MULTIPLIER}.</p>
-                            <p>• <span className="font-bold text-slate-900">Plafond Individuel</span> : Le salaire est capé à <span className="text-emerald-600 font-bold">{GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi</span>.</p>
-                            <p className="text-xs italic text-slate-400">Note : L'excédent au-delà du plafond est automatiquement réinjecté dans le budget de l'agence pour couvrir les frais de structure.</p>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 text-sm text-slate-600">
+                            <div>
+                                <p className="font-bold text-slate-900">1. Calcul du Salaire Brut</p>
+                                <p>Votre Score Individuel × {GAME_RULES.SALARY_MULTIPLIER} PiXi.</p>
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-900">2. Plafond de Rémunération</p>
+                                <p>Le salaire est capé à <span className="text-emerald-600 font-bold">{GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi</span>.</p>
+                                <p className="text-[10px] italic text-slate-400 mt-1">L'excédent au-delà du plafond est conservé par l'agence pour ses frais de structure.</p>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200">
+                                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Exemple :</p>
+                                <p className="text-xs">Si score = 80 → 80 × {GAME_RULES.SALARY_MULTIPLIER} = {80 * GAME_RULES.SALARY_MULTIPLIER} PiXi (Capped à {GAME_RULES.SALARY_CAP_FOR_STUDENT}).</p>
+                            </div>
                         </div>
                     </section>
 
                     <section>
                         <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
                             <TrendingUp className="w-5 h-5 text-indigo-500" />
-                            Performance (VE)
+                            Impact sur la Valeur (VE)
                         </h3>
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
-                            <p>• <span className="font-bold text-slate-900">Expertise</span> : Votre score contribue à la croissance de la VE de l'agence.</p>
-                            <p>• <span className="font-bold text-slate-900">Limites collectives</span> : Le plafond de VE de l'agence dépend de sa taille (60 VE pour 1 membre, 80 VE pour 2-3, 100 VE pour 4+).</p>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 text-sm text-slate-600">
+                            <div>
+                                <p className="font-bold text-slate-900">Croissance de l'Agence</p>
+                                <p>Chaque point de score individuel contribue à la <span className="text-indigo-600 font-bold">VE Marché</span> de l'agence.</p>
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-900">Le "Bouclier Marché"</p>
+                                <p>Si votre VE Marché dépasse le plafond de l'agence, elle sert de <span className="text-emerald-600 font-bold">bouclier</span> : vos pertes futures ne feront pas baisser votre VE actuelle tant que vous avez du surplus en réserve.</p>
+                            </div>
                         </div>
                     </section>
 
                     <section>
                         <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-2">
                             <ShoppingBag className="w-5 h-5 text-red-500" />
-                            Dépenses & Taxes
+                            Dépenses & Coût de la Vie
                         </h3>
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm text-slate-600">
-                            <p>• <span className="font-bold text-slate-900">Coût de la vie</span> : <span className="text-red-600 font-bold">-{GAME_RULES.COST_OF_LIVING} PiXi</span> prélevés automatiquement chaque semaine.</p>
-                            <p>• <span className="font-bold text-slate-900">Malus de pauvreté</span> : Si votre solde est négatif, vous subissez un malus de <span className="text-red-600 font-bold">-{GAME_RULES.POVERTY_SCORE_PENALTY} points</span> sur votre score.</p>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 text-sm text-slate-600">
+                            <div>
+                                <p className="font-bold text-slate-900">Taxe de Vie Hebdomadaire</p>
+                                <p><span className="text-red-600 font-bold">-{GAME_RULES.COST_OF_LIVING} PiXi</span> sont prélevés automatiquement sur votre portefeuille chaque semaine.</p>
+                            </div>
+                            <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+                                <p className="text-xs font-bold text-red-700 uppercase mb-1">Attention : Malus de Pauvreté</p>
+                                <p className="text-xs text-red-600">Si votre solde tombe en dessous de 0, vous subissez un malus de <span className="font-bold">-{GAME_RULES.POVERTY_SCORE_PENALTY} points</span> sur votre score la semaine suivante.</p>
+                            </div>
                         </div>
                     </section>
                 </div>
@@ -352,7 +375,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                     <div className="p-4 bg-slate-900 rounded-2xl text-white">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-xs font-bold opacity-60 uppercase tracking-widest">Salaire Hebdo</span>
-                            <span className="text-lg font-black">{Math.min(selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT)} PiXi</span>
+                            <span className="text-lg font-black">{Math.round(Math.min(selectedMember.individualScore * GAME_RULES.SALARY_MULTIPLIER, GAME_RULES.SALARY_CAP_FOR_STUDENT))} PiXi</span>
                         </div>
                         <p className="text-[10px] opacity-50 leading-relaxed">
                             Le salaire est calculé sur la base du score individuel (Score x {GAME_RULES.SALARY_MULTIPLIER}). Le salaire maximum est plafonné à {GAME_RULES.SALARY_CAP_FOR_STUDENT} PiXi par semaine.
