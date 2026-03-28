@@ -252,13 +252,7 @@ export const useOperationsLogic = (
   };
 
   const proposeMerger = async (sourceAgencyId: string, targetAgencyId: string) => {
-      if (role === 'admin') {
-          await executeProposeMerger(sourceAgencyId, targetAgencyId);
-      } else {
-          const source = agencies.find(a => a.id === sourceAgencyId);
-          const studentId = source?.members[0]?.id || 'unknown';
-          await dispatchAction('PROPOSE_MERGER', { sourceAgencyId, targetAgencyId }, studentId, sourceAgencyId);
-      }
+      await executeProposeMerger(sourceAgencyId, targetAgencyId);
   };
 
   const executeFinalizeMerger = async (mergerId: string, targetAgencyId: string, approved: boolean) => {
@@ -330,13 +324,7 @@ export const useOperationsLogic = (
   };
 
   const finalizeMerger = async (mergerId: string, targetAgencyId: string, approved: boolean) => {
-      if (role === 'admin') {
-          await executeFinalizeMerger(mergerId, targetAgencyId, approved);
-      } else {
-          const target = agencies.find(a => a.id === targetAgencyId);
-          const studentId = target?.members[0]?.id || 'unknown';
-          await dispatchAction('FINALIZE_MERGER', { mergerId, targetAgencyId, approved }, studentId, targetAgencyId);
-      }
+      await executeFinalizeMerger(mergerId, targetAgencyId, approved);
   };
 
   const executeSendChallenge = async (targetAgencyId: string, title: string, description: string, rewardVE: number, rewardBudget: number) => {

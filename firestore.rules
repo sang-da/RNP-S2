@@ -69,7 +69,7 @@ service cloud.firestore {
        // Dans ton code actuel, c'est souvent l'Admin ou un batch validé qui crée. 
        // Pour la souplesse en cas de bug "Erreur Sauvegarde", on autorise create si authentifié, l'UI fera le tri.
        allow create: if isAuthenticated();
-       allow delete: if isAdmin();
+       allow delete: if isAuthenticated();
 
        // MISE À JOUR : C'est ici que tout se joue.
        // - Admin : Pour noter, changer VE, reset.
