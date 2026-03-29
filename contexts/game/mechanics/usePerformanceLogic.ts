@@ -1,11 +1,127 @@
 
 import { writeBatch, doc, db, arrayUnion } from '../../../services/firebase';
-import { Agency, GameEvent, PeerReview, CareerStep, Badge, WeekModule } from '../../../types';
-import { calculateVECap, calculateMarketVE, applyVEShield, BADGE_DEFINITIONS, HOLDING_RULES } from '../../../constants';
+import { Agency, GameEvent, PeerReview, CareerStep, WeekModule, BilanSimulation, AgencyPerformancePreview, MemberPerformancePreview } from '../../../types';
+import { calculateVECap, calculateMarketVE, applyVEShield, BADGE_DEFINITIONS, HOLDING_RULES, GAME_RULES } from '../../../constants';
 
 export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], weeks: { [key: string]: WeekModule }, toast: (type: string, msg: string) => void, getCurrentGameWeek: () => number) => {
 
-  const processPerformance = async (targetClass: 'A' | 'B' | 'ALL') => {
+  const simulatePerformance = (targetClass: 'A' | 'B' | 'ALL'): BilanSimulation => {
+      const currentWeekNum = getCurrentGameWeek();
+      const currentWeekId = currentWeekNum.toString();
+      const currentWeekConfig = weeks[currentWeekId];
+      const today = new Date().toISOString().split('T')[0];
+
+      const simulationAgencies: AgencyPerformancePreview[] = agencies
+          .filter(a => a.id !== 'unassigned' && (targetClass === 'ALL' || a.classId === targetClass))
+          .map(agency => {
+              const isSoloMode = agency.members.length === 1;
+              let penaltyVE = 0;
+              let hasMissingReviews = false;
+
+              const memberPreviews: MemberPerformancePreview[] = (agency.members || []).map(member => {
+                  let votesCast = 0;
+                  let votesExpected = isSoloMode ? 0 : agency.members.length - 1;
+                  let missingReviews = 0;
+                  let scoreDelta = 0;
+
+                  if (!isSoloMode) {
+                      const memberReviews = reviews.filter(r => r.reviewerId === member.id && r.weekId === currentWeekId);
+                      const uniqueTargets = new Set(memberReviews.map(r => r.targetId));
+                      votesCast = uniqueTargets.size;
+                      missingReviews = Math.max(0, votesExpected - votesCast);
+                  }
+
+                  if (missingReviews > 0) hasMissingReviews = true;
+
+                  // Score calculation logic (simplified for preview)
+                  if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && !isSoloMode && currentWeekConfig.scoring.missingReviewPenalty.type === 'score') {
+                      scoreDelta -= currentWeekConfig.scoring.missingReviewPenalty.amount * missingReviews;
+                  }
+
+                  // Team logic
+                  const teamReviews = reviews.filter(r => r.targetId === member.id && r.weekId === currentWeekId && r.agencyId === agency.id);
+                  if (teamReviews.length > 0) {
+                      const avg = teamReviews.reduce((sum, r) => sum + ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement)/3), 0) / teamReviews.length;
+                      if (avg > 4.5) scoreDelta += 2;
+                      else if (avg >= 4.0) scoreDelta += 1;
+                      else if (avg < 2.0) scoreDelta -= 5;
+                  }
+
+                  return {
+                      id: member.id,
+                      name: member.name,
+                      votesCast,
+                      votesExpected,
+                      missingReviews,
+                      scoreDelta,
+                      newScore: Math.max(0, Math.min(100, (member.individualScore || 0) + scoreDelta))
+                  };
+              });
+
+              // VE Adjustments
+              let veAdjustment = 0;
+              
+              // 1. Pending Effects
+              if (agency.pendingEffects) {
+                  agency.pendingEffects.forEach(e => veAdjustment += e.amount);
+              }
+
+              // 2. Peer Review Penalty
+              if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
+                  const totalMissing = memberPreviews.reduce((sum, m) => sum + m.missingReviews, 0);
+                  penaltyVE = totalMissing * currentWeekConfig.scoring.missingReviewPenalty.amount;
+                  veAdjustment -= penaltyVE;
+              }
+
+              // 3. Budget Adjustment
+              const budget = agency.budget_real;
+              if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
+              else if (budget < 0) veAdjustment -= Math.ceil(Math.abs(budget) / 1000) * 2;
+
+              const veCap = calculateVECap(agency);
+              const currentMarketVE = calculateMarketVE(agency);
+              const finalVE = applyVEShield(agency.ve_current, veAdjustment, currentMarketVE, veCap);
+              
+              // Growth and Revenue (for Holdings)
+              let growth = 0;
+              let predictedMultiplier = GAME_RULES.REVENUE_VE_MULTIPLIER;
+              if (agency.type === 'HOLDING') {
+                  const history = agency.ve_history || [];
+                  const lastRecordedVE = history.length >= 1 ? history[history.length - 1].value : agency.ve_current;
+                  growth = finalVE - lastRecordedVE;
+                  
+                  if (growth >= 10) predictedMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE;
+                  else if (growth >= HOLDING_RULES.GROWTH_TARGET) predictedMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
+                  else predictedMultiplier = 30;
+              }
+
+              return {
+                  id: agency.id,
+                  name: agency.name,
+                  classId: agency.classId,
+                  type: agency.type || 'AGENCY',
+                  currentVE: agency.ve_current,
+                  veAdjustment,
+                  penaltyVE,
+                  finalVE,
+                  deltaVE: finalVE - agency.ve_current,
+                  growth,
+                  predictedMultiplier,
+                  predictedRevenue: finalVE * predictedMultiplier,
+                  status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique',
+                  members: memberPreviews,
+                  hasMissingReviews
+              };
+          });
+
+      return {
+          weekId: currentWeekId,
+          date: today,
+          agencies: simulationAgencies
+      };
+  };
+
+  const processPerformance = async (targetClass: 'A' | 'B' | 'ALL', manualAdjustments?: { [agencyId: string]: number }) => {
       const today = new Date().toISOString().split('T')[0];
       const currentWeekNum = getCurrentGameWeek();
       const currentWeekId = currentWeekNum.toString();
@@ -186,7 +302,22 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             }
 
             // A. VE PENALTY (PEER REVIEW)
-            if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
+            const manualPenalty = manualAdjustments ? manualAdjustments[agency.id] : undefined;
+            
+            if (manualPenalty !== undefined) {
+                // Si on a un ajustement manuel, on l'utilise
+                if (manualPenalty !== 0) {
+                    veAdjustment += manualPenalty;
+                    logEvents.push({ 
+                        id: `perf-penalty-manual-${Date.now()}-${agency.id}`, 
+                        date: today, 
+                        type: manualPenalty > 0 ? 'VE_DELTA' : 'CRISIS', 
+                        label: 'Ajustement Manuel Bilan', 
+                        deltaVE: manualPenalty, 
+                        description: `Ajustement manuel de performance (${manualPenalty > 0 ? '+' : ''}${manualPenalty} VE).` 
+                    });
+                }
+            } else if (currentWeekConfig?.scoring?.missingReviewPenalty?.enabled && currentWeekConfig.scoring.missingReviewPenalty.type === 'VE' && !isSoloMode) {
                  let totalMissingReviews = 0;
                  const expectedReviewsPerMember = agency.members.length - 1;
                  agency.members.forEach(member => {
@@ -260,5 +391,5 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
       } catch(e) { console.error(e); toast('error', "Erreur Performance"); }
   };
 
-  return { processPerformance };
+  return { processPerformance, simulatePerformance };
 };

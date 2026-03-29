@@ -18,7 +18,7 @@ export const useGameMechanics = (
 ) => {
 
   // On passe les reviews à la logique de performance ET operations
-  const { processPerformance } = usePerformanceLogic(agencies, reviews, weeks, toast, getCurrentGameWeek);
+  const { processPerformance, simulatePerformance } = usePerformanceLogic(agencies, reviews, weeks, toast, getCurrentGameWeek);
   const operations = useOperationsLogic(agencies, reviews, toast, getCurrentGameWeek, role, dispatchAction);
   const { submitMercatoVote } = useVotingLogic(agencies, toast);
 
@@ -60,6 +60,7 @@ export const useGameMechanics = (
   return { 
       updateAgency, 
       processPerformance, 
+      simulatePerformance,
       shuffleConstraints, 
       submitMercatoVote,
       ...operations 

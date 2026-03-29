@@ -339,6 +339,40 @@ export interface GameAction {
     error?: string;
 }
 
+export interface MemberPerformancePreview {
+    id: string;
+    name: string;
+    votesCast: number;
+    votesExpected: number;
+    missingReviews: number;
+    scoreDelta: number;
+    newScore: number;
+}
+
+export interface AgencyPerformancePreview {
+    id: string;
+    name: string;
+    classId: string;
+    type: 'AGENCY' | 'HOLDING';
+    currentVE: number;
+    veAdjustment: number; // Total adjustment (budget + penalty + effects)
+    penaltyVE: number;    // Specifically from missing reviews
+    finalVE: number;
+    deltaVE: number;
+    growth: number;       // For Holdings
+    predictedMultiplier: number;
+    predictedRevenue: number;
+    status: 'stable' | 'fragile' | 'critique';
+    members: MemberPerformancePreview[];
+    hasMissingReviews: boolean;
+}
+
+export interface BilanSimulation {
+    weekId: string;
+    date: string;
+    agencies: AgencyPerformancePreview[];
+}
+
 export interface GameConfig {
     id: string;
     currentCycle: number;

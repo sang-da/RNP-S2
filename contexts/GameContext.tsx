@@ -35,7 +35,8 @@ interface GameContextType {
 
   shuffleConstraints: (agencyId: string) => void;
   processFinance: (targetClass: 'A' | 'B' | 'ALL') => Promise<void>;
-  processPerformance: (targetClass: 'A' | 'B' | 'ALL') => Promise<void>;
+  processPerformance: (targetClass: 'A' | 'B' | 'ALL', manualAdjustments?: { [agencyId: string]: number }) => Promise<void>;
+  simulatePerformance: (targetClass: 'A' | 'B' | 'ALL') => any;
   resetGame: () => void;
   
   transferFunds: (sourceId: string, targetId: string, amount: number) => Promise<void>;
@@ -253,6 +254,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       shuffleConstraints: mechanics.shuffleConstraints,
       processFinance: finance.processFinance,
       processPerformance: mechanics.processPerformance,
+      simulatePerformance: mechanics.simulatePerformance,
       transferFunds: finance.transferFunds,
       injectCapital: finance.injectCapital,
       requestScorePurchase: finance.requestScorePurchase,
