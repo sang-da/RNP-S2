@@ -32,7 +32,7 @@ export interface CareerHistoryItem {
     date: string;
     weekId: string; // "S1", "S2"...
     agencyName: string;
-    action: 'JOINED' | 'LEFT' | 'PROMOTED' | 'DEMOTED' | 'TRANSFER';
+    action: 'JOINED' | 'LEFT' | 'PROMOTED' | 'DEMOTED' | 'TRANSFER' | 'FIRED' | 'RESIGNED';
     contextVE?: number;
     reason?: string;
 }

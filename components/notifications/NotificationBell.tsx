@@ -94,7 +94,7 @@ export const NotificationBell: React.FC = () => {
                             </div>
                         ) : (
                             <ul className="divide-y divide-gray-100">
-                                {notifications.map((notif) => (
+                                {notifications?.map((notif) => (
                                     <li 
                                         key={notif.id} 
                                         className={`p-4 hover:bg-gray-50 transition-colors ${!notif.read ? 'bg-blue-50/30' : ''}`}

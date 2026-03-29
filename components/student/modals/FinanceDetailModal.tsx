@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from '../../Modal';
 import { Agency } from '../../../types';
 import { GAME_RULES, MASCOTS, HOLDING_RULES } from '../../../constants';
-import { TrendingUp, Users, Building2, ArrowRight, Award } from 'lucide-react';
+import { TrendingUp, Users, Building2, ArrowRight, Award, Crown } from 'lucide-react';
 
 interface FinanceDetailModalProps {
     isOpen: boolean;
@@ -25,10 +25,13 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
     
     // 3. Revenus VE
     let veMultiplier = GAME_RULES.REVENUE_VE_MULTIPLIER;
+    let growth = 0;
     if (agency.type === 'HOLDING') {
         const history = agency.ve_history || [];
-        if (history.length >= 2) {
-            const growth = history[history.length - 1].value - history[history.length - 2].value;
+        if (history.length >= 1) {
+            const lastRecordedVE = history[history.length - 1].value;
+            growth = agency.ve_current - lastRecordedVE;
+            
             if (growth >= 10) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE;
             else if (growth >= HOLDING_RULES.GROWTH_TARGET) veMultiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD;
             else veMultiplier = 30; // Pénalité
@@ -73,6 +76,50 @@ export const FinanceDetailModal: React.FC<FinanceDetailModalProps> = ({ isOpen, 
                 <div className="flex flex-col items-center justify-center py-4">
                     <img src={getMascot()} className="h-32 w-auto drop-shadow-xl animate-bounce-slow mb-4" alt="Mascotte Finance" />
                     
+                    {/* HOLDING PERFORMANCE SECTION */}
+                    {agency.type === 'HOLDING' && (
+                        <div className="w-full mb-6 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border border-yellow-200 p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="p-2 bg-yellow-400 text-yellow-900 rounded-lg shadow-sm">
+                                    <Crown size={20} fill="currentColor" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-yellow-900 text-sm uppercase tracking-wider">Statut Holding Actif</h4>
+                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Performance Dynamique</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/60 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50">
+                                    <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Croissance VE</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className={`text-2xl font-black ${growth >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {growth > 0 ? '+' : ''}{growth.toFixed(1)}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">VE / Sem</span>
+                                    </div>
+                                </div>
+                                <div className="bg-white/60 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50">
+                                    <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Multiplicateur</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-amber-600">x{veMultiplier}</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">PiXi / VE</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-yellow-200/50">
+                                <p className="text-[10px] font-medium text-amber-800 italic">
+                                    {growth >= 10 
+                                        ? "Performance exceptionnelle ! Bonus de 70 PiXi/VE débloqué." 
+                                        : growth >= 5 
+                                            ? "Objectif de croissance atteint. Taux standard de 50 PiXi/VE."
+                                            : "Objectif non atteint. Taux réduit à 30 PiXi/VE (Pénalité)."}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4 w-full">
                         <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-center">
                             <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">VE ACTUELLE</p>

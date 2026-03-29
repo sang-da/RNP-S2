@@ -145,14 +145,14 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                     
                     if (!wasInAgencyThisWeek) {
                         if (targetStudent.history && targetStudent.history.length > 0) {
-                            const weekNum = parseInt(week.id.replace('S', '')) || 0;
+                            const weekNum = parseInt((week.id || '').replace('S', '')) || 0;
                             const chronologicalHistory = [...targetStudent.history].sort((h1, h2) => new Date(h1.date).getTime() - new Date(h2.date).getTime());
                             
                             let inAgencyDuringWeek = false;
                             let currentAgencyName = null;
                             
                             for (const entry of chronologicalHistory) {
-                                const entryWeekNum = parseInt(entry.weekId.replace('S', '')) || 0;
+                                const entryWeekNum = parseInt((entry.weekId || '').replace('S', '')) || 0;
                                 
                                 if (entryWeekNum < weekNum) {
                                     if (entry.action === 'JOINED') currentAgencyName = entry.agencyName;

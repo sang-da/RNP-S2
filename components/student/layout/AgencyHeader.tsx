@@ -31,10 +31,13 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
     
     // 1. REVENUS
     let multiplier = GAME_RULES.REVENUE_VE_MULTIPLIER; // 30
+    let growth = 0;
     if (isHolding) {
         const history = agency.ve_history || [];
-        if (history.length >= 2) {
-            const growth = history[history.length - 1].value - history[history.length - 2].value;
+        if (history.length >= 1) {
+            const lastRecordedVE = history[history.length - 1].value;
+            growth = agency.ve_current - lastRecordedVE;
+            
             if (growth >= 10) multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_PERFORMANCE; // 70
             else if (growth >= HOLDING_RULES.GROWTH_TARGET) multiplier = HOLDING_RULES.REVENUE_MULTIPLIER_STANDARD; // 50
             else multiplier = 30; // Pénalité
@@ -209,6 +212,15 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                             >
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest block mb-1">Flux Net</span>
                                 <div className={`text-xl font-bold ${netWeekly >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netWeekly > 0 ? '+' : ''}{netWeekly.toFixed(0)}</div>
+                                {isHolding && (
+                                    <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-full mt-1 inline-block border ${
+                                        growth >= 10 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 
+                                        growth >= 5 ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 
+                                        'bg-red-500/20 text-red-400 border-red-500/30'
+                                    }`}>
+                                        {growth > 0 ? '+' : ''}{growth.toFixed(1)} VE
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="text-center">

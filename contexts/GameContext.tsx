@@ -187,10 +187,29 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const agencyToDelete = agencies.find(a => a.id === agencyId);
           if (!agencyToDelete) return;
           const batch = writeBatch(db);
+          
           if (agencyToDelete.members && agencyToDelete.members.length > 0) {
               const unassignedAgency = agencies.find(a => a.id === 'unassigned');
               if (unassignedAgency) {
-                  const updatedMembers = [...(unassignedAgency.members || []), ...agencyToDelete.members];
+                  const currentWeek = getCurrentGameWeek();
+                  const today = new Date().toISOString().split('T')[0];
+                  
+                  const transferredMembers = agencyToDelete.members.map(m => ({
+                      ...m,
+                      history: [
+                          ...(m.history || []),
+                          {
+                              id: `bankrupt-${Date.now()}-${m.id}`,
+                              date: today,
+                              weekId: `S${currentWeek}`,
+                              agencyName: agencyToDelete.name,
+                              action: 'LEFT' as const,
+                              reason: "Faillite / Dissolution de l'agence"
+                          }
+                      ]
+                  }));
+                  
+                  const updatedMembers = [...(unassignedAgency.members || []), ...transferredMembers];
                   batch.update(doc(db, "agencies", "unassigned"), { members: updatedMembers });
               }
           }

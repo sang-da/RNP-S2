@@ -59,11 +59,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         ${JSON.stringify(student.history || [])}
         
         PORTFOLIO (Livrables réalisés):
-        ${JSON.stringify(portfolio.map(p => ({ week: p.weekId, type: p.deliverable.type, status: p.deliverable.status, grade: p.deliverable.grade, isMVP: p.deliverable.isMVP })))}
+        ${JSON.stringify(portfolio.map(p => ({ week: p.week, name: p.name, score: p.score, isMVP: p.isMvp, agency: p.agency })))}
         
         ÉVALUATIONS REÇUES (Peer Reviews):
         - Moyenne reçue: ${behaviorStats.avgReceived.toFixed(1)}/5
-        ${JSON.stringify(timeline.filter(t => t.type === 'REVIEW').map(t => ({ week: t.weekId, score: t.data.score, comment: t.data.comment })))}
+        ${JSON.stringify(timeline.flatMap(t => t.reviewsReceived || []).map(r => ({ week: r.weekId, score: (r.ratings.quality + r.ratings.attendance + r.ratings.involvement) / 3, comment: r.comment })))}
         
         NOTES PÉDAGOGIQUES:
         ${JSON.stringify(student.notes || [])}
@@ -215,7 +215,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                     <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><MessageSquare size={20}/> Quiz & Sondages ({quizAttempts.length})</h4>
                     <div className="space-y-4">
-                        {quizAttempts.map(attempt => (
+                        {quizAttempts?.map(attempt => (
                             <div key={attempt.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100 transition-all hover:shadow-md">
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-3">
@@ -263,10 +263,10 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                             <div className="mb-4">
                                                 <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><FileText size={12}/> Réponses</p>
                                                 <div className="space-y-2">
-                                                    {Object.entries(attempt.answers).map(([qId, answer]) => (
+                                                    {Object.entries(attempt.answers || {}).map(([qId, answer]) => (
                                                         <div key={qId} className="bg-white p-2 rounded border border-slate-100 text-xs">
                                                             <span className="font-bold text-slate-500 mr-2">Q{qId}:</span>
-                                                            <span className="text-slate-700">{answer}</span>
+                                                            <span className="text-slate-700">{answer as string}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -278,7 +278,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                             <div>
                                                 <p className="text-[10px] font-bold uppercase text-slate-400 mb-2 flex items-center gap-1"><Mic size={12}/> Enregistrements Vocaux & Analyse (Secret)</p>
                                                 <div className="space-y-2">
-                                                    {Object.entries(attempt.audioUrls).map(([qId, url]) => (
+                                                    {Object.entries(attempt.audioUrls || {}).map(([qId, url]) => (
                                                         <div key={qId} className="flex items-center justify-between bg-white p-2 rounded border border-slate-100">
                                                             <div className="flex items-center gap-2">
                                                                 <button 
@@ -312,7 +312,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 <div className="bg-amber-50 p-6 rounded-3xl border border-amber-200 shadow-sm">
                     <h4 className="font-bold text-amber-900 flex items-center gap-2 mb-4"><StickyNote size={20}/> Notes & Suivi Pédagogique</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {student.notes.sort((a,b) => b.date.localeCompare(a.date)).map(note => (
+                        {(student.notes || []).sort((a,b) => b.date.localeCompare(a.date)).map(note => (
                             <div key={note.id} className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm relative overflow-hidden">
                                 <div className={`absolute top-0 left-0 w-1 h-full ${note.visibility === 'PRIVATE' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
                                 <div className="flex justify-between items-start mb-2 pl-3">
@@ -382,7 +382,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                 <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
                                 <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px'}} />
                                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                    {gradeDistribution.map((entry, index) => (
+                                    {gradeDistribution?.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Bar>
@@ -398,7 +398,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-6"><History size={20}/> Parcours Hebdomadaire</h4>
                         
-                        {displayHistory.length > 0 ? (
+                        {displayHistory?.length > 0 ? (
                             <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
                                 {displayHistory.map(item => (
                                     <div key={item.id} className="relative pl-12">
@@ -413,10 +413,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                     </div>
                                 ))}
                             </div>
-                        ) : timeline.length > 0 ? (
+                        ) : timeline?.length > 0 ? (
                             <div className="space-y-6 relative before:absolute before:left-[19px] before:top-0 before:bottom-0 before:w-0.5 before:bg-slate-100">
                                 {timeline.map((step, idx) => {
-                                    const avgReceived = step.reviewsReceived.length ? (step.reviewsReceived.reduce((a:any,b:any) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / step.reviewsReceived.length) : 0;
+                                    const reviews = step.reviewsReceived || [];
+                                    const avgReceived = reviews.length ? (reviews.reduce((a:any,b:any) => a + (b.ratings.quality+b.ratings.attendance+b.ratings.involvement)/3, 0) / reviews.length) : 0;
                                     return (
                                         <div key={step.weekId} className="relative pl-12">
                                             <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-slate-50 border-4 border-white shadow-sm flex items-center justify-center font-bold text-xs text-slate-500 z-10">
@@ -434,10 +435,10 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                                         </div>
                                                     )}
                                                 </div>
-                                                {step.reviewsReceived.length > 0 && (
+                                                {reviews.length > 0 && (
                                                     <div className="mt-3 space-y-2">
                                                         <p className="text-[10px] font-bold uppercase text-slate-400">Feedbacks Reçus</p>
-                                                        {step.reviewsReceived.map((r:any) => (
+                                                        {reviews.map((r:any) => (
                                                             <div key={r.id} className="text-xs bg-white p-2 rounded border border-slate-100 italic text-slate-600">
                                                                 <span className="font-bold not-italic text-indigo-600 mr-1">{r.reviewerName}:</span> 
                                                                 "{r.comment}"
@@ -471,11 +472,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-4"><FileText size={20}/> Historique des Rendus</h4>
-                        {portfolio.length === 0 ? (
+                        {portfolio?.length === 0 ? (
                             <p className="text-center text-slate-400 italic text-xs py-4">Aucun rendu majeur.</p>
                         ) : (
                             <div className="space-y-3">
-                                {portfolio.map((work, i) => (
+                                {portfolio?.map((work, i) => (
                                     <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                                         <div className="flex justify-between items-start">
                                             <span className={`text-[10px] font-bold px-1.5 rounded ${work.isSpecial ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>

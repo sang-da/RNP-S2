@@ -85,7 +85,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
      // EXECUTION VIA BATCH POUR LA ROBUSTESSE
      const batch = writeBatch(db);
      const today = new Date().toISOString().split('T')[0];
-     const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+     const firstActiveAgency = agencies.find(a => a.id !== 'unassigned' && a.progress);
+     const currentWeekId = firstActiveAgency ? Object.values(firstActiveAgency.progress).find(w => w.status === 'active')?.id || 'S?' : 'S?';
 
      // --- HISTORY RECORDING ---
      const newHistory = [...(student.history || [])];
@@ -137,7 +138,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       const batch = writeBatch(db);
       const today = new Date().toISOString().split('T')[0];
 
-      const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+      const firstActiveAgency = agencies.find(a => a.id !== 'unassigned' && a.progress);
+      const currentWeekId = firstActiveAgency ? Object.values(firstActiveAgency.progress).find(w => w.status === 'active')?.id || 'S?' : 'S?';
 
       if (request.type === 'FOUND_AGENCY') {
           const student = studentData.student;
@@ -273,7 +275,8 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       let startBudget = 2000;
       const batch = writeBatch(db);
 
-      const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+      const firstActiveAgency = agencies.find(a => a.id !== 'unassigned' && a.progress);
+      const currentWeekId = firstActiveAgency ? Object.values(firstActiveAgency.progress).find(w => w.status === 'active')?.id || 'S?' : 'S?';
 
       if (createForm.founderId !== 'NONE') {
           const founder = unassignedAgency?.members.find(m => m.id === createForm.founderId);

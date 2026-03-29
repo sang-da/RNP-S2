@@ -255,24 +255,29 @@ export const StudentEditModal: React.FC<StudentEditModalProps> = ({ isOpen, onCl
                                 <div className="grid grid-cols-3 gap-2">
                                     <input type="text" placeholder="Semaine (ex: 3)" value={newHistoryWeek} onChange={e => setNewHistoryWeek(e.target.value)} className="p-2 rounded-lg border text-sm"/>
                                     
-                                    {/* SELECT AGENCY */}
-                                    <select 
+                                    {/* SELECT OR TYPE AGENCY */}
+                                    <input 
+                                        type="text"
+                                        list="agency-list"
+                                        placeholder="Nom de l'agence"
                                         value={newHistoryAgency} 
                                         onChange={e => setNewHistoryAgency(e.target.value)} 
                                         className="p-2 rounded-lg border text-sm bg-white"
-                                    >
-                                        <option value="">-- Agence --</option>
+                                    />
+                                    <datalist id="agency-list">
                                         {allAgencies.filter(a => a.id !== 'unassigned').sort((a,b) => a.name.localeCompare(b.name)).map(a => (
-                                            <option key={a.id} value={a.name}>{a.name}</option>
+                                            <option key={a.id} value={a.name} />
                                         ))}
-                                        <option value="Vivier / Chômage">Vivier / Chômage</option>
-                                    </select>
+                                        <option value="Vivier / Chômage" />
+                                    </datalist>
 
                                     <select value={newHistoryAction} onChange={e => setNewHistoryAction(e.target.value as any)} className="p-2 rounded-lg border text-sm bg-white">
                                         <option value="JOINED">Rejoint</option>
                                         <option value="LEFT">Quitte</option>
-                                        <option value="PROMOTED">Pormu</option>
+                                        <option value="PROMOTED">Promu</option>
                                         <option value="TRANSFER">Transfert</option>
+                                        <option value="FIRED">Licencié</option>
+                                        <option value="RESIGNED">Démission</option>
                                     </select>
                                 </div>
                                 <button onClick={handleAddHistory} className="w-full py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-700">Ajouter l'entrée</button>
