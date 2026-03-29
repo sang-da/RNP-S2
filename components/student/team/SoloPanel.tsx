@@ -47,7 +47,7 @@ export const SoloPanel: React.FC<SoloPanelProps> = ({ agency, student }) => {
                             <h4 className="font-bold text-slate-900 flex items-center gap-2">
                                 <Activity size={18} className="text-indigo-500"/> Performance (VE)
                             </h4>
-                            <span className={`text-xl font-bold ${agency.ve_current >= 60 ? 'text-emerald-500' : 'text-amber-500'}`}>{agency.ve_current}</span>
+                            <span className={`text-xl font-bold ${agency.ve_current >= 60 ? 'text-emerald-500' : 'text-amber-500'}`}>{agency.ve_current.toFixed(1)}</span>
                         </div>
                         <div className="space-y-2 text-xs text-slate-500">
                             <div className="flex justify-between"><span>VE ≥ 60</span> <span className="font-bold text-emerald-600">+2 Score</span></div>

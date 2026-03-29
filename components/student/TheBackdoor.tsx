@@ -148,7 +148,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
 > Tension Interne : ${tensionLevel} (${badReviewsCount} alertes)
 
 [PERFORMANCE]
-> VE Actuelle : ${target.ve_current}
+> VE Actuelle : ${target.ve_current.toFixed(1)}
 > Statut : ${target.status.toUpperCase()}
 ==============================================
                 `;
@@ -176,7 +176,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                 >
                     <option value="">-- SÉLECTIONNER CIBLE --</option>
                     {rivalAgencies.sort((a,b) => calculateMarketVE(b) - calculateMarketVE(a)).map(a => (
-                        <option key={a.id} value={a.id}>{a.name} (VE Marché: {calculateMarketVE(a)})</option>
+                        <option key={a.id} value={a.id}>{a.name} (VE Marché: {calculateMarketVE(a).toFixed(1)})</option>
                     ))}
                 </select>
             );

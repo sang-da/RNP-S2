@@ -157,10 +157,10 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                                     <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">VE Actuelle / Marché</span>
                                     <div className="flex items-baseline gap-1">
                                         <span className="font-display font-black text-2xl text-indigo-600">
-                                            {agency.ve_current.toFixed(0)}
+                                            {agency.ve_current.toFixed(1)}
                                         </span>
                                         <span className="text-xs font-bold text-slate-400">
-                                            / {calculateMarketVE(agency).toFixed(0)}
+                                            / {calculateMarketVE(agency).toFixed(1)}
                                         </span>
                                     </div>
                                 </div>
@@ -199,11 +199,11 @@ export const AdminMarket: React.FC<AdminMarketProps> = ({ agencies }) => {
                                     <div className="grid grid-cols-3 gap-4">
                                         <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-center">
                                             <p className="text-[10px] font-bold uppercase text-indigo-400 mb-1 leading-tight">VE Actuelle (Cashout)</p>
-                                            <p className="text-3xl font-black text-indigo-700">{selectedAgency.ve_current.toFixed(0)}</p>
+                                            <p className="text-3xl font-black text-indigo-700">{selectedAgency.ve_current.toFixed(1)}</p>
                                         </div>
                                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
                                             <p className="text-[10px] font-bold uppercase text-slate-400 mb-1 leading-tight">VE Marché (Réelle)</p>
-                                            <p className="text-3xl font-black text-slate-700">{calculateMarketVE(selectedAgency).toFixed(0)}</p>
+                                            <p className="text-3xl font-black text-slate-700">{calculateMarketVE(selectedAgency).toFixed(1)}</p>
                                         </div>
                                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
                                             <p className="text-[10px] font-bold uppercase text-slate-400 mb-1 leading-tight">Plafond (Cap)</p>

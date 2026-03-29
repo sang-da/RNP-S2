@@ -70,7 +70,7 @@ export const BankMicroView: React.FC<BankMicroViewProps> = ({ agencies }) => {
                                         <div>
                                             <p className="font-bold text-xs">{agency.name}</p>
                                             <p className={`text-[10px] ${isExpanded ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                VE: {agency.ve_current} | Cash: {agency.budget_real}
+                                                VE: {agency.ve_current.toFixed(1)} | Cash: {agency.budget_real}
                                             </p>
                                         </div>
                                     </div>

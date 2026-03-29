@@ -220,12 +220,12 @@ export const AgencyHeader: React.FC<AgencyHeaderProps> = ({
                             </div>
                             <div className="flex flex-col items-center">
                                 <div className={`text-3xl font-display font-bold leading-none flex items-baseline gap-1 justify-center ${isElite || isHolding ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]' : (agency.ve_current >= 60 ? 'text-emerald-400' : 'text-amber-400')}`}>
-                                    {agency.ve_current.toFixed(0)} <span className="text-sm opacity-60 font-sans font-bold">/ {maxVE}</span>
+                                    {agency.ve_current.toFixed(1)} <span className="text-sm opacity-60 font-sans font-bold">/ {maxVE}</span>
                                 </div>
                                 {marketVE > maxVE && (
                                     <div className="text-[9px] font-bold text-emerald-500 uppercase mt-0.5 flex items-center gap-1" title="Votre VE Marché est supérieure à votre plafond, elle sert de bouclier contre les pertes.">
                                         <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                                        Bouclier Marché: {marketVE.toFixed(0)}
+                                        Bouclier Marché: {marketVE.toFixed(1)}
                                     </div>
                                 )}
                             </div>

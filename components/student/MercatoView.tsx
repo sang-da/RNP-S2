@@ -306,7 +306,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
                                     <div>
                                         <h4 className="font-bold text-slate-900">{target.name}</h4>
                                         <div className="flex gap-2 text-xs mt-1">
-                                            <span className={`font-bold ${target.ve_current >= 40 ? 'text-emerald-500' : 'text-red-500'}`}>VE: {target.ve_current}</span>
+                                            <span className={`font-bold ${target.ve_current >= 40 ? 'text-emerald-500' : 'text-red-500'}`}>VE: {target.ve_current.toFixed(1)}</span>
                                             <span className="text-slate-500">{target.members.length} membres</span>
                                         </div>
                                     </div>
