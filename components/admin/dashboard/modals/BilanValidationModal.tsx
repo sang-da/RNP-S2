@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../../../Modal';
 import { BilanSimulation, AgencyPerformancePreview } from '../../../../types';
-import { AlertCircle, CheckCircle, ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, Wallet, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, Wallet, Zap, Search, Minus, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface BilanValidationModalProps {
@@ -117,6 +117,15 @@ export const BilanValidationModal: React.FC<BilanValidationModalProps> = ({
                                                 <h5 className="font-bold text-slate-900">{agency.name}</h5>
                                                 <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold">CLASSE {agency.classId}</span>
                                                 {agency.type === 'HOLDING' && <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded font-bold">HOLDING</span>}
+                                                {Math.abs(agency.accountingGap) > 0.1 && (
+                                                    <div className="group relative">
+                                                        <Search size={14} className="text-amber-500 cursor-help" />
+                                                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-slate-800 text-white text-[9px] rounded-lg shadow-xl z-50">
+                                                            <p className="font-bold mb-1">⚠️ Alerte Audit Comptable</p>
+                                                            <p>Écart de {agency.accountingGap > 0 ? '+' : ''}{agency.accountingGap.toFixed(1)} VE détecté entre la valeur actuelle et l'historique (Base 20 incluse pour Solo).</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                             <p className="text-[10px] text-slate-400 font-medium">
                                                 {agency.hasMissingReviews ? `${agency.members.filter(m => m.missingReviews > 0).length} membre(s) en retard` : 'Toutes les reviews complétées'}
@@ -143,11 +152,11 @@ export const BilanValidationModal: React.FC<BilanValidationModalProps> = ({
 
                                         {/* Financial Impact Preview */}
                                         <div className="text-right w-32">
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Est. PiXi (S+1)</p>
-                                            <div className="flex items-center gap-1 justify-end font-bold text-slate-700">
-                                                <Wallet size={12} className="text-slate-400" />
-                                                <span>{Math.round(agency.predictedRevenue)}</span>
-                                                <span className="text-[9px] text-slate-400">px</span>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Flux Net (S+1)</p>
+                                            <div className={`flex items-center gap-1 justify-end font-bold ${agency.predictedNetFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                <Wallet size={12} className="opacity-50" />
+                                                <span>{agency.predictedNetFlow > 0 ? '+' : ''}{Math.round(agency.predictedNetFlow)}</span>
+                                                <span className="text-[9px] opacity-50">px</span>
                                             </div>
                                         </div>
 
@@ -165,6 +174,37 @@ export const BilanValidationModal: React.FC<BilanValidationModalProps> = ({
                                             className="overflow-hidden border-t border-slate-100"
                                         >
                                             <div className="p-4 bg-slate-50/50 space-y-4">
+                                                {/* Financial Breakdown */}
+                                                <div className="bg-white p-4 rounded-2xl border border-slate-100">
+                                                    <h6 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Estimation Flux Net (S+1)</h6>
+                                                    <div className="grid grid-cols-2 gap-8">
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between text-[11px]">
+                                                                <span className="text-slate-500 flex items-center gap-1"><Plus size={10} className="text-emerald-500" /> Revenus VE</span>
+                                                                <span className="font-bold text-slate-700">{Math.round(agency.predictedRevenue)} px</span>
+                                                            </div>
+                                                            <div className="h-px bg-slate-50" />
+                                                            <div className="flex justify-between text-[11px] font-bold">
+                                                                <span className="text-slate-900">Total Revenus</span>
+                                                                <span className="text-emerald-600">{Math.round(agency.predictedRevenue)} px</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between text-[11px]">
+                                                                <span className="text-slate-500 flex items-center gap-1"><Minus size={10} className="text-rose-500" /> Charges (Loyer + Salaires)</span>
+                                                                <span className="font-bold text-slate-700">-{Math.round(agency.predictedExpenses)} px</span>
+                                                            </div>
+                                                            <div className="h-px bg-slate-50" />
+                                                            <div className="flex justify-between text-[11px] font-bold">
+                                                                <span className="text-slate-900">Flux Net Estimé</span>
+                                                                <span className={agency.predictedNetFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                                                    {Math.round(agency.predictedNetFlow)} px
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 {/* Members List */}
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">

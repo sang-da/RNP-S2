@@ -79,7 +79,10 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
               else if (budget < 0) veAdjustment -= Math.ceil(Math.abs(budget) / 1000) * 2;
 
               const veCap = calculateVECap(agency);
-              const currentMarketVE = calculateMarketVE(agency);
+              const currentMarketVE = (agency.eventLog || []).reduce((sum, e) => sum + (e.deltaVE || 0), 0);
+              const baseVE = isSoloMode ? 20 : 0;
+              const accountingGap = agency.ve_current - (currentMarketVE + baseVE);
+
               const finalVE = applyVEShield(agency.ve_current, veAdjustment, currentMarketVE, veCap);
               
               // Growth and Revenue (for Holdings)
@@ -95,6 +98,25 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                   else predictedMultiplier = 30;
               }
 
+              // Financial Estimation (S+1)
+              const predictedRevenue = (finalVE * predictedMultiplier) + (agency.weeklyRevenueModifier || 0) + (GAME_RULES.REVENUE_BASE || 0);
+              
+              // Expenses
+              const totalSalaries = (agency.members || []).reduce((sum, m) => {
+                  const score = Math.max(0, Math.min(100, (m.individualScore || 0) + (memberPreviews.find(p => p.id === m.id)?.scoreDelta || 0)));
+                  return sum + (score * GAME_RULES.SALARY_MULTIPLIER);
+              }, 0);
+              const rent = GAME_RULES.AGENCY_RENT;
+              
+              let dividends = 0;
+              if (agency.type === 'HOLDING') {
+                  const rate = finalVE >= 80 ? HOLDING_RULES.DIVIDEND_RATE_HIGH : finalVE >= 60 ? HOLDING_RULES.DIVIDEND_RATE_MID : HOLDING_RULES.DIVIDEND_RATE_LOW;
+                  dividends = predictedRevenue * rate;
+              }
+
+              const predictedExpenses = totalSalaries + rent + dividends;
+              const predictedNetFlow = predictedRevenue - predictedExpenses;
+
               return {
                   id: agency.id,
                   name: agency.name,
@@ -107,7 +129,10 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
                   deltaVE: finalVE - agency.ve_current,
                   growth,
                   predictedMultiplier,
-                  predictedRevenue: finalVE * predictedMultiplier,
+                  predictedRevenue,
+                  predictedExpenses,
+                  predictedNetFlow,
+                  accountingGap,
                   status: finalVE >= 60 ? 'stable' : finalVE >= 40 ? 'fragile' : 'critique',
                   members: memberPreviews,
                   hasMissingReviews

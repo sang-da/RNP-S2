@@ -362,6 +362,9 @@ export interface AgencyPerformancePreview {
     growth: number;       // For Holdings
     predictedMultiplier: number;
     predictedRevenue: number;
+    predictedExpenses: number;
+    predictedNetFlow: number;
+    accountingGap: number;
     status: 'stable' | 'fragile' | 'critique';
     members: MemberPerformancePreview[];
     hasMissingReviews: boolean;
