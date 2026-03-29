@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
 import { Student, Agency, Deliverable, PeerReview, QuizAttempt } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square, Eye, EyeOff } from 'lucide-react';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square, Eye, EyeOff, Bot, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
+import { askGroq } from '../../../services/groqService';
 
 interface StudentProfileProps {
     student: Student;
@@ -21,22 +22,77 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [playingAudio, setPlayingAudio] = useState<string | null>(null);
     const [expandedQuizzes, setExpandedQuizzes] = useState<Record<string, boolean>>({});
+    
+    // AI Profiler State
+    const [aiProfile, setAiProfile] = useState<any | null>(null);
+    const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
 
     const toggleQuiz = (id: string) => {
         setExpandedQuizzes(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    const displayHistory = (student.history && student.history.length > 0) ? student.history.sort((a,b) => b.date.localeCompare(a.date)) : [];
+    const displayHistory = (student.history && student.history.length > 0) ? [...student.history].sort((a,b) => b.date.localeCompare(a.date)) : [];
 
     const handlePlayAudio = (url: string) => {
         if (playingAudio === url) {
             setPlayingAudio(null);
-            // Stop logic would be here if we had a ref to the audio element
         } else {
             setPlayingAudio(url);
             const audio = new Audio(url);
             audio.play();
             audio.onended = () => setPlayingAudio(null);
+        }
+    };
+
+    const handleGenerateProfile = async () => {
+        setIsGeneratingProfile(true);
+        
+        const prompt = `Analyse le profil exhaustif de l'étudiant ${student.name}.
+        
+        DONNÉES DE L'ÉTUDIANT:
+        - Rôle: ${student.role}
+        - Score: ${student.individualScore}/100
+        - Portefeuille: ${student.wallet} PiXi
+        - Agence actuelle: ${agency.name}
+        
+        HISTORIQUE DES AGENCES:
+        ${JSON.stringify(student.history || [])}
+        
+        PORTFOLIO (Livrables réalisés):
+        ${JSON.stringify(portfolio.map(p => ({ week: p.weekId, type: p.deliverable.type, status: p.deliverable.status, grade: p.deliverable.grade, isMVP: p.deliverable.isMVP })))}
+        
+        ÉVALUATIONS REÇUES (Peer Reviews):
+        - Moyenne reçue: ${behaviorStats.avgReceived.toFixed(1)}/5
+        ${JSON.stringify(timeline.filter(t => t.type === 'REVIEW').map(t => ({ week: t.weekId, score: t.data.score, comment: t.data.comment })))}
+        
+        NOTES PÉDAGOGIQUES:
+        ${JSON.stringify(student.notes || [])}
+        
+        Génère un profil psychologique et professionnel complet.
+        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte :
+        {
+          "psychological_profile": "Analyse détaillée du comportement et de l'évolution (environ 3-4 phrases)",
+          "soft_skills": {
+            "leadership": <nombre entre 0 et 100>,
+            "teamwork": <nombre entre 0 et 100>,
+            "reliability": <nombre entre 0 et 100>,
+            "creativity": <nombre entre 0 et 100>
+          },
+          "strengths": ["point fort 1", "point fort 2"],
+          "weaknesses": ["point faible 1", "point faible 2"],
+          "verdict": "Un mot ou une courte expression (ex: 'Moteur d'équipe', 'Électron libre', 'En difficulté')",
+          "recommendation": "Conseil d'action pour l'équipe pédagogique"
+        }`;
+
+        try {
+            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide.");
+            const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            setAiProfile(JSON.parse(jsonStr));
+        } catch (error) {
+            console.error("Erreur IA Profiler:", error);
+            alert("Erreur lors de la génération du profil IA.");
+        } finally {
+            setIsGeneratingProfile(false);
         }
     };
 
@@ -62,7 +118,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 </div>
                 
                 <div className="flex-1 w-full">
-                    <div className="flex justify-end mb-4">
+                    <div className="flex justify-end mb-4 gap-2">
+                        <button 
+                            onClick={handleGenerateProfile}
+                            disabled={isGeneratingProfile}
+                            className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {isGeneratingProfile ? <RefreshCw size={16} className="animate-spin"/> : <Bot size={16}/>}
+                            {isGeneratingProfile ? "Analyse en cours..." : "Générer Profil IA"}
+                        </button>
                         <button 
                             onClick={() => setIsEditModalOpen(true)}
                             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95"
@@ -79,6 +143,72 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     </div>
                 </div>
             </div>
+
+            {/* AI PROFILER RESULT */}
+            {aiProfile && (
+                <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden animate-in fade-in zoom-in duration-500">
+                    <div className="absolute top-0 right-0 p-8 opacity-10"><Bot size={120}/></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm"><Bot size={24} className="text-indigo-300"/></div>
+                            <div>
+                                <h4 className="text-xl font-bold text-white">Profil IA Exhaustif</h4>
+                                <p className="text-indigo-200 text-sm">Analyse basée sur les livrables, évaluations et historique</p>
+                            </div>
+                            <div className="ml-auto px-4 py-2 bg-white/10 rounded-full border border-white/20 font-black tracking-widest uppercase text-sm">
+                                {aiProfile.verdict}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="md:col-span-2 space-y-6">
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                                    <h5 className="text-xs font-bold text-indigo-300 uppercase mb-2">Analyse Psychologique</h5>
+                                    <p className="text-sm leading-relaxed text-slate-200">{aiProfile.psychological_profile}</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                                        <h5 className="text-xs font-bold text-emerald-400 uppercase mb-3">Points Forts</h5>
+                                        <ul className="space-y-2">
+                                            {aiProfile.strengths?.map((s: string, i: number) => (
+                                                <li key={i} className="text-sm flex items-start gap-2 text-slate-200">
+                                                    <span className="text-emerald-400 mt-0.5">•</span> {s}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                                        <h5 className="text-xs font-bold text-red-400 uppercase mb-3">Points d'Attention</h5>
+                                        <ul className="space-y-2">
+                                            {aiProfile.weaknesses?.map((w: string, i: number) => (
+                                                <li key={i} className="text-sm flex items-start gap-2 text-slate-200">
+                                                    <span className="text-red-400 mt-0.5">•</span> {w}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div className="bg-indigo-500/20 p-4 rounded-2xl border border-indigo-400/30">
+                                    <h5 className="text-xs font-bold text-indigo-300 uppercase mb-2">Recommandation Pédagogique</h5>
+                                    <p className="text-sm font-medium text-white">{aiProfile.recommendation}</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
+                                <h5 className="text-xs font-bold text-indigo-300 uppercase mb-6 text-center">Soft Skills (IA)</h5>
+                                <div className="space-y-5">
+                                    <SkillBar label="Leadership" value={aiProfile.soft_skills?.leadership || 0} color="bg-amber-400" />
+                                    <SkillBar label="Travail d'équipe" value={aiProfile.soft_skills?.teamwork || 0} color="bg-blue-400" />
+                                    <SkillBar label="Fiabilité" value={aiProfile.soft_skills?.reliability || 0} color="bg-emerald-400" />
+                                    <SkillBar label="Créativité" value={aiProfile.soft_skills?.creativity || 0} color="bg-purple-400" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* QUIZ & SONDAGES (NEW SECTION) */}
             {quizAttempts.length > 0 && (
@@ -388,6 +518,18 @@ const StatBox = ({ icon, label, value, sub, color }: any) => (
         <div>
             <p className="text-[10px] font-bold uppercase opacity-60">{label}</p>
             <p className={`text-xl font-black ${color.split(' ')[1]}`}>{value} <span className="text-xs opacity-70">{sub}</span></p>
+        </div>
+    </div>
+);
+
+const SkillBar = ({ label, value, color }: { label: string, value: number, color: string }) => (
+    <div>
+        <div className="flex justify-between text-xs font-bold mb-1">
+            <span className="text-slate-300">{label}</span>
+            <span className="text-white">{value}%</span>
+        </div>
+        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div className={`h-full ${color} rounded-full transition-all duration-1000`} style={{ width: `${value}%` }}></div>
         </div>
     </div>
 );

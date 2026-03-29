@@ -85,6 +85,33 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
      // EXECUTION VIA BATCH POUR LA ROBUSTESSE
      const batch = writeBatch(db);
      const today = new Date().toISOString().split('T')[0];
+     const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+
+     // --- HISTORY RECORDING ---
+     const newHistory = [...(student.history || [])];
+     if (sourceData.agency.id !== 'unassigned') {
+         newHistory.push({
+             id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+             date: today,
+             weekId: currentWeekId,
+             agencyName: sourceData.agency.name,
+             action: 'LEFT',
+             contextVE: sourceData.agency.ve_current,
+             reason: "Transfert Administratif"
+         });
+     }
+     if (targetAgency && targetAgency.id !== 'unassigned') {
+         newHistory.push({
+             id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+             date: today,
+             weekId: currentWeekId,
+             agencyName: targetAgency.name,
+             action: 'JOINED',
+             contextVE: targetAgency.ve_current,
+             reason: "Transfert Administratif"
+         });
+     }
+     const updatedStudent = { ...student, history: newHistory };
 
      // 1. Retrait source
      const updatedSourceMembers = sourceData.agency.members.filter(m => m.id !== student.id);
@@ -92,7 +119,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
 
      // 2. Ajout cible
      if (targetAgency) {
-         const updatedTargetMembers = [...targetAgency.members, student];
+         const updatedTargetMembers = [...targetAgency.members, updatedStudent];
          batch.update(doc(db, "agencies", targetAgency.id), { members: updatedTargetMembers });
      }
 
@@ -110,9 +137,30 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       const batch = writeBatch(db);
       const today = new Date().toISOString().split('T')[0];
 
+      const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+
       if (request.type === 'FOUND_AGENCY') {
           const student = studentData.student;
           const newAgencyId = `a-${Date.now()}`;
+          
+          const newHistory = [...(student.history || [])];
+          newHistory.push({
+              id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+              date: today,
+              weekId: currentWeekId,
+              agencyName: `Studio de ${student.name}`,
+              action: 'JOINED',
+              contextVE: 20,
+              reason: "Fondation du Studio"
+          });
+
+          const updatedStudent = {
+              ...student,
+              wallet: (student.wallet || 0) - GAME_RULES.CREATION_COST_PIXI,
+              individualScore: Math.max(0, student.individualScore - GAME_RULES.CREATION_COST_SCORE),
+              history: newHistory
+          };
+
           const newAgency: Agency = {
               id: newAgencyId, 
               name: `Studio de ${student.name}`, 
@@ -124,11 +172,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
               budget_valued: 0, 
               weeklyTax: 0, 
               weeklyRevenueModifier: 0,
-              members: [{
-                  ...student,
-                  wallet: (student.wallet || 0) - GAME_RULES.CREATION_COST_PIXI,
-                  individualScore: Math.max(0, student.individualScore - GAME_RULES.CREATION_COST_SCORE)
-              }], 
+              members: [updatedStudent], 
               eventLog: [{ id: `e-${newAgencyId}-1`, date: today, type: "INFO", label: "Ouverture Studio", deltaVE: 0, description: `Fondé par ${student.name}.` }],
               currentCycle: CycleType.MARQUE_BRIEF, 
               constraints: { space: "À définir", style: "À définir", client: "À définir" },
@@ -158,6 +202,36 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       const student = studentData.student;
       const sourceAgency = studentData.agency;
 
+      const newHistory = [...(student.history || [])];
+      if (sourceAgency.id !== 'unassigned') {
+          newHistory.push({
+              id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+              date: today,
+              weekId: currentWeekId,
+              agencyName: sourceAgency.name,
+              action: 'LEFT',
+              contextVE: sourceAgency.ve_current,
+              reason: request.motivation || "Mercato"
+          });
+      }
+
+      if (request.type === 'HIRE') {
+          const targetAgency = agencies.find(a => a.id === request.targetAgencyId);
+          if (targetAgency && targetAgency.id !== 'unassigned') {
+              newHistory.push({
+                  id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+                  date: today,
+                  weekId: currentWeekId,
+                  agencyName: targetAgency.name,
+                  action: 'JOINED',
+                  contextVE: targetAgency.ve_current,
+                  reason: request.motivation || "Recrutement"
+              });
+          }
+      }
+
+      const updatedStudent = { ...student, history: newHistory };
+
       // 1. Nettoyage de la source
       const updatedSourceMembers = sourceAgency.members.filter(m => m.id !== student.id);
       batch.update(doc(db, "agencies", sourceAgency.id), { members: updatedSourceMembers });
@@ -167,7 +241,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           const unemployed = agencies.find(a => a.id === 'unassigned');
           if (unemployed) {
               batch.update(doc(db, "agencies", "unassigned"), { 
-                  members: [...unemployed.members, { ...student, connectionStatus: 'offline' }] 
+                  members: [...unemployed.members, { ...updatedStudent, connectionStatus: 'offline' }] 
               });
           }
       } else {
@@ -175,7 +249,7 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
           const targetAgency = agencies.find(a => a.id === request.targetAgencyId);
           if (targetAgency) {
               batch.update(doc(db, "agencies", targetAgency.id), { 
-                  members: [...targetAgency.members, student],
+                  members: [...targetAgency.members, updatedStudent],
                   // On nettoie la requête dans le document de l'agence cible
                   mercatoRequests: targetAgency.mercatoRequests.filter(r => r.id !== request.id)
               });
@@ -199,10 +273,23 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       let startBudget = 2000;
       const batch = writeBatch(db);
 
+      const currentWeekId = agencies.find(a => a.id !== 'unassigned')?.progress.find(w => w.isActive)?.id || 'S?';
+
       if (createForm.founderId !== 'NONE') {
           const founder = unassignedAgency?.members.find(m => m.id === createForm.founderId);
           if (founder) {
-              const updatedFounder = { ...founder };
+              const newHistory = [...(founder.history || [])];
+              newHistory.push({
+                  id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
+                  date: new Date().toISOString().split('T')[0],
+                  weekId: currentWeekId,
+                  agencyName: createForm.name || "Nouveau Studio",
+                  action: 'JOINED',
+                  contextVE: 20,
+                  reason: "Fondation du Studio (Admin)"
+              });
+
+              const updatedFounder = { ...founder, history: newHistory };
               if (createForm.applyCost) {
                   updatedFounder.wallet = (updatedFounder.wallet || 0) - GAME_RULES.CREATION_COST_PIXI;
                   updatedFounder.individualScore = Math.max(0, updatedFounder.individualScore - GAME_RULES.CREATION_COST_SCORE);

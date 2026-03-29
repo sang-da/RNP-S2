@@ -141,9 +141,39 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
             Object.values(a.progress).forEach((week: any) => {
                 week.deliverables.forEach((d: Deliverable) => {
                     const isMvp = d.grading?.mvpId === targetStudent.id;
-                    const wasInAgencyThisWeek = studentTimeline.find(t => t.weekId === week.id)?.agencyName === a.name;
+                    let wasInAgencyThisWeek = studentTimeline.find(t => t.weekId === week.id)?.agencyName === a.name;
                     
-                    if ((d.status === 'validated' || d.status === 'rejected') && (isMvp || wasInAgencyThisWeek || a.members.some(m => m.id === targetStudent.id))) {
+                    if (!wasInAgencyThisWeek) {
+                        if (targetStudent.history && targetStudent.history.length > 0) {
+                            const weekNum = parseInt(week.id.replace('S', '')) || 0;
+                            const chronologicalHistory = [...targetStudent.history].sort((h1, h2) => new Date(h1.date).getTime() - new Date(h2.date).getTime());
+                            
+                            let inAgencyDuringWeek = false;
+                            let currentAgencyName = null;
+                            
+                            for (const entry of chronologicalHistory) {
+                                const entryWeekNum = parseInt(entry.weekId.replace('S', '')) || 0;
+                                
+                                if (entryWeekNum < weekNum) {
+                                    if (entry.action === 'JOINED') currentAgencyName = entry.agencyName;
+                                    else if (entry.action === 'LEFT' || entry.action === 'TRANSFER' || entry.action === 'FIRED' || entry.action === 'RESIGNED') currentAgencyName = null;
+                                } else if (entryWeekNum === weekNum) {
+                                    if (entry.action === 'JOINED' && entry.agencyName === a.name) inAgencyDuringWeek = true;
+                                    if ((entry.action === 'LEFT' || entry.action === 'TRANSFER' || entry.action === 'FIRED' || entry.action === 'RESIGNED') && entry.agencyName === a.name) inAgencyDuringWeek = true;
+                                }
+                            }
+                            
+                            if (currentAgencyName === a.name || inAgencyDuringWeek) {
+                                wasInAgencyThisWeek = true;
+                            }
+                        } else {
+                            if (a.members.some(m => m.id === targetStudent.id)) {
+                                wasInAgencyThisWeek = true;
+                            }
+                        }
+                    }
+                    
+                    if ((d.status === 'validated' || d.status === 'rejected') && (isMvp || wasInAgencyThisWeek)) {
                         const scoreLabel = d.grading?.quality || (d.status === 'rejected' ? 'REJECTED' : '?');
                         const isSpecial = d.id.startsWith('d_special_') || d.type === 'SPECIAL_LOGO' || d.type === 'SPECIAL_BANNER' || d.type === 'FORM_CHARTER' || d.type === 'FORM_NAMING';
                         works.push({
