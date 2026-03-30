@@ -750,7 +750,7 @@ export const useFinanceLogic = (
           await runTransaction(db, async (transaction) => {
               const itemRef = doc(db, "shop_items", itemId);
               const itemDoc = await transaction.get(itemRef);
-              if (!itemDoc.exists()) throw new Error("Objet introuvable");
+              if (!itemDoc.exists) throw new Error("Objet introuvable");
               const item = itemDoc.data() as any;
 
               if (item.type !== 'FIXED') throw new Error("Cet objet n'est pas à prix fixe");
@@ -759,7 +759,7 @@ export const useFinanceLogic = (
 
               const agencyRef = doc(db, "agencies", agencyId);
               const agencyDoc = await transaction.get(agencyRef);
-              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
               const agency = agencyDoc.data() as Agency;
 
               if (agency.budget_real < (item.price || 0)) throw new Error("Budget agence insuffisant");
@@ -805,7 +805,7 @@ export const useFinanceLogic = (
           await runTransaction(db, async (transaction) => {
               const itemRef = doc(db, "shop_items", itemId);
               const itemDoc = await transaction.get(itemRef);
-              if (!itemDoc.exists()) throw new Error("Enchère introuvable");
+              if (!itemDoc.exists) throw new Error("Enchère introuvable");
               const item = itemDoc.data() as any;
 
               if (item.type !== 'AUCTION') throw new Error("Cet objet n'est pas une enchère");
@@ -816,7 +816,7 @@ export const useFinanceLogic = (
 
               const agencyRef = doc(db, "agencies", agencyId);
               const agencyDoc = await transaction.get(agencyRef);
-              if (!agencyDoc.exists()) throw new Error("Agence introuvable");
+              if (!agencyDoc.exists) throw new Error("Agence introuvable");
               const agency = agencyDoc.data() as Agency;
 
               if (agency.budget_real < bidAmount) throw new Error("Budget agence insuffisant");
@@ -825,7 +825,7 @@ export const useFinanceLogic = (
               if (item.highestBidderId && item.highestBidderId !== agencyId) {
                   const prevBidderRef = doc(db, "agencies", item.highestBidderId);
                   const prevBidderDoc = await transaction.get(prevBidderRef);
-                  if (prevBidderDoc.exists()) {
+                  if (prevBidderDoc.exists) {
                       const prevBidder = prevBidderDoc.data() as Agency;
                       transaction.update(prevBidderRef, {
                           budget_real: prevBidder.budget_real + (item.currentPrice || 0),

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Agency, ShopItem } from '../../types';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { ShoppingCart, Gavel, AlertCircle, Clock, CheckCircle2, Receipt } from 'lucide-react';
+import { ShoppingCart, Gavel, AlertCircle, Clock, CheckCircle2, Receipt, Info } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { useUI } from '../../contexts/UIContext';
+import { Modal } from '../Modal';
 
 interface StudentShopProps {
     agency: Agency;
@@ -19,6 +20,10 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
     const [items, setItems] = useState<ShopItem[]>([]);
     const [bidAmounts, setBidAmounts] = useState<Record<string, number>>({});
     const [isProcessing, setIsProcessing] = useState(false);
+    
+    // Confirmation Modals State
+    const [confirmBuyItem, setConfirmBuyItem] = useState<ShopItem | null>(null);
+    const [confirmBidItem, setConfirmBidItem] = useState<{item: ShopItem, amount: number} | null>(null);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(collection(db, 'shop_items'), (snapshot) => {
@@ -33,11 +38,16 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
 
     const handleBuy = async (item: ShopItem) => {
         if (!currentUser) return;
-        if (!window.confirm(`Voulez-vous vraiment acheter "${item.title}" pour ${item.price} PiXi ?`)) return;
+        setConfirmBuyItem(item);
+    };
+
+    const confirmAndExecuteBuy = async () => {
+        if (!currentUser || !confirmBuyItem) return;
         
         setIsProcessing(true);
         try {
-            await executeBuyShopItem(currentUser.uid, agency.id, item.id);
+            await executeBuyShopItem(currentUser.uid, agency.id, confirmBuyItem.id);
+            setConfirmBuyItem(null);
         } finally {
             setIsProcessing(false);
         }
@@ -53,12 +63,17 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
             return;
         }
 
-        if (!window.confirm(`Confirmez-vous votre enchère de ${amount} PiXi pour "${item.title}" ?`)) return;
+        setConfirmBidItem({ item, amount });
+    };
+
+    const confirmAndExecuteBid = async () => {
+        if (!currentUser || !confirmBidItem) return;
 
         setIsProcessing(true);
         try {
-            await executePlaceBid(currentUser.uid, agency.id, item.id, amount);
-            setBidAmounts(prev => ({ ...prev, [item.id]: 0 })); // Reset bid input
+            await executePlaceBid(currentUser.uid, agency.id, confirmBidItem.item.id, confirmBidItem.amount);
+            setBidAmounts(prev => ({ ...prev, [confirmBidItem.item.id]: 0 })); // Reset bid input
+            setConfirmBidItem(null);
         } finally {
             setIsProcessing(false);
         }
@@ -263,6 +278,82 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
                     <p className="text-slate-500">Aucun article n'est disponible pour le moment.</p>
                 </div>
             )}
+
+            {/* Confirmation Modals */}
+            <Modal
+                isOpen={!!confirmBuyItem}
+                onClose={() => setConfirmBuyItem(null)}
+                title="Confirmer l'achat"
+            >
+                {confirmBuyItem && (
+                    <div className="space-y-6">
+                        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-3">
+                            <Info className="text-indigo-600 mt-1 shrink-0" size={24} />
+                            <div>
+                                <h4 className="font-bold text-indigo-900">{confirmBuyItem.title}</h4>
+                                <p className="text-indigo-700 mt-1">
+                                    Voulez-vous vraiment acheter cet article pour <span className="font-bold">{confirmBuyItem.price} PiXi</span> ?
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setConfirmBuyItem(null)}
+                                disabled={isProcessing}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={confirmAndExecuteBuy}
+                                disabled={isProcessing}
+                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isProcessing ? 'Achat en cours...' : 'Confirmer l\'achat'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={!!confirmBidItem}
+                onClose={() => setConfirmBidItem(null)}
+                title="Confirmer l'enchère"
+            >
+                {confirmBidItem && (
+                    <div className="space-y-6">
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-start gap-3">
+                            <Gavel className="text-amber-600 mt-1 shrink-0" size={24} />
+                            <div>
+                                <h4 className="font-bold text-amber-900">{confirmBidItem.item.title}</h4>
+                                <p className="text-amber-700 mt-1">
+                                    Confirmez-vous votre enchère de <span className="font-bold">{confirmBidItem.amount} PiXi</span> ?
+                                </p>
+                                <p className="text-sm text-amber-600 mt-2 italic">
+                                    Attention : les enchères sont définitives et les fonds seront bloqués.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setConfirmBidItem(null)}
+                                disabled={isProcessing}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={confirmAndExecuteBid}
+                                disabled={isProcessing}
+                                className="px-4 py-2 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isProcessing ? 'Enchère en cours...' : 'Confirmer l\'enchère'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 };

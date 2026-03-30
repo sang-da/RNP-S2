@@ -282,7 +282,12 @@ export const useOperationsLogic = (
                   throw new Error(`Le nombre total de membres ne peut pas dépasser ${GAME_RULES.MERGER_MAX_MEMBERS}.`);
               }
 
-              const combinedMembers = [...source.members, ...target.members];
+              const updatedTargetMembers = target.members.map(m => ({
+                  ...m,
+                  role: 'Employé'
+              }));
+
+              const combinedMembers = [...source.members, ...updatedTargetMembers];
               const combinedBudget = source.budget_real + target.budget_real; 
               
               const sourceMarketVE = calculateMarketVE(source);

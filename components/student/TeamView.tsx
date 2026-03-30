@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save, ShoppingBag } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save, ShoppingBag, Crown } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
@@ -117,14 +117,22 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                 const salary = Math.min(rawSalary, GAME_RULES.SALARY_CAP_FOR_STUDENT);
                 const isMe = member.id === currentUser?.id;
                 const alreadyReviewed = hasReviewedMemberThisWeek(member.id);
+                const isOwner = !member.role.toLowerCase().includes('employé') && !member.role.toLowerCase().includes('employee') && !member.role.toLowerCase().includes('salarié');
                 
                 return (
                     <div 
                         key={member.id} 
-                        className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4 group hover:shadow-md transition-all relative overflow-hidden"
+                        className={`bg-white p-6 rounded-3xl border ${isOwner ? 'border-amber-200 shadow-amber-100/50' : 'border-slate-100'} shadow-sm flex flex-col gap-4 group hover:shadow-md transition-all relative overflow-hidden`}
                     >
+                        {isOwner && (
+                            <div className="absolute top-0 right-0 bg-gradient-to-bl from-amber-400 to-amber-500 text-white p-2 rounded-bl-2xl shadow-sm">
+                                <Crown size={16} className="drop-shadow-sm" />
+                            </div>
+                        )}
                         <div className="flex items-center gap-6 cursor-pointer" onClick={() => setSelectedMember(member)}>
-                            <img src={member.avatarUrl} className="w-20 h-20 rounded-2xl bg-slate-100 group-hover:scale-105 transition-transform" alt={member.name} />
+                            <div className="relative">
+                                <img src={member.avatarUrl} className={`w-20 h-20 rounded-2xl bg-slate-100 group-hover:scale-105 transition-transform ${isOwner ? 'ring-2 ring-amber-400 ring-offset-2' : ''}`} alt={member.name} />
+                            </div>
                             <div className="flex-1">
                                 <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
                                     {member.name}
@@ -136,7 +144,9 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                                 </h3>
                                 
                                 <div className="flex flex-col items-start mt-1 gap-1">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{member.role}</span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isOwner ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                        {member.role}
+                                    </span>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setShowSalaryInfo(true); }}
                                         className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-xs font-bold text-red-600 hover:bg-red-100 transition-colors"
@@ -270,7 +280,14 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
             >
                 <div className="space-y-6">
                     <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <img src={selectedMember.avatarUrl} className="w-16 h-16 rounded-xl bg-white shadow-sm" alt={selectedMember.name} />
+                        <div className="relative">
+                            <img src={selectedMember.avatarUrl} className={`w-16 h-16 rounded-xl bg-white shadow-sm ${!selectedMember.role.toLowerCase().includes('employé') && !selectedMember.role.toLowerCase().includes('employee') && !selectedMember.role.toLowerCase().includes('salarié') ? 'ring-2 ring-amber-400 ring-offset-2' : ''}`} alt={selectedMember.name} />
+                            {!selectedMember.role.toLowerCase().includes('employé') && !selectedMember.role.toLowerCase().includes('employee') && !selectedMember.role.toLowerCase().includes('salarié') && (
+                                <div className="absolute -top-2 -right-2 bg-gradient-to-bl from-amber-400 to-amber-500 text-white p-1 rounded-full shadow-sm">
+                                    <Crown size={12} className="drop-shadow-sm" />
+                                </div>
+                            )}
+                        </div>
                         <div className="flex-1">
                             <h4 className="font-bold text-lg text-slate-900">{selectedMember.name}</h4>
                             
@@ -288,13 +305,19 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                                         <button onClick={handleSaveRole} className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={12}/></button>
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-2 group cursor-pointer w-fit" onClick={() => setIsEditingRole(true)} title="Modifier votre rôle">
-                                        <p className="text-xs text-slate-500 font-bold uppercase group-hover:text-indigo-600 transition-colors">{selectedMember.role}</p>
+                                    <div className="flex items-center gap-2 group cursor-pointer w-fit mt-1" onClick={() => setIsEditingRole(true)} title="Modifier votre rôle">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${!selectedMember.role.toLowerCase().includes('employé') && !selectedMember.role.toLowerCase().includes('employee') && !selectedMember.role.toLowerCase().includes('salarié') ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {selectedMember.role}
+                                        </span>
                                         <Edit2 size={10} className="text-slate-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity"/>
                                     </div>
                                 )
                             ) : (
-                                <p className="text-xs text-slate-500 font-bold uppercase">{selectedMember.role}</p>
+                                <div className="mt-1">
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${!selectedMember.role.toLowerCase().includes('employé') && !selectedMember.role.toLowerCase().includes('employee') && !selectedMember.role.toLowerCase().includes('salarié') ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                        {selectedMember.role}
+                                    </span>
+                                </div>
                             )}
                         </div>
                     </div>
