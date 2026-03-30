@@ -141,43 +141,39 @@ export const calculateMarketVE = (agency: Agency): number => {
 // --- HELPER FUNCTION: VE SHIELD LOGIC ---
 // Applique la logique de bouclier : la VE Marché protège la VE actuelle.
 export const applyVEShield = (currentVE: number, veAdjustment: number, marketVE: number, veCap: number): number => {
-    const newMarketVE = marketVE + veAdjustment;
-    let finalVE = currentVE;
+    // Le but du bouclier :
+    // 1. Limiter la croissance au veCap (sauf si déjà au-dessus).
+    // 2. Si perte, utiliser le surplus de marketVE (> veCap) pour absorber le choc.
+    // NE DOIT PAS corriger automatiquement les écarts comptables (accounting gaps).
 
-    if (currentVE > veCap) {
-        // Cas Surplus (ex: Bonus exceptionnel)
-        if (veAdjustment > 0) {
-            finalVE = currentVE; // Pas de croissance organique au-delà du surplus
+    let finalVE = currentVE + veAdjustment;
+
+    if (veAdjustment > 0) {
+        // Croissance : on bloque au veCap, sauf si on était déjà au-dessus (auquel cas on ne grandit plus)
+        if (currentVE >= veCap) {
+            finalVE = currentVE;
         } else {
-            // On réduit le surplus, mais on ne descend pas sous le Cap tant que le Marché est haut
-            const potentialWithLoss = currentVE + veAdjustment;
-            finalVE = Math.max(veCap, potentialWithLoss);
-            // Sécurité : si le marché s'effondre vraiment sous le Cap
-            if (newMarketVE < finalVE) {
-                finalVE = Math.max(0, newMarketVE);
-            }
+            finalVE = Math.min(veCap, finalVE);
         }
-    } else {
-        // Cas Standard (sous ou au Cap)
-        if (veAdjustment > 0) {
-            // Croissance organique limitée par le Cap
-            finalVE = Math.min(veCap, currentVE + veAdjustment);
-            // On s'assure de ne pas dépasser la VE réelle (si anomalie)
-            finalVE = Math.min(finalVE, Math.max(0, newMarketVE));
-        } else {
-            // Perte organique : LE BOUCLIER
+    } else if (veAdjustment < 0) {
+        // Perte : on vérifie si l'historique (marketVE) offre un bouclier
+        if (marketVE > veCap) {
+            const newMarketVE = marketVE + veAdjustment;
             if (newMarketVE >= veCap) {
-                finalVE = veCap; // Le surplus de VE Marché absorbe le choc
+                // Le surplus a tout absorbé. La VE affichée reste protégée (au max de sa valeur ou du cap)
+                finalVE = Math.max(veCap, currentVE);
             } else {
-                finalVE = Math.max(0, newMarketVE); // Plus de bouclier, on tombe
+                // Le surplus est détruit, la perte déborde sous le cap
+                const overflowLoss = veCap - newMarketVE;
+                // On applique cette perte résiduelle par rapport au cap (ou à la VE actuelle si elle était sous le cap)
+                const baseForLoss = Math.min(currentVE, veCap);
+                finalVE = baseForLoss - overflowLoss;
             }
+        } else {
+            // Pas de bouclier, la perte s'applique normalement
+            finalVE = currentVE + veAdjustment;
         }
     }
 
-    // Correction automatique : si une agence a une VE actuelle < Cap alors que son Marché est > Cap
-    if (finalVE < veCap && newMarketVE >= veCap) {
-        finalVE = veCap;
-    }
-
-    return finalVE;
+    return Math.max(0, finalVE);
 };
