@@ -370,20 +370,12 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
 
             // B. VE BUDGET ADJUSTMENT
             const budget = agency.budget_real;
-            if (budget >= 2000) veAdjustment += Math.floor(budget / 2000);
-            else if (budget < 0) veAdjustment -= Math.ceil(Math.abs(budget) / 1000) * 2;
-
-            if (veAdjustment !== 0 && !logEvents.find(e => e.label === 'Malus Peer Review')) { // Avoid double logging if only penalty
-                // Only log budget adjustment if it's not just the penalty (or log separately? The penalty is already logged above)
-                // Actually, let's log budget adjustment separately if it exists.
-            }
-            
-            // Re-calculate budget part for logging to be clear
             let budgetVeAdj = 0;
             if (budget >= 2000) budgetVeAdj += Math.floor(budget / 2000);
             else if (budget < 0) budgetVeAdj -= Math.ceil(Math.abs(budget) / 1000) * 2;
-            
+
             if (budgetVeAdj !== 0) {
+                 veAdjustment += budgetVeAdj;
                  logEvents.push({ id: `perf-ve-${Date.now()}-${agency.id}`, date: today, type: budgetVeAdj > 0 ? 'VE_DELTA' : 'CRISIS', label: 'Ajustement VE (Bilan)', deltaVE: budgetVeAdj, description: budgetVeAdj > 0 ? 'Trésorerie saine.' : 'Dette.' });
             }
 
