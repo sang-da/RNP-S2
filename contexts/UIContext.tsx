@@ -46,7 +46,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, 8000);
   }, []);
 
   const confirm = useCallback((options: ConfirmOptions) => {

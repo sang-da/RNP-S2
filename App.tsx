@@ -172,7 +172,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'BANK' && <AdminBank agencies={agencies} />}
                     {adminView === 'STUDENT_TRACKER' && <AdminStudentTracker agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
-                    {adminView === 'EVALUATION' && <AdminEvaluation agencies={agencies} />}
+                    {adminView === 'EVALUATION' && <AdminEvaluation agencies={agencies} onUpdateAgency={updateAgency} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'VIEWS' && (
                         <AdminViews 

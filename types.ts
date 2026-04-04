@@ -57,6 +57,22 @@ export interface AuditResult {
     date: string; // Date de l'audit pour savoir s'il est périmé
 }
 
+export interface CriterionEval {
+    criterionId: string;
+    score: number;
+    feedback: string;
+}
+
+export interface StudentEvaluation {
+    groupEvaluation: CriterionEval[];
+    individualEvaluation: CriterionEval[];
+    veScore: number;
+    budgetScore: number;
+    baseIndividualScore: number;
+    peerReviewScore: number;
+    lastUpdated: string;
+}
+
 export interface Student {
     id: string;
     name: string;
@@ -76,6 +92,7 @@ export interface Student {
     careerPath?: CareerStep[]; // NOUVEAU : Historique complet des semaines
     notes?: StudentNote[]; // NOUVEAU
     cvUrl?: string;
+    evaluation?: StudentEvaluation; // NOUVEAU : Sauvegarde de l'évaluation détaillée
     // Holding / Ejectable Seat
     weeksWithoutMVPSuggestion?: number; // Compteur pour le siège éjectable
     status?: 'ACTIVE' | 'AT_RISK' | 'FIRED';
