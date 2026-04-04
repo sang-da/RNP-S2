@@ -255,6 +255,67 @@ Format attendu :
     }
 };
 
+export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string): Promise<{score: number, feedback: string}> => {
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const prompt = `
+En tant que jury final, évaluez l'agence "${agencyData.name}".
+Règles du référentiel : ${referentialRules}
+
+Données de l'agence :
+- Valeur d'Entreprise (VE) : ${agencyData.ve}
+- Budget (Richesse) : ${agencyData.budget}€
+- Concept : ${agencyData.concept || 'Non défini'}
+- Cible : ${agencyData.target || 'Non défini'}
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "score": un nombre entre 0 et 100,
+    "feedback": "Un commentaire constructif de 2-3 phrases justifiant la note."
+}
+`;
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [
+                    { role: "system", content: "Tu es un jury d'évaluation expert." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.5,
+                max_tokens: 1024,
+                response_format: { type: "json_object" }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        
+        const jsonResponse = JSON.parse(content);
+        return {
+            score: jsonResponse.score || 50,
+            feedback: jsonResponse.feedback || "Évaluation complétée."
+        };
+
+    } catch (error) {
+        console.error("Groq Evaluation Failed", error);
+        throw error;
+    }
+};
+
 // --- NOUVELLE FONCTION POUR LA TRANSCRIPTION AUDIO (WHISPER) ---
 export const transcribeAudioWithGroq = async (audioBlob: Blob, promptContext: string = ""): Promise<string> => {
     const apiKey = getGroqKey();

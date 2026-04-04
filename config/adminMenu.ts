@@ -2,7 +2,8 @@
 import { 
     LayoutDashboard, PieChart, Landmark, Contact, Medal, HeartHandshake, 
     TrendingUp, Bot, KeyRound, CalendarRange, Users, Briefcase, Flame, 
-    EyeOff, FolderOpen, MonitorPlay, Settings, ShoppingBag, HelpCircle
+    EyeOff, FolderOpen, MonitorPlay, Settings, ShoppingBag, HelpCircle,
+    ClipboardCheck
 } from 'lucide-react';
 
 export const ADMIN_MENU_STRUCTURE = [
@@ -20,6 +21,7 @@ export const ADMIN_MENU_STRUCTURE = [
             { id: 'PROJECTS', label: 'Suivi Projets', icon: Briefcase },
             { id: 'SCHEDULE', label: 'Calendrier & Cycles', icon: CalendarRange },
             { id: 'CRISIS', label: 'Zone de Crise', icon: Flame },
+            { id: 'EVALUATION', label: 'Évaluation Finale', icon: ClipboardCheck },
             { id: 'AI_ASSISTANT', label: 'Co-Pilote IA', icon: Bot },
         ]
     },

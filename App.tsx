@@ -16,6 +16,7 @@ import { AdminAIAssistant } from './components/AdminAIAssistant';
 import { AdminMarket } from './components/AdminMarket';
 import { AdminAnalytics } from './components/AdminAnalytics';
 import { AdminPeerReviews } from './components/admin/AdminPeerReviews';
+import { AdminEvaluation } from './components/admin/evaluation/AdminEvaluation';
 import { AdminBank } from './components/AdminBank'; 
 import { AdminBlackMarket } from './components/AdminBlackMarket';
 import { AdminStudentTracker } from './components/AdminStudentTracker'; 
@@ -37,7 +38,7 @@ import { QuizButton } from './components/student/QuizButton';
 import { ConnectivityTest } from './components/student/ConnectivityTest';
 
 // NOTE: Le type AdminViewType doit correspondre aux IDs dans adminMenu.ts
-type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES' | 'SHOP';
+type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES' | 'SHOP' | 'EVALUATION';
 
 const GameContainer: React.FC = () => {
   const { currentUser, userData, loading } = useAuth();
@@ -171,6 +172,7 @@ const GameContainer: React.FC = () => {
                     {adminView === 'BANK' && <AdminBank agencies={agencies} />}
                     {adminView === 'STUDENT_TRACKER' && <AdminStudentTracker agencies={agencies} />}
                     {adminView === 'PEER_REVIEWS' && <AdminPeerReviews agencies={agencies} />}
+                    {adminView === 'EVALUATION' && <AdminEvaluation agencies={agencies} />}
                     {adminView === 'PROJECTS' && <AdminProjects agencies={agencies} onUpdateAgency={updateAgency} readOnly={isViewReadOnly} />}
                     {adminView === 'VIEWS' && (
                         <AdminViews 
