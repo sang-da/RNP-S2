@@ -255,25 +255,67 @@ Format attendu :
     }
 };
 
-export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string): Promise<{score: number, feedback: string}> => {
+export interface CriterionEval {
+    criterionId: string;
+    score: number;
+    feedback: string;
+}
+
+export interface DetailedEvaluationResult {
+    groupEvaluation: CriterionEval[];
+    membersEvaluation: Record<string, CriterionEval[]>;
+}
+
+export const evaluateAgencyAndMembersWithGroq = async (agencyData: any, referentialRules: string): Promise<DetailedEvaluationResult> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
-    const prompt = `
-En tant que jury final, évaluez l'agence "${agencyData.name}".
-Règles du référentiel : ${referentialRules}
+    const membersData = agencyData.members.map((m: any) => {
+        const peerReviewsForMember = agencyData.peerReviews?.filter((pr: any) => pr.targetId === m.id) || [];
+        const peerReviewsText = peerReviewsForMember.map((pr: any) => `- Reviewer: ${pr.reviewerName}, Assiduité: ${pr.ratings.attendance}/5, Qualité: ${pr.ratings.quality}/5, Implication: ${pr.ratings.involvement}/5, Commentaire: "${pr.comment}"`).join('\n  ');
+        
+        const notesText = m.notes?.map((n: any) => `- Date: ${n.date}, Type: ${n.type}, Commentaire Admin: "${n.content}"`).join('\n  ') || 'Aucune note admin.';
 
-Données de l'agence :
+        return `- ID: ${m.id}, Nom: ${m.name}, Rôle: ${m.role}, Score Individuel: ${m.individualScore}
+  Évaluations des pairs :
+  ${peerReviewsText || 'Aucune évaluation des pairs.'}
+  Notes de l'administrateur :
+  ${notesText}`;
+    }).join('\n\n');
+
+    const prompt = `
+En tant que jury final, évaluez l'agence "${agencyData.name}" et chacun de ses membres sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
+
+Règles du référentiel :
+${referentialRules}
+
+Données de l'agence (Évaluation Groupe) :
 - Valeur d'Entreprise (VE) : ${agencyData.ve}
 - Budget (Richesse) : ${agencyData.budget}€
-- Concept : ${agencyData.concept || 'Non défini'}
-- Cible : ${agencyData.target || 'Non défini'}
+- Concept : ${agencyData.projectDef?.concept || 'Non défini'}
+- Cible : ${agencyData.projectDef?.target || 'Non défini'}
+
+Données des membres (Évaluation Individuelle, incluant les retours des pairs et les notes de l'admin) :
+${membersData}
+
+INSTRUCTIONS IMPORTANTES :
+1. Vous devez faire DEUX évaluations parallèles :
+   - Une évaluation de l'ENTREPRISE (Groupe) basée sur la VE et le projet.
+   - Une évaluation INDIVIDUELLE pour CHAQUE membre basée sur son score individuel, son rôle, les évaluations de ses pairs (commentaires et notes) et les notes laissées par l'administrateur.
+2. Pour chaque évaluation, vous devez donner une note sur 20 pour CHAQUE critère (C1.1, C2.1, etc.) trouvé dans le référentiel.
+3. Utilisez les commentaires des pairs et de l'admin pour ajuster finement la note individuelle et justifier le feedback.
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
-    "score": un nombre entre 0 et 100,
-    "feedback": "Un commentaire constructif de 2-3 phrases justifiant la note."
+    "groupEvaluation": [
+        { "criterionId": "C1.1", "score": 15, "feedback": "Justification courte" }
+    ],
+    "membersEvaluation": {
+        "ID_DU_MEMBRE": [
+            { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+        ]
+    }
 }
 `;
 
@@ -287,11 +329,11 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             body: JSON.stringify({
                 model: GROQ_MODEL,
                 messages: [
-                    { role: "system", content: "Tu es un jury d'évaluation expert." },
+                    { role: "system", content: "Tu es un jury d'évaluation expert. Tu réponds uniquement en JSON valide." },
                     { role: "user", content: prompt }
                 ],
-                temperature: 0.5,
-                max_tokens: 1024,
+                temperature: 0.3,
+                max_tokens: 4000,
                 response_format: { type: "json_object" }
             })
         });
@@ -306,12 +348,12 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         
         const jsonResponse = JSON.parse(content);
         return {
-            score: jsonResponse.score || 50,
-            feedback: jsonResponse.feedback || "Évaluation complétée."
+            groupEvaluation: jsonResponse.groupEvaluation || [],
+            membersEvaluation: jsonResponse.membersEvaluation || {}
         };
 
     } catch (error) {
-        console.error("Groq Evaluation Failed", error);
+        console.error("Groq Detailed Evaluation Failed", error);
         throw error;
     }
 };
