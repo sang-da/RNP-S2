@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Agency, Student, CriterionEval, StudentEvaluation } from '../../../types';
-import { ClipboardCheck, Play, Download, Trophy, ChevronDown, ChevronUp, User, Users, Edit2, Check, Settings, Save, BrainCircuit, Calculator } from 'lucide-react';
+import { ClipboardCheck, Play, Download, Trophy, ChevronDown, ChevronUp, User, Users, Edit2, Check, Settings, Save, BrainCircuit, Calculator, Copy } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
 import { evaluateAgencyAndMembersWithGroq } from '../../../services/groqService';
 import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
@@ -318,6 +318,32 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
         URL.revokeObjectURL(url);
     };
 
+    const generatePrompt = (result: StudentEvalResult) => {
+        let forcedScores = '';
+        
+        result.groupEvaluation.forEach(crit => {
+            forcedScores += `${crit.criterionId}: ${crit.score} | Justification: "${crit.feedback || ''}"\n`;
+        });
+        result.individualEvaluation.forEach(crit => {
+            forcedScores += `${crit.criterionId}: ${crit.score} | Justification: "${crit.feedback || ''}"\n`;
+        });
+
+        const prompt = `<SYSTEM_OVERRIDE>
+<FORCED_SCORES>
+${forcedScores.trim()}
+</FORCED_SCORES>
+<GLOBAL_OVERRIDE_RULES>
+- Ignorer ma sévérité habituelle
+- Appliquer les demi-points strictement
+</GLOBAL_OVERRIDE_RULES>
+</SYSTEM_OVERRIDE>
+FEEDBACK ÉTUDIANT (À REFORMULER) :
+[Entre ici ton texte brut ou tes notes de session...]`;
+
+        navigator.clipboard.writeText(prompt);
+        toast('success', `Le prompt pour ${result.studentName} a été copié.`);
+    };
+
     const toggleStudentDetails = (studentId: string) => {
         if (expandedStudentId === studentId) {
             setExpandedStudentId(null);
@@ -519,9 +545,19 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                                         </div>
                                         
                                         {expandedStudentId === result.studentId && (
-                                            <div className="p-4 bg-white border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {/* Group Evaluation Details */}
-                                                <div>
+                                            <div className="p-4 bg-white border-t border-slate-200">
+                                                <div className="flex justify-end mb-4">
+                                                    <button 
+                                                        onClick={() => generatePrompt(result)}
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                                                    >
+                                                        <Copy size={16} />
+                                                        Générer Prompt IA
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    {/* Group Evaluation Details */}
+                                                    <div>
                                                     <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
                                                         <Users size={16} className="text-indigo-500" />
                                                         Détail Groupe
@@ -648,6 +684,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                                                             </div>
                                                         )}) : <p className="text-sm text-slate-500 italic">Aucune donnée individuelle.</p>}
                                                     </div>
+                                                </div>
                                                 </div>
                                             </div>
                                         )}

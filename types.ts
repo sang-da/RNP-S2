@@ -242,6 +242,7 @@ export interface Agency {
     weeklyTax: number;
     weeklyRevenueModifier: number;
     members: Student[];
+    peerReviews?: PeerReview[];
     
     // Holding specific
     seniorityMap?: { [studentId: string]: 'SENIOR' | 'JUNIOR' }; // Pour les dividendes
