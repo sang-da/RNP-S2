@@ -97,28 +97,27 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
 
     const runEvaluation = async () => {
         setIsEvaluating(true);
-        toast('info', "Analyse IA détaillée en cours pour les agences sélectionnées...");
+        toast('info', "Analyse IA détaillée en cours pour les agences sélectionnées. Cela peut prendre du temps...");
 
         try {
-            const newResults: StudentEvalResult[] = [...results];
+            let currentResults: StudentEvalResult[] = [...results];
             const agenciesToEval = selectedAgencyId === 'ALL' 
                 ? agencies.filter(a => a.id !== 'unassigned') 
                 : agencies.filter(a => a.id === selectedAgencyId);
 
-            for (const agency of agenciesToEval) {
+            for (let i = 0; i < agenciesToEval.length; i++) {
+                const agency = agenciesToEval[i];
                 try {
+                    toast('info', `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...`);
                     const aiResult = await evaluateAgencyAndMembersWithGroq(agency, referentialRules);
                     
-                    for (const student of agency.members) {
+                    const updatedAgency = { ...agency };
+                    const agencyResults: StudentEvalResult[] = [];
+
+                    updatedAgency.members = updatedAgency.members.map(student => {
                         const algoScores = calculateAlgoScores(agency, student);
                         
-                        // Remove existing result for this student if any
-                        const existingIdx = newResults.findIndex(r => r.studentId === student.id);
-                        if (existingIdx >= 0) {
-                            newResults.splice(existingIdx, 1);
-                        }
-
-                        newResults.push({
+                        const studentResult: StudentEvalResult = {
                             studentId: student.id,
                             studentName: student.name,
                             agencyId: agency.id,
@@ -126,16 +125,45 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                             groupEvaluation: aiResult.groupEvaluation || [],
                             individualEvaluation: aiResult.membersEvaluation[student.id] || [],
                             ...algoScores
-                        });
+                        };
+                        
+                        agencyResults.push(studentResult);
+
+                        return {
+                            ...student,
+                            evaluation: {
+                                groupEvaluation: studentResult.groupEvaluation,
+                                individualEvaluation: studentResult.individualEvaluation,
+                                veScore: studentResult.veScore,
+                                budgetScore: studentResult.budgetScore,
+                                baseIndividualScore: studentResult.baseIndividualScore,
+                                peerReviewScore: studentResult.peerReviewScore,
+                                lastUpdated: new Date().toISOString()
+                            }
+                        };
+                    });
+
+                    // Update local state progressively
+                    currentResults = currentResults.filter(r => r.agencyId !== agency.id).concat(agencyResults);
+                    setResults(currentResults);
+
+                    // Save to database immediately
+                    if (onUpdateAgency) {
+                        onUpdateAgency(updatedAgency);
                     }
+
+                    // Add delay to avoid rate limiting (429), except for the last one
+                    if (i < agenciesToEval.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 4000));
+                    }
+
                 } catch (error) {
                     console.error("Erreur IA pour l'agence", agency.name, error);
                     toast('error', `L'évaluation a échoué pour l'agence ${agency.name}.`);
                 }
             }
 
-            setResults(newResults);
-            toast('success', "Les résultats détaillés ont été générés avec succès.");
+            toast('success', "Les résultats détaillés ont été générés et sauvegardés avec succès.");
 
         } catch (error) {
             console.error("Erreur lors de l'évaluation", error);
