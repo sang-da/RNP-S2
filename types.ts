@@ -70,6 +70,7 @@ export interface StudentEvaluation {
     budgetScore: number;
     baseIndividualScore: number;
     peerReviewScore: number;
+    studentFeedback?: string;
     lastUpdated: string;
 }
 

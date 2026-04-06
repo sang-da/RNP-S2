@@ -1,27 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Agency, Student, CriterionEval, StudentEvaluation } from '../../../types';
-import { ClipboardCheck, Play, Download, Trophy, ChevronDown, ChevronUp, User, Users, Edit2, Check, Settings, Save, BrainCircuit, Calculator, Copy } from 'lucide-react';
+import { Agency, Student, CriterionEval } from '../../../types';
+import { ClipboardCheck, Play, Download, Trophy, ChevronDown, ChevronUp, Settings, Save, BrainCircuit } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
-import { evaluateAgencyAndMembersWithGroq } from '../../../services/groqService';
+import { evaluateAgencyWithGroq, evaluateMemberWithGroq } from '../../../services/groqService';
 import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
+import { StudentEvalResult, calculateAlgoScores, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
+import { EvaluationSettings } from './EvaluationSettings';
+import { StudentEvaluationDetails } from './StudentEvaluationDetails';
 
 interface AdminEvaluationProps {
     agencies: Agency[];
     onUpdateAgency?: (agency: Agency) => void;
-}
-
-interface StudentEvalResult {
-    studentId: string;
-    studentName: string;
-    agencyId: string;
-    agencyName: string;
-    groupEvaluation: CriterionEval[];
-    individualEvaluation: CriterionEval[];
-    // Algo stats
-    veScore: number;
-    budgetScore: number;
-    baseIndividualScore: number;
-    peerReviewScore: number;
 }
 
 export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUpdateAgency }) => {
@@ -35,21 +24,11 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
     const [showSettings, setShowSettings] = useState(false);
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('ALL');
 
-    // Ponderations
     const [weights, setWeights] = useState({
-        group: {
-            ve: 20,
-            budget: 10,
-            ai: 70
-        },
-        individual: {
-            baseScore: 30,
-            peerReviews: 20,
-            ai: 50
-        }
+        group: { ve: 2, budget: 2, ai: 6 },
+        individual: { baseScore: 3, peerReviews: 2, ai: 5 }
     });
 
-    // Load existing evaluations from agencies
     useEffect(() => {
         const loadedResults: StudentEvalResult[] = [];
         agencies.forEach(agency => {
@@ -61,39 +40,19 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                         studentName: student.name,
                         agencyId: agency.id,
                         agencyName: agency.name,
-                        groupEvaluation: student.evaluation.groupEvaluation,
-                        individualEvaluation: student.evaluation.individualEvaluation,
+                        groupEvaluation: student.evaluation.groupEvaluation || [],
+                        individualEvaluation: student.evaluation.individualEvaluation || [],
                         veScore: student.evaluation.veScore,
                         budgetScore: student.evaluation.budgetScore,
                         baseIndividualScore: student.evaluation.baseIndividualScore,
-                        peerReviewScore: student.evaluation.peerReviewScore
+                        peerReviewScore: student.evaluation.peerReviewScore,
+                        studentFeedback: student.evaluation.studentFeedback || ""
                     });
                 }
             });
         });
         setResults(loadedResults);
     }, [agencies]);
-
-    const calculateAlgoScores = (agency: Agency, student: Student) => {
-        // VE Score (max 20, assuming 100 VE = 20/20)
-        const veScore = Math.min(20, Math.max(0, (agency.ve_current / 100) * 20));
-        
-        // Budget Score (max 20, assuming 5000 budget = 20/20)
-        const budgetScore = Math.min(20, Math.max(0, (agency.budget_real / 5000) * 20));
-        
-        // Base Individual Score (max 20, assuming 100 score = 20/20)
-        const baseIndividualScore = Math.min(20, Math.max(0, (student.individualScore / 100) * 20));
-
-        // Peer Review Score
-        const peerReviews = agency.peerReviews?.filter(pr => pr.targetId === student.id) || [];
-        let peerReviewScore = 10; // Default average
-        if (peerReviews.length > 0) {
-            const avgRating = peerReviews.reduce((acc, pr) => acc + ((pr.ratings.attendance + pr.ratings.quality + pr.ratings.involvement) / 3), 0) / peerReviews.length;
-            peerReviewScore = (avgRating / 5) * 20; // Convert 0-5 to 0-20
-        }
-
-        return { veScore, budgetScore, baseIndividualScore, peerReviewScore };
-    };
 
     const runEvaluation = async () => {
         setIsEvaluating(true);
@@ -109,12 +68,18 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                 const agency = agenciesToEval[i];
                 try {
                     toast('info', `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...`);
-                    const aiResult = await evaluateAgencyAndMembersWithGroq(agency, referentialRules);
+                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules);
                     
                     const updatedAgency = { ...agency };
                     const agencyResults: StudentEvalResult[] = [];
 
-                    updatedAgency.members = updatedAgency.members.map(student => {
+                    // Evaluate each member
+                    const updatedMembers = [];
+                    for (let j = 0; j < updatedAgency.members.length; j++) {
+                        const student = updatedAgency.members[j];
+                        toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
+                        
+                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules);
                         const algoScores = calculateAlgoScores(agency, student);
                         
                         const studentResult: StudentEvalResult = {
@@ -122,14 +87,14 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                             studentName: student.name,
                             agencyId: agency.id,
                             agencyName: agency.name,
-                            groupEvaluation: aiResult.groupEvaluation || [],
-                            individualEvaluation: aiResult.membersEvaluation[student.id] || [],
+                            groupEvaluation: groupEvaluation || [],
+                            individualEvaluation: memberEvalResult.criteria || [],
                             ...algoScores
                         };
                         
                         agencyResults.push(studentResult);
 
-                        return {
+                        updatedMembers.push({
                             ...student,
                             evaluation: {
                                 groupEvaluation: studentResult.groupEvaluation,
@@ -138,10 +103,18 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                                 budgetScore: studentResult.budgetScore,
                                 baseIndividualScore: studentResult.baseIndividualScore,
                                 peerReviewScore: studentResult.peerReviewScore,
+                                studentFeedback: memberEvalResult.studentFeedback || "",
                                 lastUpdated: new Date().toISOString()
                             }
-                        };
-                    });
+                        });
+
+                        // Add a small delay between members to avoid rate limiting
+                        if (j < updatedAgency.members.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        }
+                    }
+                    
+                    updatedAgency.members = updatedMembers;
 
                     // Update local state progressively
                     currentResults = currentResults.filter(r => r.agencyId !== agency.id).concat(agencyResults);
@@ -173,38 +146,6 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
         }
     };
 
-    const getAverageScore = (evals: CriterionEval[]) => {
-        if (!evals || evals.length === 0) return 0;
-        const sum = evals.reduce((acc, curr) => acc + curr.score, 0);
-        return sum / evals.length;
-    };
-
-    const getFinalGroupScore = (result: StudentEvalResult) => {
-        const aiScore = getAverageScore(result.groupEvaluation);
-        const totalWeight = weights.group.ve + weights.group.budget + weights.group.ai;
-        if (totalWeight === 0) return 0;
-        
-        const final = (
-            (result.veScore * weights.group.ve) + 
-            (result.budgetScore * weights.group.budget) + 
-            (aiScore * weights.group.ai)
-        ) / totalWeight;
-        return final;
-    };
-
-    const getFinalIndividualScore = (result: StudentEvalResult) => {
-        const aiScore = getAverageScore(result.individualEvaluation);
-        const totalWeight = weights.individual.baseScore + weights.individual.peerReviews + weights.individual.ai;
-        if (totalWeight === 0) return 0;
-
-        const final = (
-            (result.baseIndividualScore * weights.individual.baseScore) + 
-            (result.peerReviewScore * weights.individual.peerReviews) + 
-            (aiScore * weights.individual.ai)
-        ) / totalWeight;
-        return final;
-    };
-
     const handleScoreSave = (studentId: string, type: 'group' | 'individual', criterionId: string) => {
         const numValue = parseFloat(editValue);
         if (isNaN(numValue) || numValue < 0 || numValue > 20) {
@@ -229,7 +170,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
         }));
 
         setEditingScore(null);
-        toast('success', "La note a été mise à jour avec succès.");
+        setEditValue("");
     };
 
     const startEditing = (studentId: string, type: 'group' | 'individual', criterionId: string, currentScore: number) => {
@@ -264,6 +205,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                                 budgetScore: studentResult.budgetScore,
                                 baseIndividualScore: studentResult.baseIndividualScore,
                                 peerReviewScore: studentResult.peerReviewScore,
+                                studentFeedback: student.evaluation?.studentFeedback || "", // Preserve existing or empty
                                 lastUpdated: new Date().toISOString()
                             }
                         };
@@ -282,54 +224,47 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
 
         const allCriteriaIds = new Set<string>();
         results.forEach(r => {
-            r.groupEvaluation.forEach(e => allCriteriaIds.add(e.criterionId));
-            r.individualEvaluation.forEach(e => allCriteriaIds.add(e.criterionId));
+            r.groupEvaluation.forEach(c => allCriteriaIds.add(`G_${c.criterionId}`));
+            r.individualEvaluation.forEach(c => allCriteriaIds.add(`I_${c.criterionId}`));
         });
         const criteriaList = Array.from(allCriteriaIds).sort();
 
         const headers = [
-            'Étudiant', 
-            'Agence', 
-            'Note Finale Groupe (/20)', 
-            'Note Finale Individuelle (/20)',
-            'Algo VE (/20)',
-            'Algo Budget (/20)',
-            'Moyenne IA Groupe (/20)',
-            'Algo Score Indiv (/20)',
-            'Algo Pairs (/20)',
-            'Moyenne IA Indiv (/20)',
-            ...criteriaList.map(c => `Groupe ${c} Score`),
-            ...criteriaList.map(c => `Groupe ${c} Feedback`),
-            ...criteriaList.map(c => `Indiv ${c} Score`),
-            ...criteriaList.map(c => `Indiv ${c} Feedback`)
+            "Agence", "Étudiant", 
+            "Score VE", "Score Budget", "Score IA Groupe", "Note Finale Groupe",
+            "Score Indiv. Base", "Score Pairs", "Score IA Indiv.", "Note Finale Indiv.",
+            "Note Globale",
+            ...criteriaList
         ];
 
         const csvContent = [
             headers.join(','),
             ...results.map(r => {
+                const finalGroup = getFinalGroupScore(r, weights);
+                const finalIndiv = getFinalIndividualScore(r, weights);
+                const finalGlobal = (finalGroup + finalIndiv) / 2;
+
                 const row = [
-                    `"${r.studentName}"`,
-                    `"${r.agencyName}"`,
-                    getFinalGroupScore(r).toFixed(2),
-                    getFinalIndividualScore(r).toFixed(2),
-                    r.veScore.toFixed(2),
-                    r.budgetScore.toFixed(2),
-                    getAverageScore(r.groupEvaluation).toFixed(2),
-                    r.baseIndividualScore.toFixed(2),
-                    r.peerReviewScore.toFixed(2),
-                    getAverageScore(r.individualEvaluation).toFixed(2)
+                    `"${r.agencyName}"`, `"${r.studentName}"`,
+                    r.veScore.toFixed(2), r.budgetScore.toFixed(2), 
+                    (r.groupEvaluation.reduce((acc, c) => acc + c.score, 0) / (r.groupEvaluation.length || 1)).toFixed(2),
+                    finalGroup.toFixed(2),
+                    r.baseIndividualScore.toFixed(2), r.peerReviewScore.toFixed(2),
+                    (r.individualEvaluation.reduce((acc, c) => acc + c.score, 0) / (r.individualEvaluation.length || 1)).toFixed(2),
+                    finalIndiv.toFixed(2),
+                    finalGlobal.toFixed(2)
                 ];
 
                 criteriaList.forEach(c => {
-                    const evalObj = r.groupEvaluation.find(e => e.criterionId === c);
-                    row.push(evalObj ? evalObj.score.toString() : '');
-                    row.push(evalObj ? `"${evalObj.feedback.replace(/"/g, '""')}"` : '');
-                });
-
-                criteriaList.forEach(c => {
-                    const evalObj = r.individualEvaluation.find(e => e.criterionId === c);
-                    row.push(evalObj ? evalObj.score.toString() : '');
-                    row.push(evalObj ? `"${evalObj.feedback.replace(/"/g, '""')}"` : '');
+                    if (c.startsWith('G_')) {
+                        const critId = c.substring(2);
+                        const evalObj = r.groupEvaluation.find(e => e.criterionId === critId);
+                        row.push(evalObj ? evalObj.score.toFixed(2) : "");
+                    } else {
+                        const critId = c.substring(2);
+                        const evalObj = r.individualEvaluation.find(e => e.criterionId === critId);
+                        row.push(evalObj ? evalObj.score.toFixed(2) : "");
+                    }
                 });
 
                 return row.join(',');
@@ -340,390 +275,182 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
         const link = document.createElement('url');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `evaluation_detaillee_${new Date().toISOString().split('T')[0]}.csv`;
+        a.setAttribute('hidden', '');
+        a.setAttribute('href', url);
+        a.setAttribute('download', `evaluations_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const generatePrompt = (result: StudentEvalResult) => {
-        let forcedScores = '';
-        
-        result.groupEvaluation.forEach(crit => {
-            forcedScores += `${crit.criterionId}: ${crit.score} | Justification: "${crit.feedback || ''}"\n`;
-        });
-        result.individualEvaluation.forEach(crit => {
-            forcedScores += `${crit.criterionId}: ${crit.score} | Justification: "${crit.feedback || ''}"\n`;
-        });
-
-        const prompt = `<SYSTEM_OVERRIDE>
-<FORCED_SCORES>
-${forcedScores.trim()}
-</FORCED_SCORES>
-<GLOBAL_OVERRIDE_RULES>
-- Ignorer ma sévérité habituelle
-- Appliquer les demi-points strictement
-</GLOBAL_OVERRIDE_RULES>
-</SYSTEM_OVERRIDE>
-FEEDBACK ÉTUDIANT (À REFORMULER) :
-[Entre ici ton texte brut ou tes notes de session...]`;
-
-        navigator.clipboard.writeText(prompt);
-        toast('success', `Le prompt pour ${result.studentName} a été copié.`);
+        document.body.removeChild(a);
     };
 
     const toggleStudentDetails = (studentId: string) => {
-        if (expandedStudentId === studentId) {
-            setExpandedStudentId(null);
-        } else {
-            setExpandedStudentId(studentId);
-        }
+        setExpandedStudentId(prev => prev === studentId ? null : studentId);
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
+        <div className="space-y-8">
+            <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-slate-900 flex items-center gap-2">
-                        <ClipboardCheck className="text-indigo-600" />
-                        Évaluation Finale Détaillée
-                    </h1>
-                    <p className="text-slate-500">Combinaison des algorithmes du jeu et de l'analyse IA.</p>
+                    <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                        <ClipboardCheck className="text-indigo-600" size={28} />
+                        Évaluation Finale
+                    </h2>
+                    <p className="text-slate-500 mt-1">Générez des bulletins de notes détaillés basés sur le référentiel de compétences.</p>
                 </div>
-                <button 
-                    onClick={() => setShowSettings(!showSettings)}
-                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-50 flex items-center gap-2"
-                >
-                    <Settings size={18} />
-                    Paramètres & Pondérations
-                </button>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setShowSettings(!showSettings)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                    >
+                        <Settings size={18} />
+                        Paramètres
+                    </button>
+                    <button 
+                        onClick={saveEvaluations}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors font-medium"
+                    >
+                        <Save size={18} />
+                        Sauvegarder
+                    </button>
+                    <button 
+                        onClick={exportToCSV}
+                        disabled={results.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 font-medium"
+                    >
+                        <Download size={18} />
+                        Exporter CSV
+                    </button>
+                </div>
             </div>
 
             {showSettings && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-top-4 fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Ponderations */}
-                        <div>
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <Calculator size={18} className="text-indigo-500" />
-                                Pondérations des Notes Finales
-                            </h3>
-                            
-                            <div className="space-y-6">
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <h4 className="font-bold text-sm text-slate-700 mb-3 uppercase tracking-wider">Note de Groupe</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600">Poids Valeur d'Entreprise (VE)</label>
-                                            <input type="number" value={weights.group.ve} onChange={e => setWeights(w => ({...w, group: {...w.group, ve: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-slate-200 rounded text-right" />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600">Poids Budget (Richesse)</label>
-                                            <input type="number" value={weights.group.budget} onChange={e => setWeights(w => ({...w, group: {...w.group, budget: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-slate-200 rounded text-right" />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600 font-bold text-indigo-600">Poids Évaluation IA (Référentiel)</label>
-                                            <input type="number" value={weights.group.ai} onChange={e => setWeights(w => ({...w, group: {...w.group, ai: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-indigo-300 bg-indigo-50 rounded text-right font-bold text-indigo-700" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <h4 className="font-bold text-sm text-slate-700 mb-3 uppercase tracking-wider">Note Individuelle</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600">Poids Score Individuel Base</label>
-                                            <input type="number" value={weights.individual.baseScore} onChange={e => setWeights(w => ({...w, individual: {...w.individual, baseScore: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-slate-200 rounded text-right" />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600">Poids Évaluations par les Pairs</label>
-                                            <input type="number" value={weights.individual.peerReviews} onChange={e => setWeights(w => ({...w, individual: {...w.individual, peerReviews: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-slate-200 rounded text-right" />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-sm text-slate-600 font-bold text-emerald-600">Poids Évaluation IA (Référentiel)</label>
-                                            <input type="number" value={weights.individual.ai} onChange={e => setWeights(w => ({...w, individual: {...w.individual, ai: Number(e.target.value)}}))} className="w-20 px-2 py-1 border border-emerald-300 bg-emerald-50 rounded text-right font-bold text-emerald-700" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Referential */}
-                        <div>
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                <BrainCircuit size={18} className="text-purple-500" />
-                                Référentiel IA
-                            </h3>
-                            <p className="text-sm text-slate-500 mb-2">
-                                Ce texte est envoyé à l'IA pour évaluer la qualité du travail. Ne modifiez que si vous souhaitez changer les critères d'évaluation de base.
-                            </p>
-                            <textarea
-                                value={referentialRules}
-                                onChange={(e) => setReferentialRules(e.target.value)}
-                                className="w-full h-[320px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
-                                placeholder="Collez ici les règles de votre referential.md..."
-                            />
-                        </div>
-                    </div>
-                </div>
+                <EvaluationSettings 
+                    weights={weights} 
+                    setWeights={setWeights} 
+                    referentialRules={referentialRules} 
+                    setReferentialRules={setReferentialRules} 
+                />
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Configuration Panel */}
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                        <h2 className="text-lg font-bold text-slate-800 mb-4">Lancement de l'Évaluation</h2>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Sélectionner une agence</label>
-                                <select 
-                                    value={selectedAgencyId}
-                                    onChange={(e) => setSelectedAgencyId(e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                                >
-                                    <option value="ALL">Toutes les agences</option>
-                                    {agencies.filter(a => a.id !== 'unassigned').map(a => (
-                                        <option key={a.id} value={a.id}>{a.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                <h4 className="text-sm font-bold text-indigo-800 mb-2">Ce qui est envoyé à l'IA :</h4>
-                                <ul className="text-xs text-indigo-700 space-y-1 list-disc pl-4">
-                                    <li>Concept et Cible de l'agence</li>
-                                    <li>Rôle de chaque membre</li>
-                                    <li>Commentaires des évaluations par les pairs</li>
-                                    <li>Notes de l'administrateur</li>
-                                    <li>Le référentiel ci-dessus</li>
-                                </ul>
-                            </div>
-
-                            <button
-                                onClick={runEvaluation}
-                                disabled={isEvaluating}
-                                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                            >
-                                {isEvaluating ? (
-                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                ) : (
-                                    <Play size={20} />
-                                )}
-                                {selectedAgencyId === 'ALL' ? "Évaluer Tout" : "Évaluer l'Agence"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Results Panel */}
-                <div className="lg:col-span-2">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[600px]">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <Trophy size={20} className="text-amber-500" />
-                                Résultats par Étudiant
-                            </h2>
-                            {results.length > 0 && (
-                                <div className="flex items-center gap-4">
-                                    <button 
-                                        onClick={saveEvaluations}
-                                        className="text-sm text-emerald-600 font-medium flex items-center gap-1 hover:text-emerald-800"
-                                    >
-                                        <Save size={16} /> Sauvegarder
-                                    </button>
-                                    <button 
-                                        onClick={exportToCSV}
-                                        className="text-sm text-indigo-600 font-medium flex items-center gap-1 hover:text-indigo-800"
-                                    >
-                                        <Download size={16} /> Exporter CSV Complet
-                                    </button>
-                                </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <select 
+                            value={selectedAgencyId}
+                            onChange={(e) => setSelectedAgencyId(e.target.value)}
+                            className="px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                            <option value="ALL">Toutes les agences</option>
+                            {agencies.filter(a => a.id !== 'unassigned').map(a => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                        </select>
+                        <button 
+                            onClick={runEvaluation}
+                            disabled={isEvaluating}
+                            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 font-bold shadow-sm"
+                        >
+                            {isEvaluating ? (
+                                <><BrainCircuit className="animate-pulse" size={20} /> Analyse en cours...</>
+                            ) : (
+                                <><Play size={20} /> Lancer l'Évaluation IA</>
                             )}
-                        </div>
-
-                        {results.length === 0 ? (
-                            <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-                                <ClipboardCheck size={48} className="mb-4 opacity-20" />
-                                <p>Aucun résultat. Lancez l'évaluation pour voir le détail.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {results.map((result) => (
-                                    <div key={result.studentId} className="border border-slate-200 rounded-xl overflow-hidden">
-                                        <div 
-                                            className="bg-slate-50 p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                                            onClick={() => toggleStudentDetails(result.studentId)}
-                                        >
-                                            <div>
-                                                <h3 className="font-bold text-slate-900">{result.studentName}</h3>
-                                                <p className="text-sm text-slate-500">{result.agencyName}</p>
-                                            </div>
-                                            <div className="flex items-center gap-6">
-                                                <div className="text-center">
-                                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Note Finale Groupe</p>
-                                                    <p className="font-bold text-indigo-700 text-lg">{getFinalGroupScore(result).toFixed(1)} / 20</p>
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Note Finale Indiv</p>
-                                                    <p className="font-bold text-emerald-700 text-lg">{getFinalIndividualScore(result).toFixed(1)} / 20</p>
-                                                </div>
-                                                {expandedStudentId === result.studentId ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
-                                            </div>
-                                        </div>
-                                        
-                                        {expandedStudentId === result.studentId && (
-                                            <div className="p-4 bg-white border-t border-slate-200">
-                                                <div className="flex justify-end mb-4">
-                                                    <button 
-                                                        onClick={() => generatePrompt(result)}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
-                                                    >
-                                                        <Copy size={16} />
-                                                        Générer Prompt IA
-                                                    </button>
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    {/* Group Evaluation Details */}
-                                                    <div>
-                                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-                                                        <Users size={16} className="text-indigo-500" />
-                                                        Détail Groupe
-                                                    </h4>
-                                                    
-                                                    <div className="flex gap-2 mb-4">
-                                                        <div className="flex-1 bg-slate-50 p-2 rounded text-center border border-slate-100">
-                                                            <p className="text-[10px] text-slate-500 uppercase">Algo VE</p>
-                                                            <p className="font-bold text-slate-700">{result.veScore.toFixed(1)}</p>
-                                                        </div>
-                                                        <div className="flex-1 bg-slate-50 p-2 rounded text-center border border-slate-100">
-                                                            <p className="text-[10px] text-slate-500 uppercase">Algo Budget</p>
-                                                            <p className="font-bold text-slate-700">{result.budgetScore.toFixed(1)}</p>
-                                                        </div>
-                                                        <div className="flex-1 bg-indigo-50 p-2 rounded text-center border border-indigo-100">
-                                                            <p className="text-[10px] text-indigo-500 uppercase">Moy. IA</p>
-                                                            <p className="font-bold text-indigo-700">{getAverageScore(result.groupEvaluation).toFixed(1)}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-3">
-                                                        {result.groupEvaluation.length > 0 ? result.groupEvaluation.map((crit, idx) => {
-                                                            const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'group' && editingScore?.criterionId === crit.criterionId;
-                                                            return (
-                                                            <div key={idx} className="bg-slate-50 rounded-lg p-3">
-                                                                <div className="flex justify-between items-start mb-1">
-                                                                    <span className="font-bold text-slate-700">{crit.criterionId}</span>
-                                                                    {isEditing ? (
-                                                                        <div className="flex items-center gap-1">
-                                                                            <input 
-                                                                                type="number" 
-                                                                                min="0" max="20" step="0.5"
-                                                                                value={editValue}
-                                                                                onChange={(e) => setEditValue(e.target.value)}
-                                                                                className="w-16 px-2 py-1 text-sm border border-indigo-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                                                                autoFocus
-                                                                            />
-                                                                            <button 
-                                                                                onClick={() => handleScoreSave(result.studentId, 'group', crit.criterionId)}
-                                                                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                                                                            >
-                                                                                <Check size={16} />
-                                                                            </button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-sm">{crit.score}/20</span>
-                                                                            <button 
-                                                                                onClick={() => startEditing(result.studentId, 'group', crit.criterionId, crit.score)}
-                                                                                className="text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                                title="Modifier la note"
-                                                                            >
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-sm text-slate-600">{crit.feedback}</p>
-                                                            </div>
-                                                        )}) : <p className="text-sm text-slate-500 italic">Aucune donnée de groupe.</p>}
-                                                    </div>
-                                                </div>
-
-                                                {/* Individual Evaluation Details */}
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-                                                        <User size={16} className="text-emerald-500" />
-                                                        Détail Individuel
-                                                    </h4>
-
-                                                    <div className="flex gap-2 mb-4">
-                                                        <div className="flex-1 bg-slate-50 p-2 rounded text-center border border-slate-100">
-                                                            <p className="text-[10px] text-slate-500 uppercase">Algo Score</p>
-                                                            <p className="font-bold text-slate-700">{result.baseIndividualScore.toFixed(1)}</p>
-                                                        </div>
-                                                        <div className="flex-1 bg-slate-50 p-2 rounded text-center border border-slate-100">
-                                                            <p className="text-[10px] text-slate-500 uppercase">Algo Pairs</p>
-                                                            <p className="font-bold text-slate-700">{result.peerReviewScore.toFixed(1)}</p>
-                                                        </div>
-                                                        <div className="flex-1 bg-emerald-50 p-2 rounded text-center border border-emerald-100">
-                                                            <p className="text-[10px] text-emerald-500 uppercase">Moy. IA</p>
-                                                            <p className="font-bold text-emerald-700">{getAverageScore(result.individualEvaluation).toFixed(1)}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-3">
-                                                        {result.individualEvaluation.length > 0 ? result.individualEvaluation.map((crit, idx) => {
-                                                            const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'individual' && editingScore?.criterionId === crit.criterionId;
-                                                            return (
-                                                            <div key={idx} className="bg-slate-50 rounded-lg p-3">
-                                                                <div className="flex justify-between items-start mb-1">
-                                                                    <span className="font-bold text-slate-700">{crit.criterionId}</span>
-                                                                    {isEditing ? (
-                                                                        <div className="flex items-center gap-1">
-                                                                            <input 
-                                                                                type="number" 
-                                                                                min="0" max="20" step="0.5"
-                                                                                value={editValue}
-                                                                                onChange={(e) => setEditValue(e.target.value)}
-                                                                                className="w-16 px-2 py-1 text-sm border border-emerald-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                                                                autoFocus
-                                                                            />
-                                                                            <button 
-                                                                                onClick={() => handleScoreSave(result.studentId, 'individual', crit.criterionId)}
-                                                                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                                                                            >
-                                                                                <Check size={16} />
-                                                                            </button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-sm">{crit.score}/20</span>
-                                                                            <button 
-                                                                                onClick={() => startEditing(result.studentId, 'individual', crit.criterionId, crit.score)}
-                                                                                className="text-slate-400 hover:text-emerald-600 transition-colors"
-                                                                                title="Modifier la note"
-                                                                            >
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-sm text-slate-600">{crit.feedback}</p>
-                                                            </div>
-                                                        )}) : <p className="text-sm text-slate-500 italic">Aucune donnée individuelle.</p>}
-                                                    </div>
-                                                </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        </button>
+                    </div>
+                    <div className="text-sm text-slate-500 font-medium">
+                        {results.length} étudiants évalués
                     </div>
                 </div>
+
+                {results.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-sm">
+                                    <th className="p-4 font-semibold">Étudiant</th>
+                                    <th className="p-4 font-semibold">Agence</th>
+                                    <th className="p-4 font-semibold text-center">Note Groupe</th>
+                                    <th className="p-4 font-semibold text-center">Note Indiv.</th>
+                                    <th className="p-4 font-semibold text-center">Note Globale</th>
+                                    <th className="p-4 font-semibold text-center">Détails</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {results.map(result => {
+                                    const finalGroup = getFinalGroupScore(result, weights);
+                                    const finalIndiv = getFinalIndividualScore(result, weights);
+                                    const finalGlobal = (finalGroup + finalIndiv) / 2;
+                                    const isExpanded = expandedStudentId === result.studentId;
+
+                                    return (
+                                        <React.Fragment key={result.studentId}>
+                                            <tr className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                                            {result.studentName.charAt(0)}
+                                                        </div>
+                                                        <span className="font-medium text-slate-800">{result.studentName}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-slate-600">{result.agencyName}</td>
+                                                <td className="p-4 text-center">
+                                                    <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-bold text-sm">
+                                                        {finalGroup.toFixed(1)}/20
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-purple-100 text-purple-800 font-bold text-sm">
+                                                        {finalIndiv.toFixed(1)}/20
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm border border-emerald-200 shadow-sm">
+                                                        {finalGlobal.toFixed(1)}/20
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <button 
+                                                        onClick={() => toggleStudentDetails(result.studentId)}
+                                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                                                    >
+                                                        {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {isExpanded && (
+                                                <tr>
+                                                    <td colSpan={6} className="p-0">
+                                                        <StudentEvaluationDetails 
+                                                            result={result}
+                                                            editingScore={editingScore}
+                                                            editValue={editValue}
+                                                            setEditValue={setEditValue}
+                                                            startEditing={startEditing}
+                                                            handleScoreSave={handleScoreSave}
+                                                            toast={toast}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="p-12 text-center">
+                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trophy className="text-slate-400" size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-700 mb-2">Aucune évaluation générée</h3>
+                        <p className="text-slate-500 max-w-md mx-auto">
+                            Sélectionnez une agence et lancez l'évaluation IA pour générer les bulletins de notes basés sur le référentiel.
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
-

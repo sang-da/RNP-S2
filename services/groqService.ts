@@ -263,59 +263,37 @@ export interface CriterionEval {
 
 export interface DetailedEvaluationResult {
     groupEvaluation: CriterionEval[];
-    membersEvaluation: Record<string, CriterionEval[]>;
+    membersEvaluation: Record<string, { criteria: CriterionEval[], studentFeedback: string }>;
 }
 
-export const evaluateAgencyAndMembersWithGroq = async (agencyData: any, referentialRules: string): Promise<DetailedEvaluationResult> => {
+export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string): Promise<CriterionEval[]> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
-    const membersData = agencyData.members.map((m: any) => {
-        const peerReviewsForMember = agencyData.peerReviews?.filter((pr: any) => pr.targetId === m.id) || [];
-        const peerReviewsText = peerReviewsForMember.map((pr: any) => `- Reviewer: ${pr.reviewerName}, Assiduité: ${pr.ratings.attendance}/5, Qualité: ${pr.ratings.quality}/5, Implication: ${pr.ratings.involvement}/5, Commentaire: "${pr.comment}"`).join('\n  ');
-        
-        const notesText = m.notes?.map((n: any) => `- Date: ${n.date}, Type: ${n.type}, Commentaire Admin: "${n.content}"`).join('\n  ') || 'Aucune note admin.';
-
-        return `- ID: ${m.id}, Nom: ${m.name}, Rôle: ${m.role}, Score Individuel: ${m.individualScore}
-  Évaluations des pairs :
-  ${peerReviewsText || 'Aucune évaluation des pairs.'}
-  Notes de l'administrateur :
-  ${notesText}`;
-    }).join('\n\n');
-
     const prompt = `
-En tant que jury final, évaluez l'agence "${agencyData.name}" et chacun de ses membres sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
+En tant que jury final, évaluez l'agence "${agencyData.name}" sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
 
 Règles du référentiel :
 ${referentialRules}
 
 Données de l'agence (Évaluation Groupe) :
-- Valeur d'Entreprise (VE) : ${agencyData.ve}
-- Budget (Richesse) : ${agencyData.budget}€
+- Valeur d'Entreprise (VE) : ${agencyData.ve_current || agencyData.ve}
+- Budget (Richesse) : ${agencyData.budget_real || agencyData.budget}€
 - Concept : ${agencyData.projectDef?.concept || 'Non défini'}
 - Cible : ${agencyData.projectDef?.target || 'Non défini'}
-
-Données des membres (Évaluation Individuelle, incluant les retours des pairs et les notes de l'admin) :
-${membersData}
+- Problème : ${agencyData.projectDef?.problem || 'Non défini'}
 
 INSTRUCTIONS IMPORTANTES :
-1. Vous devez faire DEUX évaluations parallèles :
-   - Une évaluation de l'ENTREPRISE (Groupe) basée sur la VE et le projet.
-   - Une évaluation INDIVIDUELLE pour CHAQUE membre basée sur son score individuel, son rôle, les évaluations de ses pairs (commentaires et notes) et les notes laissées par l'administrateur.
-2. Pour chaque évaluation, vous devez donner une note sur 20 pour CHAQUE critère (C1.1, C2.1, etc.) trouvé dans le référentiel.
-3. Utilisez les commentaires des pairs et de l'admin pour ajuster finement la note individuelle et justifier le feedback.
+1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
+2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
+3. Prenez impérativement en compte la VE et le Budget dans votre notation des compétences liées à la gestion et la performance.
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
     "groupEvaluation": [
         { "criterionId": "C1.1", "score": 15, "feedback": "Justification courte" }
-    ],
-    "membersEvaluation": {
-        "ID_DU_MEMBRE": [
-            { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
-        ]
-    }
+    ]
 }
 `;
 
@@ -333,7 +311,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     { role: "user", content: prompt }
                 ],
                 temperature: 0.3,
-                max_tokens: 4000,
+                max_tokens: 2000,
                 response_format: { type: "json_object" }
             })
         });
@@ -345,15 +323,92 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 
         const data = await response.json();
         const content = data.choices[0].message.content;
-        
+        const jsonResponse = JSON.parse(content);
+        return jsonResponse.groupEvaluation || [];
+    } catch (error) {
+        console.error("Erreur Groq (evaluateAgencyWithGroq):", error);
+        throw error;
+    }
+};
+
+export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, referentialRules: string): Promise<{ criteria: CriterionEval[], studentFeedback: string }> => {
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const peerReviewsForMember = agencyData.peerReviews?.filter((pr: any) => pr.targetId === memberData.id) || [];
+    const peerReviewsText = peerReviewsForMember.map((pr: any) => `- Reviewer: ${pr.reviewerName}, Assiduité: ${pr.ratings.attendance}/5, Qualité: ${pr.ratings.quality}/5, Implication: ${pr.ratings.involvement}/5, Commentaire: "${pr.comment}"`).join('\n  ');
+    
+    const notesText = memberData.notes?.map((n: any) => `- Date: ${n.date}, Type: ${n.type}, Commentaire Admin: "${n.content}"`).join('\n  ') || 'Aucune note admin.';
+
+    const prompt = `
+En tant que jury final et profiler RH expert, évaluez l'étudiant "${memberData.name}" de l'agence "${agencyData.name}".
+
+Règles du référentiel :
+${referentialRules}
+
+DONNÉES DE L'ÉTUDIANT :
+- Rôle : ${memberData.role}
+- Score Individuel : ${memberData.individualScore}/100
+- Portefeuille : ${memberData.wallet || 0} PiXi
+- Agence : ${agencyData.name} (VE: ${agencyData.ve_current || agencyData.ve}, Budget: ${agencyData.budget_real || agencyData.budget})
+
+HISTORIQUE DES AGENCES :
+${JSON.stringify(memberData.history || [])}
+
+ÉVALUATIONS REÇUES (Peer Reviews) :
+${peerReviewsText || 'Aucune évaluation des pairs.'}
+
+NOTES PÉDAGOGIQUES (Admin) :
+${notesText}
+
+INSTRUCTIONS IMPORTANTES :
+1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
+2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
+3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "criteria": [
+        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+    ],
+    "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
+}
+`;
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [
+                    { role: "system", content: "Tu es un jury d'évaluation expert et un profiler RH. Tu réponds uniquement en JSON valide." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 2000,
+                response_format: { type: "json_object" }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
         const jsonResponse = JSON.parse(content);
         return {
-            groupEvaluation: jsonResponse.groupEvaluation || [],
-            membersEvaluation: jsonResponse.membersEvaluation || {}
+            criteria: jsonResponse.criteria || [],
+            studentFeedback: jsonResponse.studentFeedback || ""
         };
-
     } catch (error) {
-        console.error("Groq Detailed Evaluation Failed", error);
+        console.error("Erreur Groq (evaluateMemberWithGroq):", error);
         throw error;
     }
 };
