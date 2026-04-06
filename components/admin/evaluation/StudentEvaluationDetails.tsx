@@ -1,6 +1,6 @@
 import React from 'react';
 import { CriterionEval } from '../../../types';
-import { Check, Edit2, Copy } from 'lucide-react';
+import { Check, Edit2, Copy, RefreshCw } from 'lucide-react';
 import { StudentEvalResult, generatePrompt } from './EvaluationUtils';
 
 interface StudentEvaluationDetailsProps {
@@ -11,6 +11,8 @@ interface StudentEvaluationDetailsProps {
     startEditing: (studentId: string, type: 'group' | 'individual', criterionId: string, currentScore: number) => void;
     handleScoreSave: (studentId: string, type: 'group' | 'individual', criterionId: string) => void;
     toast: (type: 'success' | 'error' | 'info', message: string) => void;
+    reEvaluateStudent?: (studentId: string, agencyId: string) => void;
+    isEvaluating?: boolean;
 }
 
 export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
@@ -20,7 +22,9 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     setEditValue,
     startEditing,
     handleScoreSave,
-    toast
+    toast,
+    reEvaluateStudent,
+    isEvaluating
 }) => {
     const handleGeneratePrompt = () => {
         const prompt = generatePrompt(result);
@@ -36,13 +40,25 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
         <div className="p-6 bg-slate-50 border-t border-slate-200">
             <div className="flex justify-between items-center mb-6">
                 <h4 className="font-bold text-slate-800 text-lg">Détails de l'évaluation</h4>
-                <button 
-                    onClick={handleGeneratePrompt}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
-                >
-                    <Copy size={16} />
-                    Générer Prompt IA
-                </button>
+                <div className="flex gap-3">
+                    {reEvaluateStudent && (
+                        <button 
+                            onClick={() => reEvaluateStudent(result.studentId, result.agencyId)}
+                            disabled={isEvaluating}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium disabled:opacity-50"
+                        >
+                            <RefreshCw size={16} className={isEvaluating ? "animate-spin" : ""} />
+                            Réévaluer l'étudiant
+                        </button>
+                    )}
+                    <button 
+                        onClick={handleGeneratePrompt}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+                    >
+                        <Copy size={16} />
+                        Générer Prompt IA
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

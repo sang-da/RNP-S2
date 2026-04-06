@@ -12,13 +12,21 @@ interface EvaluationSettingsProps {
     }>>;
     referentialRules: string;
     setReferentialRules: (rules: string) => void;
+    groupPrompt: string;
+    setGroupPrompt: (prompt: string) => void;
+    individualPrompt: string;
+    setIndividualPrompt: (prompt: string) => void;
 }
 
 export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
     weights,
     setWeights,
     referentialRules,
-    setReferentialRules
+    setReferentialRules,
+    groupPrompt,
+    setGroupPrompt,
+    individualPrompt,
+    setIndividualPrompt
 }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 animate-in slide-in-from-top-4">
@@ -106,17 +114,40 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
             </div>
 
             {/* Référentiel */}
-            <div className="mt-8">
-                <h4 className="font-semibold text-slate-700 border-b pb-2 mb-4">Référentiel de Compétences (Prompt IA)</h4>
-                <textarea 
-                    className="w-full h-64 p-4 text-sm font-mono bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    value={referentialRules}
-                    onChange={(e) => setReferentialRules(e.target.value)}
-                    placeholder="Collez ici les règles d'évaluation ou le référentiel de compétences..."
-                />
-                <p className="text-xs text-slate-500 mt-2">
-                    Ce texte sera utilisé comme contexte principal par l'IA pour évaluer les agences et les étudiants.
-                </p>
+            <div className="mt-8 space-y-6">
+                <div>
+                    <h4 className="font-semibold text-slate-700 border-b pb-2 mb-4">Référentiel de Compétences</h4>
+                    <textarea 
+                        className="w-full h-48 p-4 text-sm font-mono bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        value={referentialRules}
+                        onChange={(e) => setReferentialRules(e.target.value)}
+                        placeholder="Collez ici les règles d'évaluation ou le référentiel de compétences..."
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                        Ce texte sera utilisé comme contexte principal par l'IA pour évaluer les agences et les étudiants.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 className="font-semibold text-slate-700 border-b pb-2 mb-4">Prompt Évaluation Groupe</h4>
+                        <textarea 
+                            className="w-full h-64 p-4 text-sm font-mono bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            value={groupPrompt}
+                            onChange={(e) => setGroupPrompt(e.target.value)}
+                            placeholder="Prompt pour l'évaluation de l'agence..."
+                        />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-slate-700 border-b pb-2 mb-4">Prompt Évaluation Individuelle</h4>
+                        <textarea 
+                            className="w-full h-64 p-4 text-sm font-mono bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            value={individualPrompt}
+                            onChange={(e) => setIndividualPrompt(e.target.value)}
+                            placeholder="Prompt pour l'évaluation de l'étudiant..."
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     );

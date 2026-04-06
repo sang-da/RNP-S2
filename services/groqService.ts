@@ -266,10 +266,38 @@ export interface DetailedEvaluationResult {
     membersEvaluation: Record<string, { criteria: CriterionEval[], studentFeedback: string }>;
 }
 
-export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string): Promise<CriterionEval[]> => {
+const fetchWithRetry = async (url: string, options: any, retries = 5, backoff = 4000): Promise<Response> => {
+    for (let i = 0; i < retries; i++) {
+        const response = await fetch(url, options);
+        if (response.ok) return response;
+        
+        if (response.status === 429) {
+            console.warn(`Rate limited (429). Retrying in ${backoff}ms... (Attempt ${i + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, backoff));
+            backoff *= 1.5; // Exponential backoff
+        } else {
+            return response; // Return non-429 errors immediately
+        }
+    }
+    return fetch(url, options); // Final attempt
+};
+
+export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string, customPrompt?: string): Promise<CriterionEval[]> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const defaultInstructions = `INSTRUCTIONS IMPORTANTES :
+1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
+2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
+3. Prenez impérativement en compte la VE et le Budget dans votre notation des compétences liées à la gestion et la performance.
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "groupEvaluation": [
+        { "criterionId": "C1.1", "score": 15, "feedback": "Justification courte" }
+    ]
+}`;
 
     const prompt = `
 En tant que jury final, évaluez l'agence "${agencyData.name}" sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
@@ -284,21 +312,11 @@ Données de l'agence (Évaluation Groupe) :
 - Cible : ${agencyData.projectDef?.target || 'Non défini'}
 - Problème : ${agencyData.projectDef?.problem || 'Non défini'}
 
-INSTRUCTIONS IMPORTANTES :
-1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
-2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
-3. Prenez impérativement en compte la VE et le Budget dans votre notation des compétences liées à la gestion et la performance.
-
-Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
-{
-    "groupEvaluation": [
-        { "criterionId": "C1.1", "score": 15, "feedback": "Justification courte" }
-    ]
-}
+${customPrompt || defaultInstructions}
 `;
 
     try {
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithRetry(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -331,7 +349,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     }
 };
 
-export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, referentialRules: string): Promise<{ criteria: CriterionEval[], studentFeedback: string }> => {
+export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, referentialRules: string, customPrompt?: string): Promise<{ criteria: CriterionEval[], studentFeedback: string }> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
@@ -340,6 +358,19 @@ export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, r
     const peerReviewsText = peerReviewsForMember.map((pr: any) => `- Reviewer: ${pr.reviewerName}, Assiduité: ${pr.ratings.attendance}/5, Qualité: ${pr.ratings.quality}/5, Implication: ${pr.ratings.involvement}/5, Commentaire: "${pr.comment}"`).join('\n  ');
     
     const notesText = memberData.notes?.map((n: any) => `- Date: ${n.date}, Type: ${n.type}, Commentaire Admin: "${n.content}"`).join('\n  ') || 'Aucune note admin.';
+
+    const defaultInstructions = `INSTRUCTIONS IMPORTANTES :
+1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
+2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
+3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "criteria": [
+        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+    ],
+    "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
+}`;
 
     const prompt = `
 En tant que jury final et profiler RH expert, évaluez l'étudiant "${memberData.name}" de l'agence "${agencyData.name}".
@@ -362,22 +393,11 @@ ${peerReviewsText || 'Aucune évaluation des pairs.'}
 NOTES PÉDAGOGIQUES (Admin) :
 ${notesText}
 
-INSTRUCTIONS IMPORTANTES :
-1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
-2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
-3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
-
-Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
-{
-    "criteria": [
-        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
-    ],
-    "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
-}
+${customPrompt || defaultInstructions}
 `;
 
     try {
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithRetry(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,

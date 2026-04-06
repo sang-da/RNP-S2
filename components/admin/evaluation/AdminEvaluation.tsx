@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Agency, Student, CriterionEval } from '../../../types';
-import { ClipboardCheck, Play, Download, Trophy, ChevronDown, ChevronUp, Settings, Save, BrainCircuit } from 'lucide-react';
+import { ClipboardCheck, Play, Download, Settings, Save, BrainCircuit } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
 import { evaluateAgencyWithGroq, evaluateMemberWithGroq } from '../../../services/groqService';
 import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
 import { StudentEvalResult, calculateAlgoScores, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
 import { EvaluationSettings } from './EvaluationSettings';
-import { StudentEvaluationDetails } from './StudentEvaluationDetails';
+import { EvaluationTable } from './EvaluationTable';
 
 interface AdminEvaluationProps {
     agencies: Agency[];
@@ -18,6 +18,33 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
     const [isEvaluating, setIsEvaluating] = useState(false);
     const [results, setResults] = useState<StudentEvalResult[]>([]);
     const [referentialRules, setReferentialRules] = useState<string>(referentialRaw || 'Évaluez la pertinence du projet, la gestion financière et la cohésion d\'équipe.');
+    const [groupPrompt, setGroupPrompt] = useState<string>(`En tant que jury final, évaluez l'agence sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
+
+INSTRUCTIONS IMPORTANTES :
+1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
+2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
+3. Prenez impérativement en compte la VE (Objectif: 100) et le Budget (Objectif: 5000€) dans votre notation des compétences liées à la gestion et la performance. Si la VE ou le budget sont faibles, les notes de gestion doivent être sévèrement impactées.
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "groupEvaluation": [
+        { "criterionId": "C1.1", "score": 15, "feedback": "Justification courte" }
+    ]
+}`);
+    const [individualPrompt, setIndividualPrompt] = useState<string>(`En tant que jury final et profiler RH expert, évaluez l'étudiant.
+
+INSTRUCTIONS IMPORTANTES :
+1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
+2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
+3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+
+Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "criteria": [
+        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+    ],
+    "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
+}`);
     const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
     const [editingScore, setEditingScore] = useState<{ studentId: string, type: 'group' | 'individual', criterionId: string } | null>(null);
     const [editValue, setEditValue] = useState<string>("");
@@ -68,7 +95,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                 const agency = agenciesToEval[i];
                 try {
                     toast('info', `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...`);
-                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules);
+                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt);
                     
                     const updatedAgency = { ...agency };
                     const agencyResults: StudentEvalResult[] = [];
@@ -79,7 +106,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                         const student = updatedAgency.members[j];
                         toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                         
-                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules);
+                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt);
                         const algoScores = calculateAlgoScores(agency, student);
                         
                         const studentResult: StudentEvalResult = {
@@ -110,7 +137,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
 
                         // Add a small delay between members to avoid rate limiting
                         if (j < updatedAgency.members.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            await new Promise(resolve => setTimeout(resolve, 8000));
                         }
                     }
                     
@@ -127,7 +154,7 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
 
                     // Add delay to avoid rate limiting (429), except for the last one
                     if (i < agenciesToEval.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 4000));
+                        await new Promise(resolve => setTimeout(resolve, 15000));
                     }
 
                 } catch (error) {
@@ -141,6 +168,72 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
         } catch (error) {
             console.error("Erreur lors de l'évaluation", error);
             toast('error', "Une erreur est survenue lors de l'évaluation globale.");
+        } finally {
+            setIsEvaluating(false);
+        }
+    };
+
+    const reEvaluateStudent = async (studentId: string, agencyId: string) => {
+        setIsEvaluating(true);
+        toast('info', "Réévaluation de l'étudiant en cours...");
+
+        try {
+            const agency = agencies.find(a => a.id === agencyId);
+            if (!agency) throw new Error("Agence non trouvée.");
+            
+            const student = agency.members.find(m => m.id === studentId);
+            if (!student) throw new Error("Étudiant non trouvé.");
+
+            const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt);
+            const algoScores = calculateAlgoScores(agency, student);
+            
+            // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
+            const existingResult = results.find(r => r.studentId === studentId);
+            const groupEvaluation = existingResult?.groupEvaluation || [];
+
+            const studentResult: StudentEvalResult = {
+                studentId: student.id,
+                studentName: student.name,
+                agencyId: agency.id,
+                agencyName: agency.name,
+                groupEvaluation: groupEvaluation,
+                individualEvaluation: memberEvalResult.criteria || [],
+                ...algoScores,
+                studentFeedback: memberEvalResult.studentFeedback || ""
+            };
+
+            // Update local state
+            setResults(prev => prev.map(r => r.studentId === studentId ? studentResult : r));
+
+            // Update agency and save
+            const updatedAgency = { ...agency };
+            updatedAgency.members = updatedAgency.members.map(m => {
+                if (m.id === studentId) {
+                    return {
+                        ...m,
+                        evaluation: {
+                            groupEvaluation: studentResult.groupEvaluation,
+                            individualEvaluation: studentResult.individualEvaluation,
+                            veScore: studentResult.veScore,
+                            budgetScore: studentResult.budgetScore,
+                            baseIndividualScore: studentResult.baseIndividualScore,
+                            peerReviewScore: studentResult.peerReviewScore,
+                            studentFeedback: studentResult.studentFeedback,
+                            lastUpdated: new Date().toISOString()
+                        }
+                    };
+                }
+                return m;
+            });
+
+            if (onUpdateAgency) {
+                onUpdateAgency(updatedAgency);
+            }
+
+            toast('success', `L'étudiant ${student.name} a été réévalué avec succès.`);
+        } catch (error) {
+            console.error("Erreur lors de la réévaluation", error);
+            toast('error', "La réévaluation a échoué.");
         } finally {
             setIsEvaluating(false);
         }
@@ -329,6 +422,10 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                     setWeights={setWeights} 
                     referentialRules={referentialRules} 
                     setReferentialRules={setReferentialRules} 
+                    groupPrompt={groupPrompt}
+                    setGroupPrompt={setGroupPrompt}
+                    individualPrompt={individualPrompt}
+                    setIndividualPrompt={setIndividualPrompt}
                 />
             )}
 
@@ -362,94 +459,20 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
                     </div>
                 </div>
 
-                {results.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-sm">
-                                    <th className="p-4 font-semibold">Étudiant</th>
-                                    <th className="p-4 font-semibold">Agence</th>
-                                    <th className="p-4 font-semibold text-center">Note Groupe</th>
-                                    <th className="p-4 font-semibold text-center">Note Indiv.</th>
-                                    <th className="p-4 font-semibold text-center">Note Globale</th>
-                                    <th className="p-4 font-semibold text-center">Détails</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {results.map(result => {
-                                    const finalGroup = getFinalGroupScore(result, weights);
-                                    const finalIndiv = getFinalIndividualScore(result, weights);
-                                    const finalGlobal = (finalGroup + finalIndiv) / 2;
-                                    const isExpanded = expandedStudentId === result.studentId;
-
-                                    return (
-                                        <React.Fragment key={result.studentId}>
-                                            <tr className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                                                            {result.studentName.charAt(0)}
-                                                        </div>
-                                                        <span className="font-medium text-slate-800">{result.studentName}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-slate-600">{result.agencyName}</td>
-                                                <td className="p-4 text-center">
-                                                    <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-bold text-sm">
-                                                        {finalGroup.toFixed(1)}/20
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-purple-100 text-purple-800 font-bold text-sm">
-                                                        {finalIndiv.toFixed(1)}/20
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm border border-emerald-200 shadow-sm">
-                                                        {finalGlobal.toFixed(1)}/20
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <button 
-                                                        onClick={() => toggleStudentDetails(result.studentId)}
-                                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-                                                    >
-                                                        {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                            {isExpanded && (
-                                                <tr>
-                                                    <td colSpan={6} className="p-0">
-                                                        <StudentEvaluationDetails 
-                                                            result={result}
-                                                            editingScore={editingScore}
-                                                            editValue={editValue}
-                                                            setEditValue={setEditValue}
-                                                            startEditing={startEditing}
-                                                            handleScoreSave={handleScoreSave}
-                                                            toast={toast}
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <div className="p-12 text-center">
-                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Trophy className="text-slate-400" size={32} />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-700 mb-2">Aucune évaluation générée</h3>
-                        <p className="text-slate-500 max-w-md mx-auto">
-                            Sélectionnez une agence et lancez l'évaluation IA pour générer les bulletins de notes basés sur le référentiel.
-                        </p>
-                    </div>
-                )}
+                <EvaluationTable 
+                    results={results}
+                    weights={weights}
+                    expandedStudentId={expandedStudentId}
+                    toggleStudentDetails={toggleStudentDetails}
+                    editingScore={editingScore}
+                    editValue={editValue}
+                    setEditValue={setEditValue}
+                    startEditing={startEditing}
+                    handleScoreSave={handleScoreSave}
+                    toast={toast}
+                    reEvaluateStudent={reEvaluateStudent}
+                    isEvaluating={isEvaluating}
+                />
             </div>
         </div>
     );
