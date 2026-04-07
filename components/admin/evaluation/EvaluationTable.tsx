@@ -15,6 +15,7 @@ interface EvaluationTableProps {
     handleScoreSave: (studentId: string, type: 'group' | 'individual', criterionId: string) => void;
     toast: (type: 'success' | 'error' | 'info', message: string) => void;
     reEvaluateStudent: (studentId: string, agencyId: string) => void;
+    reEvaluateAgency: (agencyId: string) => void;
     isEvaluating: boolean;
 }
 
@@ -30,6 +31,7 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
     handleScoreSave,
     toast,
     reEvaluateStudent,
+    reEvaluateAgency,
     isEvaluating
 }) => {
     if (results.length === 0) {
@@ -114,6 +116,7 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                                 handleScoreSave={handleScoreSave}
                                                 toast={toast}
                                                 reEvaluateStudent={reEvaluateStudent}
+                                                reEvaluateAgency={reEvaluateAgency}
                                                 isEvaluating={isEvaluating}
                                             />
                                         </td>

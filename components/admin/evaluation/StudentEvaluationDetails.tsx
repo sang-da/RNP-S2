@@ -1,7 +1,7 @@
 import React from 'react';
 import { CriterionEval } from '../../../types';
-import { Check, Edit2, Copy, RefreshCw } from 'lucide-react';
-import { StudentEvalResult, generatePrompt } from './EvaluationUtils';
+import { Check, Edit2, Copy, RefreshCw, Users } from 'lucide-react';
+import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt } from './EvaluationUtils';
 
 interface StudentEvaluationDetailsProps {
     result: StudentEvalResult;
@@ -12,6 +12,7 @@ interface StudentEvaluationDetailsProps {
     handleScoreSave: (studentId: string, type: 'group' | 'individual', criterionId: string) => void;
     toast: (type: 'success' | 'error' | 'info', message: string) => void;
     reEvaluateStudent?: (studentId: string, agencyId: string) => void;
+    reEvaluateAgency?: (agencyId: string) => void;
     isEvaluating?: boolean;
 }
 
@@ -24,12 +25,23 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     handleScoreSave,
     toast,
     reEvaluateStudent,
+    reEvaluateAgency,
     isEvaluating
 }) => {
-    const handleGeneratePrompt = () => {
-        const prompt = generatePrompt(result);
+    const handleGenerateGroupPrompt = () => {
+        const prompt = generateGroupPrompt(result);
         navigator.clipboard.writeText(prompt).then(() => {
-            toast('success', "Prompt copié dans le presse-papier !");
+            toast('success', "Prompt Groupe copié dans le presse-papier !");
+        }).catch(err => {
+            console.error('Erreur lors de la copie:', err);
+            toast('error', "Erreur lors de la copie du prompt.");
+        });
+    };
+
+    const handleGenerateIndividualPrompt = () => {
+        const prompt = generateIndividualPrompt(result);
+        navigator.clipboard.writeText(prompt).then(() => {
+            toast('success', "Prompt Individuel copié dans le presse-papier !");
         }).catch(err => {
             console.error('Erreur lors de la copie:', err);
             toast('error', "Erreur lors de la copie du prompt.");
@@ -51,12 +63,29 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                             Réévaluer l'étudiant
                         </button>
                     )}
+                    {reEvaluateAgency && (
+                        <button 
+                            onClick={() => reEvaluateAgency(result.agencyId)}
+                            disabled={isEvaluating}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium disabled:opacity-50"
+                        >
+                            <Users size={16} />
+                            Réévaluer l'agence
+                        </button>
+                    )}
                     <button 
-                        onClick={handleGeneratePrompt}
+                        onClick={handleGenerateGroupPrompt}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
                     >
                         <Copy size={16} />
-                        Générer Prompt IA
+                        Prompt Groupe
+                    </button>
+                    <button 
+                        onClick={handleGenerateIndividualPrompt}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
+                    >
+                        <Copy size={16} />
+                        Prompt Individuel
                     </button>
                 </div>
             </div>

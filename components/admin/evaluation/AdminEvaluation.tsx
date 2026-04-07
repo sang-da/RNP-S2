@@ -45,6 +45,23 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     ],
     "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
 }`);
+    const [dataConfig, setDataConfig] = useState({
+        group: {
+            ve: true,
+            budget: true,
+            projectDef: true,
+            deliverables: true,
+            events: true
+        },
+        individual: {
+            role: true,
+            individualScore: true,
+            wallet: true,
+            history: true,
+            peerReviews: true,
+            adminNotes: true
+        }
+    });
     const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
     const [editingScore, setEditingScore] = useState<{ studentId: string, type: 'group' | 'individual', criterionId: string } | null>(null);
     const [editValue, setEditValue] = useState<string>("");
@@ -95,7 +112,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 const agency = agenciesToEval[i];
                 try {
                     toast('info', `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...`);
-                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt);
+                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
                     
                     const updatedAgency = { ...agency };
                     const agencyResults: StudentEvalResult[] = [];
@@ -103,10 +120,15 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     // Evaluate each member
                     const updatedMembers = [];
                     for (let j = 0; j < updatedAgency.members.length; j++) {
+                        // Add a small delay between requests to avoid rate limits
+                        if (j > 0) {
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        }
+                        
                         const student = updatedAgency.members[j];
                         toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                         
-                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt);
+                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
                         const algoScores = calculateAlgoScores(agency, student);
                         
                         const studentResult: StudentEvalResult = {
@@ -184,7 +206,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const student = agency.members.find(m => m.id === studentId);
             if (!student) throw new Error("Étudiant non trouvé.");
 
-            const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt);
+            const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
             const algoScores = calculateAlgoScores(agency, student);
             
             // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
@@ -234,6 +256,82 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         } catch (error) {
             console.error("Erreur lors de la réévaluation", error);
             toast('error', "La réévaluation a échoué.");
+        } finally {
+            setIsEvaluating(false);
+        }
+    };
+
+    const reEvaluateAgency = async (agencyId: string) => {
+        setIsEvaluating(true);
+        toast('info', "Réévaluation de l'agence en cours...");
+
+        try {
+            const agency = agencies.find(a => a.id === agencyId);
+            if (!agency) throw new Error("Agence non trouvée.");
+
+            const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
+            
+            const updatedAgency = { ...agency };
+            const agencyResults: StudentEvalResult[] = [];
+
+            // Evaluate each member
+            const updatedMembers = [];
+            for (let j = 0; j < updatedAgency.members.length; j++) {
+                // Add a small delay between requests to avoid rate limits
+                if (j > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+                
+                const student = updatedAgency.members[j];
+                toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
+                
+                const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+                const algoScores = calculateAlgoScores(agency, student);
+                
+                const studentResult: StudentEvalResult = {
+                    studentId: student.id,
+                    studentName: student.name,
+                    agencyId: agency.id,
+                    agencyName: agency.name,
+                    groupEvaluation: groupEvaluation || [],
+                    individualEvaluation: memberEvalResult.criteria || [],
+                    ...algoScores,
+                    studentFeedback: memberEvalResult.studentFeedback || ""
+                };
+                
+                agencyResults.push(studentResult);
+
+                updatedMembers.push({
+                    ...student,
+                    evaluation: {
+                        groupEvaluation: studentResult.groupEvaluation,
+                        individualEvaluation: studentResult.individualEvaluation,
+                        veScore: studentResult.veScore,
+                        budgetScore: studentResult.budgetScore,
+                        baseIndividualScore: studentResult.baseIndividualScore,
+                        peerReviewScore: studentResult.peerReviewScore,
+                        studentFeedback: studentResult.studentFeedback,
+                        lastUpdated: new Date().toISOString()
+                    }
+                });
+            }
+
+            updatedAgency.members = updatedMembers;
+
+            // Update local state
+            setResults(prev => {
+                const filtered = prev.filter(r => r.agencyId !== agencyId);
+                return [...filtered, ...agencyResults];
+            });
+
+            if (onUpdateAgency) {
+                onUpdateAgency(updatedAgency);
+            }
+
+            toast('success', `L'agence ${agency.name} a été réévaluée avec succès.`);
+        } catch (error) {
+            console.error("Erreur lors de la réévaluation de l'agence", error);
+            toast('error', "La réévaluation de l'agence a échoué.");
         } finally {
             setIsEvaluating(false);
         }
@@ -426,6 +524,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     setGroupPrompt={setGroupPrompt}
                     individualPrompt={individualPrompt}
                     setIndividualPrompt={setIndividualPrompt}
+                    dataConfig={dataConfig}
+                    setDataConfig={setDataConfig}
                 />
             )}
 
@@ -471,6 +571,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     handleScoreSave={handleScoreSave}
                     toast={toast}
                     reEvaluateStudent={reEvaluateStudent}
+                    reEvaluateAgency={reEvaluateAgency}
                     isEvaluating={isEvaluating}
                 />
             </div>

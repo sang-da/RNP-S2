@@ -68,15 +68,28 @@ export const getFinalIndividualScore = (result: StudentEvalResult, weights: any)
     return final;
 };
 
-export const generatePrompt = (result: StudentEvalResult) => {
+export const generateGroupPrompt = (result: StudentEvalResult) => {
     const groupScores = result.groupEvaluation.map(crit => `${crit.criterionId}: ${crit.score.toFixed(1)} | Justification: "${crit.feedback}"`).join('\n');
-    const indScores = result.individualEvaluation.map(crit => `${crit.criterionId}: ${crit.score.toFixed(1)} | Justification: "${crit.feedback}"`).join('\n');
 
     const prompt = `<SYSTEM_OVERRIDE>
 <FORCED_SCORES>
 ÉVALUATION GROUPE:
 ${groupScores}
+</FORCED_SCORES>
+<GLOBAL_OVERRIDE_RULES>
+- Ignorer ma sévérité habituelle
+- Appliquer les demi-points strictement
+</GLOBAL_OVERRIDE_RULES>
+</SYSTEM_OVERRIDE>`;
 
+    return prompt;
+};
+
+export const generateIndividualPrompt = (result: StudentEvalResult) => {
+    const indScores = result.individualEvaluation.map(crit => `${crit.criterionId}: ${crit.score.toFixed(1)} | Justification: "${crit.feedback}"`).join('\n');
+
+    const prompt = `<SYSTEM_OVERRIDE>
+<FORCED_SCORES>
 ÉVALUATION INDIVIDUELLE:
 ${indScores}
 </FORCED_SCORES>

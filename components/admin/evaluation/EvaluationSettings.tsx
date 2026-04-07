@@ -16,6 +16,8 @@ interface EvaluationSettingsProps {
     setGroupPrompt: (prompt: string) => void;
     individualPrompt: string;
     setIndividualPrompt: (prompt: string) => void;
+    dataConfig: any;
+    setDataConfig: any;
 }
 
 export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
@@ -26,8 +28,20 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
     groupPrompt,
     setGroupPrompt,
     individualPrompt,
-    setIndividualPrompt
+    setIndividualPrompt,
+    dataConfig,
+    setDataConfig
 }) => {
+    const handleDataConfigChange = (type: 'group' | 'individual', field: string) => {
+        setDataConfig((prev: any) => ({
+            ...prev,
+            [type]: {
+                ...prev[type],
+                [field]: !prev[type][field]
+            }
+        }));
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 animate-in slide-in-from-top-4">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -35,7 +49,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                 Paramètres d'évaluation
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 {/* Poids Groupe */}
                 <div className="space-y-4">
                     <h4 className="font-semibold text-slate-700 border-b pb-2">Pondération Groupe</h4>
@@ -109,6 +123,57 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             className="w-full"
                         />
                         <div className="text-right text-xs text-slate-500">Poids: {weights.individual.ai}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                {/* Données fournies à l'IA - Groupe */}
+                <div className="space-y-4">
+                    <h4 className="font-semibold text-slate-700 border-b pb-2">Données fournies (Agence)</h4>
+                    <div className="space-y-2">
+                        {Object.entries({
+                            ve: "Valeur d'Entreprise (VE)",
+                            budget: "Budget (PiXi)",
+                            projectDef: "Définition du Projet (Concept, Cible, Problème)",
+                            deliverables: "Livrables (Feedback & Commentaires)",
+                            events: "Événements (Log)"
+                        }).map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={dataConfig.group[key as keyof typeof dataConfig.group]}
+                                    onChange={() => handleDataConfigChange('group', key)}
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                {label}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Données fournies à l'IA - Individuel */}
+                <div className="space-y-4">
+                    <h4 className="font-semibold text-slate-700 border-b pb-2">Données fournies (Étudiant)</h4>
+                    <div className="space-y-2">
+                        {Object.entries({
+                            role: "Rôle dans l'agence",
+                            individualScore: "Score Individuel",
+                            wallet: "Portefeuille (PiXi)",
+                            history: "Historique des agences",
+                            peerReviews: "Évaluations des pairs",
+                            adminNotes: "Notes pédagogiques (Admin)"
+                        }).map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={dataConfig.individual[key as keyof typeof dataConfig.individual]}
+                                    onChange={() => handleDataConfigChange('individual', key)}
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                {label}
+                            </label>
+                        ))}
                     </div>
                 </div>
             </div>

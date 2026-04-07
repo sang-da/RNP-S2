@@ -266,7 +266,7 @@ export interface DetailedEvaluationResult {
     membersEvaluation: Record<string, { criteria: CriterionEval[], studentFeedback: string }>;
 }
 
-const fetchWithRetry = async (url: string, options: any, retries = 5, backoff = 4000): Promise<Response> => {
+const fetchWithRetry = async (url: string, options: any, retries = 6, backoff = 10000): Promise<Response> => {
     for (let i = 0; i < retries; i++) {
         const response = await fetch(url, options);
         if (response.ok) return response;
@@ -274,7 +274,7 @@ const fetchWithRetry = async (url: string, options: any, retries = 5, backoff = 
         if (response.status === 429) {
             console.warn(`Rate limited (429). Retrying in ${backoff}ms... (Attempt ${i + 1}/${retries})`);
             await new Promise(resolve => setTimeout(resolve, backoff));
-            backoff *= 1.5; // Exponential backoff
+            backoff *= 2; // Exponential backoff
         } else {
             return response; // Return non-429 errors immediately
         }
@@ -282,7 +282,7 @@ const fetchWithRetry = async (url: string, options: any, retries = 5, backoff = 
     return fetch(url, options); // Final attempt
 };
 
-export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string, customPrompt?: string): Promise<CriterionEval[]> => {
+export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string, customPrompt?: string, dataConfig?: any): Promise<CriterionEval[]> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
@@ -299,6 +299,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     ]
 }`;
 
+    const config = dataConfig?.group || { ve: true, budget: true, projectDef: true, deliverables: true, events: true };
+
     const prompt = `
 En tant que jury final, évaluez l'agence "${agencyData.name}" sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
 
@@ -306,11 +308,13 @@ Règles du référentiel :
 ${referentialRules}
 
 Données de l'agence (Évaluation Groupe) :
-- Valeur d'Entreprise (VE) : ${agencyData.ve_current || agencyData.ve}
-- Budget (Richesse) : ${agencyData.budget_real || agencyData.budget}€
-- Concept : ${agencyData.projectDef?.concept || 'Non défini'}
+${config.ve ? `- Valeur d'Entreprise (VE) : ${agencyData.ve_current || agencyData.ve}` : ''}
+${config.budget ? `- Budget (Richesse) : ${agencyData.budget_real || agencyData.budget}€` : ''}
+${config.projectDef ? `- Concept : ${agencyData.projectDef?.concept || 'Non défini'}
 - Cible : ${agencyData.projectDef?.target || 'Non défini'}
-- Problème : ${agencyData.projectDef?.problem || 'Non défini'}
+- Problème : ${agencyData.projectDef?.problem || 'Non défini'}` : ''}
+${config.deliverables ? `- Livrables : ${JSON.stringify(agencyData.progress?.deliverables || [])}` : ''}
+${config.events ? `- Événements (Log) : ${JSON.stringify(agencyData.eventLog || [])}` : ''}
 
 ${customPrompt || defaultInstructions}
 `;
@@ -349,10 +353,12 @@ ${customPrompt || defaultInstructions}
     }
 };
 
-export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, referentialRules: string, customPrompt?: string): Promise<{ criteria: CriterionEval[], studentFeedback: string }> => {
+export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, referentialRules: string, customPrompt?: string, dataConfig?: any): Promise<{ criteria: CriterionEval[], studentFeedback: string }> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const config = dataConfig?.individual || { role: true, individualScore: true, wallet: true, history: true, peerReviews: true, adminNotes: true };
 
     const peerReviewsForMember = agencyData.peerReviews?.filter((pr: any) => pr.targetId === memberData.id) || [];
     const peerReviewsText = peerReviewsForMember.map((pr: any) => `- Reviewer: ${pr.reviewerName}, Assiduité: ${pr.ratings.attendance}/5, Qualité: ${pr.ratings.quality}/5, Implication: ${pr.ratings.involvement}/5, Commentaire: "${pr.comment}"`).join('\n  ');
@@ -379,19 +385,16 @@ Règles du référentiel :
 ${referentialRules}
 
 DONNÉES DE L'ÉTUDIANT :
-- Rôle : ${memberData.role}
-- Score Individuel : ${memberData.individualScore}/100
-- Portefeuille : ${memberData.wallet || 0} PiXi
+${config.role ? `- Rôle : ${memberData.role}` : ''}
+${config.individualScore ? `- Score Individuel : ${memberData.individualScore}/100` : ''}
+${config.wallet ? `- Portefeuille : ${memberData.wallet || 0} PiXi` : ''}
 - Agence : ${agencyData.name} (VE: ${agencyData.ve_current || agencyData.ve}, Budget: ${agencyData.budget_real || agencyData.budget})
 
-HISTORIQUE DES AGENCES :
-${JSON.stringify(memberData.history || [])}
+${config.history ? `HISTORIQUE DES AGENCES :\n${JSON.stringify(memberData.history || [])}` : ''}
 
-ÉVALUATIONS REÇUES (Peer Reviews) :
-${peerReviewsText || 'Aucune évaluation des pairs.'}
+${config.peerReviews ? `ÉVALUATIONS REÇUES (Peer Reviews) :\n${peerReviewsText || 'Aucune évaluation des pairs.'}` : ''}
 
-NOTES PÉDAGOGIQUES (Admin) :
-${notesText}
+${config.adminNotes ? `NOTES PÉDAGOGIQUES (Admin) :\n${notesText}` : ''}
 
 ${customPrompt || defaultInstructions}
 `;
