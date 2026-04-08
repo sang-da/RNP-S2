@@ -1,7 +1,7 @@
 import React from 'react';
 import { CriterionEval } from '../../../types';
 import { Check, Edit2, Copy, RefreshCw, Users, Calculator } from 'lucide-react';
-import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt, getAverageScore, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
+import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt, getAverageScore, getFinalGroupScore, getFinalIndividualScore, getWeightedGroupCriterionScore, getWeightedIndividualCriterionScore } from './EvaluationUtils';
 
 interface StudentEvaluationDetailsProps {
     result: StudentEvalResult;
@@ -31,7 +31,7 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     isEvaluating
 }) => {
     const handleGenerateGroupPrompt = () => {
-        const prompt = generateGroupPrompt(result);
+        const prompt = generateGroupPrompt(result, weights);
         navigator.clipboard.writeText(prompt).then(() => {
             toast('success', "Prompt Groupe copié dans le presse-papier !");
         }).catch(err => {
@@ -41,7 +41,7 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     };
 
     const handleGenerateIndividualPrompt = () => {
-        const prompt = generateIndividualPrompt(result);
+        const prompt = generateIndividualPrompt(result, weights);
         navigator.clipboard.writeText(prompt).then(() => {
             toast('success', "Prompt Individuel copié dans le presse-papier !");
         }).catch(err => {
@@ -113,71 +113,76 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm mb-6">
                             <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2">
                                 <Calculator size={16} className="text-slate-500" />
-                                <span className="font-semibold text-slate-700 text-sm">Détail du calcul (Pondération totale: {totalGroupWeight})</span>
+                                <span className="font-semibold text-slate-700 text-sm">Synthèse des Justifications (Groupe)</span>
                             </div>
-                            <div className="divide-y divide-slate-100">
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Valeur Économique (VE)</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">Coef: {weights.group.ve}</span>
-                                        <span className="font-semibold text-slate-800 w-12 text-right">{result.veScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Gestion du Budget</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">Coef: {weights.group.budget}</span>
-                                        <span className="font-semibold text-slate-800 w-12 text-right">{result.budgetScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Évaluation IA (Moyenne)</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded">Coef: {weights.group.ai}</span>
-                                        <span className="font-bold text-blue-600 w-12 text-right">{groupAiScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
+                            <div className="p-4 max-h-60 overflow-y-auto">
+                                {result.groupEvaluation.length > 0 ? (
+                                    <ul className="space-y-3 text-sm text-slate-700">
+                                        {result.groupEvaluation.map(c => (
+                                            <li key={c.criterionId} className="flex gap-2">
+                                                <span className="font-bold text-slate-900 shrink-0">{c.criterionId}:</span>
+                                                <span className="italic">"{c.feedback}"</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-sm text-slate-500 italic">Aucune justification générée.</p>
+                                )}
                             </div>
                         </div>
 
-                        <h6 className="font-medium text-slate-700 mb-3 text-sm uppercase tracking-wider">Détail des critères IA</h6>
+                        <h6 className="font-medium text-slate-700 mb-3 text-sm uppercase tracking-wider">Détail des notes par critère</h6>
                         {result.groupEvaluation.length > 0 ? (
-                            <div className="space-y-3">
-                                {result.groupEvaluation.map(crit => {
-                                    const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'group' && editingScore?.criterionId === crit.criterionId;
-                                    return (
-                                        <div key={crit.criterionId} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="font-semibold text-slate-800">{crit.criterionId}</span>
-                                                <div className="flex items-center gap-2">
-                                                    {isEditing ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <input 
-                                                                type="number" 
-                                                                min="0" max="20" step="0.5"
-                                                                value={editValue}
-                                                                onChange={(e) => setEditValue(e.target.value)}
-                                                                className="w-16 px-2 py-1 text-sm border-2 border-blue-400 rounded focus:outline-none"
-                                                                autoFocus
-                                                            />
-                                                            <button onClick={() => handleScoreSave(result.studentId, 'group', crit.criterionId)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
-                                                                <Check size={16} />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{crit.score.toFixed(1)}/20</span>
-                                                            <button onClick={() => startEditing(result.studentId, 'group', crit.criterionId, crit.score)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
-                                                                <Edit2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-slate-600 leading-relaxed">"{crit.feedback}"</p>
-                                        </div>
-                                    );
-                                })}
+                            <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold">Critère</th>
+                                            <th className="px-4 py-3 font-semibold">VE <span className="text-xs font-normal text-slate-400">(Coef {weights.group.ve})</span></th>
+                                            <th className="px-4 py-3 font-semibold">Budget <span className="text-xs font-normal text-slate-400">(Coef {weights.group.budget})</span></th>
+                                            <th className="px-4 py-3 font-semibold text-blue-700">Note IA <span className="text-xs font-normal text-blue-400">(Coef {weights.group.ai})</span></th>
+                                            <th className="px-4 py-3 font-bold text-slate-800">Moyenne Pondérée</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {result.groupEvaluation.map(crit => {
+                                            const finalScore = getWeightedGroupCriterionScore(result, crit.score, weights);
+                                            const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'group' && editingScore?.criterionId === crit.criterionId;
+                                            return (
+                                                <tr key={crit.criterionId} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-3 font-medium text-slate-800">{crit.criterionId}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{result.veScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{result.budgetScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3">
+                                                        {isEditing ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0" max="20" step="0.5"
+                                                                    value={editValue}
+                                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                                    className="w-16 px-2 py-1 text-sm border-2 border-blue-400 rounded focus:outline-none"
+                                                                    autoFocus
+                                                                />
+                                                                <button onClick={() => handleScoreSave(result.studentId, 'group', crit.criterionId)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                                                    <Check size={16} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 group">
+                                                                <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{crit.score.toFixed(1)}</span>
+                                                                <button onClick={() => startEditing(result.studentId, 'group', crit.criterionId, crit.score)} className="p-1 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover:opacity-100">
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-slate-800">{finalScore.toFixed(1)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         ) : (
                             <div className="bg-slate-100 p-4 rounded-lg text-center border border-slate-200 border-dashed">
@@ -195,36 +200,6 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                             Note Individuelle : {finalIndivScore.toFixed(1)}/20
                         </h5>
                         
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm mb-6">
-                            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2">
-                                <Calculator size={16} className="text-slate-500" />
-                                <span className="font-semibold text-slate-700 text-sm">Détail du calcul (Pondération totale: {totalIndivWeight})</span>
-                            </div>
-                            <div className="divide-y divide-slate-100">
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Note de base (Manager)</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">Coef: {weights.individual.baseScore}</span>
-                                        <span className="font-semibold text-slate-800 w-12 text-right">{result.baseIndividualScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Évaluation par les pairs</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">Coef: {weights.individual.peerReviews}</span>
-                                        <span className="font-semibold text-slate-800 w-12 text-right">{result.peerReviewScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center p-3 hover:bg-slate-50">
-                                    <span className="text-sm text-slate-600">Évaluation IA (Moyenne)</span>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded">Coef: {weights.individual.ai}</span>
-                                        <span className="font-bold text-purple-600 w-12 text-right">{individualAiScore.toFixed(1)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
                         {/* Student Feedback */}
                         {result.studentFeedback && (
                             <div className="mb-6 p-5 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-xl shadow-sm">
@@ -236,44 +211,79 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                             </div>
                         )}
 
-                        <h6 className="font-medium text-slate-700 mb-3 text-sm uppercase tracking-wider">Détail des critères IA</h6>
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm mb-6">
+                            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2">
+                                <Calculator size={16} className="text-slate-500" />
+                                <span className="font-semibold text-slate-700 text-sm">Synthèse des Justifications (Individuel)</span>
+                            </div>
+                            <div className="p-4 max-h-60 overflow-y-auto">
+                                {result.individualEvaluation.length > 0 ? (
+                                    <ul className="space-y-3 text-sm text-slate-700">
+                                        {result.individualEvaluation.map(c => (
+                                            <li key={c.criterionId} className="flex gap-2">
+                                                <span className="font-bold text-slate-900 shrink-0">{c.criterionId}:</span>
+                                                <span className="italic">"{c.feedback}"</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-sm text-slate-500 italic">Aucune justification générée.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <h6 className="font-medium text-slate-700 mb-3 text-sm uppercase tracking-wider">Détail des notes par critère</h6>
                         {result.individualEvaluation.length > 0 ? (
-                            <div className="space-y-3">
-                                {result.individualEvaluation.map(crit => {
-                                    const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'individual' && editingScore?.criterionId === crit.criterionId;
-                                    return (
-                                        <div key={crit.criterionId} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-purple-300 transition-colors">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="font-semibold text-slate-800">{crit.criterionId}</span>
-                                                <div className="flex items-center gap-2">
-                                                    {isEditing ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <input 
-                                                                type="number" 
-                                                                min="0" max="20" step="0.5"
-                                                                value={editValue}
-                                                                onChange={(e) => setEditValue(e.target.value)}
-                                                                className="w-16 px-2 py-1 text-sm border-2 border-purple-400 rounded focus:outline-none"
-                                                                autoFocus
-                                                            />
-                                                            <button onClick={() => handleScoreSave(result.studentId, 'individual', crit.criterionId)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
-                                                                <Check size={16} />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">{crit.score.toFixed(1)}/20</span>
-                                                            <button onClick={() => startEditing(result.studentId, 'individual', crit.criterionId, crit.score)} className="p-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors">
-                                                                <Edit2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-slate-600 leading-relaxed">"{crit.feedback}"</p>
-                                        </div>
-                                    );
-                                })}
+                            <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold">Critère</th>
+                                            <th className="px-4 py-3 font-semibold">Manager <span className="text-xs font-normal text-slate-400">(Coef {weights.individual.baseScore})</span></th>
+                                            <th className="px-4 py-3 font-semibold">Pairs <span className="text-xs font-normal text-slate-400">(Coef {weights.individual.peerReviews})</span></th>
+                                            <th className="px-4 py-3 font-semibold text-purple-700">Note IA <span className="text-xs font-normal text-purple-400">(Coef {weights.individual.ai})</span></th>
+                                            <th className="px-4 py-3 font-bold text-slate-800">Moyenne Pondérée</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {result.individualEvaluation.map(crit => {
+                                            const finalScore = getWeightedIndividualCriterionScore(result, crit.score, weights);
+                                            const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'individual' && editingScore?.criterionId === crit.criterionId;
+                                            return (
+                                                <tr key={crit.criterionId} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-3 font-medium text-slate-800">{crit.criterionId}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{result.baseIndividualScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{result.peerReviewScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3">
+                                                        {isEditing ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0" max="20" step="0.5"
+                                                                    value={editValue}
+                                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                                    className="w-16 px-2 py-1 text-sm border-2 border-purple-400 rounded focus:outline-none"
+                                                                    autoFocus
+                                                                />
+                                                                <button onClick={() => handleScoreSave(result.studentId, 'individual', crit.criterionId)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                                                    <Check size={16} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 group">
+                                                                <span className="font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">{crit.score.toFixed(1)}</span>
+                                                                <button onClick={() => startEditing(result.studentId, 'individual', crit.criterionId, crit.score)} className="p-1 text-slate-300 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors opacity-0 group-hover:opacity-100">
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-slate-800">{finalScore.toFixed(1)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         ) : (
                             <div className="bg-slate-100 p-4 rounded-lg text-center border border-slate-200 border-dashed">

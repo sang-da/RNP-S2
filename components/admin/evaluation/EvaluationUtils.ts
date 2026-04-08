@@ -42,34 +42,35 @@ export const getAverageScore = (evals: CriterionEval[]) => {
     return sum / evals.length;
 };
 
-export const getFinalGroupScore = (result: StudentEvalResult, weights: any) => {
-    const aiScore = getAverageScore(result.groupEvaluation);
+export const getWeightedGroupCriterionScore = (result: StudentEvalResult, aiScore: number, weights: any) => {
     const totalWeight = weights.group.ve + weights.group.budget + weights.group.ai;
     if (totalWeight === 0) return 0;
-    
-    const final = (
-        (result.veScore * weights.group.ve) + 
-        (result.budgetScore * weights.group.budget) + 
-        (aiScore * weights.group.ai)
-    ) / totalWeight;
-    return final;
+    return (result.veScore * weights.group.ve + result.budgetScore * weights.group.budget + aiScore * weights.group.ai) / totalWeight;
+};
+
+export const getWeightedIndividualCriterionScore = (result: StudentEvalResult, aiScore: number, weights: any) => {
+    const totalWeight = weights.individual.baseScore + weights.individual.peerReviews + weights.individual.ai;
+    if (totalWeight === 0) return 0;
+    return (result.baseIndividualScore * weights.individual.baseScore + result.peerReviewScore * weights.individual.peerReviews + aiScore * weights.individual.ai) / totalWeight;
+};
+
+export const getFinalGroupScore = (result: StudentEvalResult, weights: any) => {
+    if (!result.groupEvaluation || result.groupEvaluation.length === 0) return 0;
+    const sum = result.groupEvaluation.reduce((acc, crit) => acc + getWeightedGroupCriterionScore(result, crit.score, weights), 0);
+    return sum / result.groupEvaluation.length;
 };
 
 export const getFinalIndividualScore = (result: StudentEvalResult, weights: any) => {
-    const aiScore = getAverageScore(result.individualEvaluation);
-    const totalWeight = weights.individual.baseScore + weights.individual.peerReviews + weights.individual.ai;
-    if (totalWeight === 0) return 0;
-
-    const final = (
-        (result.baseIndividualScore * weights.individual.baseScore) + 
-        (result.peerReviewScore * weights.individual.peerReviews) + 
-        (aiScore * weights.individual.ai)
-    ) / totalWeight;
-    return final;
+    if (!result.individualEvaluation || result.individualEvaluation.length === 0) return 0;
+    const sum = result.individualEvaluation.reduce((acc, crit) => acc + getWeightedIndividualCriterionScore(result, crit.score, weights), 0);
+    return sum / result.individualEvaluation.length;
 };
 
-export const generateGroupPrompt = (result: StudentEvalResult) => {
-    const groupScores = result.groupEvaluation.map(crit => `${crit.criterionId}: ${crit.score.toFixed(1)} | Justification: "${crit.feedback}"`).join('\n');
+export const generateGroupPrompt = (result: StudentEvalResult, weights: any) => {
+    const groupScores = result.groupEvaluation.map(crit => {
+        const finalScore = getWeightedGroupCriterionScore(result, crit.score, weights);
+        return `${crit.criterionId}: ${finalScore.toFixed(1)} | Justification: "${crit.feedback}"`;
+    }).join('\n');
 
     const prompt = `<SYSTEM_OVERRIDE>
 <FORCED_SCORES>
@@ -85,8 +86,11 @@ ${groupScores}
     return prompt;
 };
 
-export const generateIndividualPrompt = (result: StudentEvalResult) => {
-    const indScores = result.individualEvaluation.map(crit => `${crit.criterionId}: ${crit.score.toFixed(1)} | Justification: "${crit.feedback}"`).join('\n');
+export const generateIndividualPrompt = (result: StudentEvalResult, weights: any) => {
+    const indScores = result.individualEvaluation.map(crit => {
+        const finalScore = getWeightedIndividualCriterionScore(result, crit.score, weights);
+        return `${crit.criterionId}: ${finalScore.toFixed(1)} | Justification: "${crit.feedback}"`;
+    }).join('\n');
 
     const prompt = `<SYSTEM_OVERRIDE>
 <FORCED_SCORES>
