@@ -109,6 +109,7 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                         <td colSpan={6} className="p-0">
                                             <StudentEvaluationDetails 
                                                 result={result}
+                                                weights={weights}
                                                 editingScore={editingScore}
                                                 editValue={editValue}
                                                 setEditValue={setEditValue}
