@@ -288,9 +288,10 @@ export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: 
     if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
 
     const defaultInstructions = `INSTRUCTIONS IMPORTANTES :
-1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
-2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
-3. Prenez impérativement en compte la VE et le Budget dans votre notation des compétences liées à la gestion et la performance.
+1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget, le projet et les livrables.
+2. Évaluez UNIQUEMENT les critères pertinents pour un travail de groupe (ex: gestion de projet, livrables, concept, faisabilité). Ignorez les critères purement individuels.
+3. Pour chaque critère évalué, donnez une note sur 20.
+4. Prenez impérativement en compte la VE et le Budget dans votre notation des compétences liées à la gestion et la performance.
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
@@ -301,6 +302,21 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 
     const config = dataConfig?.group || { ve: true, budget: true, projectDef: true, deliverables: true, events: true };
 
+    // Extract deliverables from all weeks
+    const allDeliverables = Object.values(agencyData.progress || {}).flatMap((week: any) => week.deliverables || []);
+    
+    // Calculate stats
+    const countA = allDeliverables.filter((d: any) => d.grading?.quality === 'A').length;
+    const countB = allDeliverables.filter((d: any) => d.grading?.quality === 'B').length;
+    const countC = allDeliverables.filter((d: any) => d.grading?.quality === 'C').length;
+    const countOnTime = allDeliverables.filter((d: any) => d.grading && d.grading.daysLate === 0).length;
+    const countLate = allDeliverables.filter((d: any) => d.grading && d.grading.daysLate > 0).length;
+    const countMVP = allDeliverables.filter((d: any) => d.grading?.mvpId || d.nominatedMvpId).length;
+
+    const deliverablesText = allDeliverables.map((d: any) => 
+        `- Livrable: "${d.name}" | Statut: ${d.status} | Qualité: ${d.grading?.quality || 'N/A'} | Retard: ${d.grading?.daysLate || 0}j | MVP: ${d.grading?.mvpId ? 'Oui' : 'Non'} | Feedback Admin: "${d.feedback || 'Aucun'}"`
+    ).join('\n');
+
     const prompt = `
 En tant que jury final, évaluez l'agence "${agencyData.name}" sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
 
@@ -310,11 +326,20 @@ ${referentialRules}
 Données de l'agence (Évaluation Groupe) :
 ${config.ve ? `- Valeur d'Entreprise (VE) : ${agencyData.ve_current || agencyData.ve}` : ''}
 ${config.budget ? `- Budget (Richesse) : ${agencyData.budget_real || agencyData.budget}€` : ''}
-${config.projectDef ? `- Concept : ${agencyData.projectDef?.concept || 'Non défini'}
+${config.projectDef ? `- Concept du projet : ${agencyData.projectDef?.concept || 'Non défini'}
 - Cible : ${agencyData.projectDef?.target || 'Non défini'}
-- Problème : ${agencyData.projectDef?.problem || 'Non défini'}` : ''}
-${config.deliverables ? `- Livrables : ${JSON.stringify(agencyData.progress?.deliverables || [])}` : ''}
-${config.events ? `- Événements (Log) : ${JSON.stringify(agencyData.eventLog || [])}` : ''}
+- Problème résolu : ${agencyData.projectDef?.problem || 'Non défini'}` : ''}
+
+${config.deliverables ? `STATISTIQUES DES LIVRABLES :
+- Total évalués : ${countA + countB + countC} (A: ${countA}, B: ${countB}, C: ${countC})
+- Ponctualité : ${countOnTime} à l'heure, ${countLate} en retard
+- Nominations MVP : ${countMVP}
+
+DÉTAIL DES LIVRABLES ET FEEDBACKS :
+${deliverablesText || 'Aucun livrable soumis.'}` : ''}
+
+${config.events ? `ÉVÉNEMENTS MARQUANTS (Fluctuations marché, crises, bonus) :
+${agencyData.eventLog?.map((e: any) => `- ${e.date} : [${e.type}] ${e.label} (Impact VE: ${e.deltaVE || 0}, Impact Budget: ${e.deltaBudgetReal || 0})`).join('\n') || 'Aucun événement majeur.'}` : ''}
 
 ${customPrompt || defaultInstructions}
 `;
@@ -366,17 +391,20 @@ export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, r
     const notesText = memberData.notes?.map((n: any) => `- Date: ${n.date}, Type: ${n.type}, Commentaire Admin: "${n.content}"`).join('\n  ') || 'Aucune note admin.';
 
     const defaultInstructions = `INSTRUCTIONS IMPORTANTES :
-1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
-2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
-3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+1. Évaluez l'étudiant UNIQUEMENT sur les critères pertinents pour un travail individuel (ex: communication, rôle, implication, posture professionnelle, expression). Ignorez les critères purement collectifs.
+2. Pour chaque critère évalué, donnez une note sur 20.
+3. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
+4. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
     "criteria": [
-        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+        { "criterionId": "C2.1", "score": 14, "feedback": "Justification courte" }
     ],
     "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
 }`;
+
+    const historyText = memberData.history?.map((h: any) => `- ${h.date} (Semaine ${h.weekId}) : [${h.action}] Agence ${h.agencyName} (VE: ${h.contextVE || 'N/A'}) ${h.reason ? `Motif: "${h.reason}"` : ''}`).join('\n  ') || 'Aucun historique de transfert.';
 
     const prompt = `
 En tant que jury final et profiler RH expert, évaluez l'étudiant "${memberData.name}" de l'agence "${agencyData.name}".
@@ -390,11 +418,11 @@ ${config.individualScore ? `- Score Individuel : ${memberData.individualScore}/1
 ${config.wallet ? `- Portefeuille : ${memberData.wallet || 0} PiXi` : ''}
 - Agence : ${agencyData.name} (VE: ${agencyData.ve_current || agencyData.ve}, Budget: ${agencyData.budget_real || agencyData.budget})
 
-${config.history ? `HISTORIQUE DES AGENCES :\n${JSON.stringify(memberData.history || [])}` : ''}
+${config.history ? `HISTORIQUE DES AGENCES :\n  ${historyText}` : ''}
 
-${config.peerReviews ? `ÉVALUATIONS REÇUES (Peer Reviews) :\n${peerReviewsText || 'Aucune évaluation des pairs.'}` : ''}
+${config.peerReviews ? `ÉVALUATIONS REÇUES (Peer Reviews) :\n  ${peerReviewsText || 'Aucune évaluation des pairs.'}` : ''}
 
-${config.adminNotes ? `NOTES PÉDAGOGIQUES (Admin) :\n${notesText}` : ''}
+${config.adminNotes ? `NOTES PÉDAGOGIQUES (Admin) :\n  ${notesText}` : ''}
 
 ${customPrompt || defaultInstructions}
 `;

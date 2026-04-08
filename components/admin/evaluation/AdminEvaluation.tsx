@@ -18,12 +18,13 @@ export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUp
     const [isEvaluating, setIsEvaluating] = useState(false);
     const [results, setResults] = useState<StudentEvalResult[]>([]);
     const [referentialRules, setReferentialRules] = useState<string>(referentialRaw || 'Évaluez la pertinence du projet, la gestion financière et la cohésion d\'équipe.');
-    const [groupPrompt, setGroupPrompt] = useState<string>(`En tant que jury final, évaluez l'agence sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
+    const [groupPrompt, setGroupPrompt] = useState<string>(`En tant que jury final, évaluez l'agence sur les critères du référentiel fourni.
 
 INSTRUCTIONS IMPORTANTES :
-1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget et le projet.
-2. Pour chaque critère (C1.1, C2.1, etc.) trouvé dans le référentiel, donnez une note sur 20.
-3. Prenez impérativement en compte la VE (Objectif: 100) et le Budget (Objectif: 5000€) dans votre notation des compétences liées à la gestion et la performance. Si la VE ou le budget sont faibles, les notes de gestion doivent être sévèrement impactées.
+1. Vous devez faire une évaluation de l'ENTREPRISE (Groupe) basée sur la VE, le budget, le projet et les livrables.
+2. Évaluez UNIQUEMENT les critères pertinents pour un travail de groupe (ex: gestion de projet, livrables, concept, faisabilité). Ignorez les critères purement individuels (ex: expression orale, posture individuelle).
+3. Pour chaque critère évalué, donnez une note sur 20.
+4. Prenez impérativement en compte la VE (Objectif: 100) et le Budget (Objectif: 5000€) dans votre notation des compétences liées à la gestion et la performance. Si la VE ou le budget sont faibles, les notes de gestion doivent être sévèrement impactées.
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
@@ -34,14 +35,15 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     const [individualPrompt, setIndividualPrompt] = useState<string>(`En tant que jury final et profiler RH expert, évaluez l'étudiant.
 
 INSTRUCTIONS IMPORTANTES :
-1. Évaluez l'étudiant sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni, en donnant une note sur 20.
-2. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
-3. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+1. Évaluez l'étudiant UNIQUEMENT sur les critères pertinents pour un travail individuel (ex: communication, rôle, implication, posture professionnelle, expression). Ignorez les critères purement collectifs (ex: faisabilité économique du projet global).
+2. Pour chaque critère évalué, donnez une note sur 20.
+3. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
+4. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
     "criteria": [
-        { "criterionId": "C1.1", "score": 14, "feedback": "Justification courte" }
+        { "criterionId": "C2.1", "score": 14, "feedback": "Justification courte" }
     ],
     "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
 }`);
