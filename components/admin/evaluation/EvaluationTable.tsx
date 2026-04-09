@@ -20,6 +20,7 @@ interface EvaluationTableProps {
     reEvaluateStudent: (studentId: string, agencyId: string) => void;
     reEvaluateAgency: (agencyId: string) => void;
     isEvaluating: boolean;
+    togglePublish: (studentId: string, agencyId: string, currentStatus: boolean) => void;
 }
 
 export const EvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -37,7 +38,8 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
     toast,
     reEvaluateStudent,
     reEvaluateAgency,
-    isEvaluating
+    isEvaluating,
+    togglePublish
 }) => {
     if (results.length === 0) {
         return (
@@ -127,6 +129,7 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                                 reEvaluateStudent={reEvaluateStudent}
                                                 reEvaluateAgency={reEvaluateAgency}
                                                 isEvaluating={isEvaluating}
+                                                togglePublish={togglePublish}
                                             />
                                         </td>
                                     </tr>

@@ -239,7 +239,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                                 peerReviewScore: studentResult.peerReviewScore,
                                 deliverableScore: studentResult.deliverableScore,
                                 studentFeedback: memberEvalResult.studentFeedback || "",
-                                lastUpdated: new Date().toISOString()
+                                lastUpdated: new Date().toISOString(),
+                                isPublished: student.evaluation?.isPublished || false
                             }
                         });
 
@@ -328,7 +329,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                             peerReviewScore: studentResult.peerReviewScore,
                             deliverableScore: studentResult.deliverableScore,
                             studentFeedback: studentResult.studentFeedback,
-                            lastUpdated: new Date().toISOString()
+                            lastUpdated: new Date().toISOString(),
+                            isPublished: m.evaluation?.isPublished || false
                         }
                     };
                 }
@@ -399,7 +401,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         peerReviewScore: studentResult.peerReviewScore,
                         deliverableScore: studentResult.deliverableScore,
                         studentFeedback: studentResult.studentFeedback,
-                        lastUpdated: new Date().toISOString()
+                        lastUpdated: new Date().toISOString(),
+                        isPublished: student.evaluation?.isPublished || false
                     }
                 });
             }
@@ -485,7 +488,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                                 baseIndividualScore: studentResult.baseIndividualScore,
                                 peerReviewScore: studentResult.peerReviewScore,
                                 studentFeedback: student.evaluation?.studentFeedback || "", // Preserve existing or empty
-                                lastUpdated: new Date().toISOString()
+                                lastUpdated: new Date().toISOString(),
+                                isPublished: student.evaluation?.isPublished || false
                             }
                         };
                     }
@@ -496,6 +500,30 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         });
 
         toast('success', "Les évaluations ont été sauvegardées avec succès.");
+    };
+
+    const togglePublish = (studentId: string, agencyId: string, currentStatus: boolean) => {
+        if (!onUpdateAgency) return;
+
+        const agency = agencies.find(a => a.id === agencyId);
+        if (!agency) return;
+
+        const updatedAgency = { ...agency };
+        updatedAgency.members = updatedAgency.members.map(student => {
+            if (student.id === studentId && student.evaluation) {
+                return {
+                    ...student,
+                    evaluation: {
+                        ...student.evaluation,
+                        isPublished: !currentStatus
+                    }
+                };
+            }
+            return student;
+        });
+
+        onUpdateAgency(updatedAgency);
+        toast('success', `Bulletin ${!currentStatus ? 'publié' : 'masqué'} pour l'étudiant.`);
     };
 
     const exportToCSV = () => {
@@ -671,6 +699,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     reEvaluateStudent={reEvaluateStudent}
                     reEvaluateAgency={reEvaluateAgency}
                     isEvaluating={isEvaluating}
+                    togglePublish={togglePublish}
                 />
             </div>
 

@@ -83,6 +83,7 @@ export interface StudentEvaluation {
     peerReviewScore: number;
     studentFeedback?: string;
     lastUpdated: string;
+    isPublished?: boolean;
 }
 
 export interface Student {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CriterionEval, Agency } from '../../../types';
-import { Check, Edit2, Copy, RefreshCw, Users, Calculator } from 'lucide-react';
+import { Check, Edit2, Copy, RefreshCw, Users, Calculator, Eye, EyeOff } from 'lucide-react';
 import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt, getAverageScore, getFinalGroupScore, getFinalIndividualScore, getWeightedGroupCriterionScore, getWeightedIndividualCriterionScore, calculateDeliverableScore } from './EvaluationUtils';
 
 interface StudentEvaluationDetailsProps {
@@ -17,6 +17,7 @@ interface StudentEvaluationDetailsProps {
     reEvaluateStudent?: (studentId: string, agencyId: string) => void;
     reEvaluateAgency?: (agencyId: string) => void;
     isEvaluating?: boolean;
+    togglePublish?: (studentId: string, agencyId: string, currentStatus: boolean) => void;
 }
 
 export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
@@ -32,7 +33,8 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     toast,
     reEvaluateStudent,
     reEvaluateAgency,
-    isEvaluating
+    isEvaluating,
+    togglePublish
 }) => {
     const handleGenerateGroupPrompt = () => {
         const prompt = generateGroupPrompt(result, weights, agency, deliverableMapping);
@@ -63,11 +65,23 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     const finalGroupScore = getFinalGroupScore(result, weights, agency, deliverableMapping);
     const finalIndivScore = getFinalIndividualScore(result, weights, agency, deliverableMapping);
 
+    const student = agency?.members.find(m => m.id === result.studentId);
+    const isPublished = student?.evaluation?.isPublished || false;
+
     return (
         <div className="p-6 bg-slate-50 border-t border-slate-200">
             <div className="flex justify-between items-center mb-6">
                 <h4 className="font-bold text-slate-800 text-lg">Détails de l'évaluation</h4>
                 <div className="flex gap-3">
+                    {togglePublish && (
+                        <button 
+                            onClick={() => togglePublish(result.studentId, result.agencyId, isPublished)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${isPublished ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                        >
+                            {isPublished ? <Eye size={16} /> : <EyeOff size={16} />}
+                            {isPublished ? 'Bulletin Publié' : 'Publier le bulletin'}
+                        </button>
+                    )}
                     {reEvaluateStudent && (
                         <button 
                             onClick={() => reEvaluateStudent(result.studentId, result.agencyId)}

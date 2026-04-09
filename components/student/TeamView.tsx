@@ -380,7 +380,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                         </div>
                     )}
 
-                    {selectedMember.evaluation && (
+                    {selectedMember.evaluation && selectedMember.evaluation.isPublished && (
                         <div className="space-y-4 mt-6 border-t border-slate-100 pt-6">
                             <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                                 <ClipboardCheck size={16} className="text-indigo-500"/> Bilan de Compétences
