@@ -324,17 +324,9 @@ export interface DetailedEvaluationResult {
     membersEvaluation: Record<string, { criteria: CriterionEval[], studentFeedback: string }>;
 }
 
-const getFallbackModels = (primaryModel: string) => {
-    const fallbacks = [
-        "llama-3.3-70b-versatile",
-        "openai/gpt-oss-120b",
-        "moonshotai/kimi-k2-instruct"
-    ];
-    // Ensure primary is first, and remove duplicates
-    return [primaryModel, ...fallbacks.filter(m => m !== primaryModel)];
-};
+let globalWorkingModel: string | null = null;
 
-const fetchWithFallback = async (url: string, options: any, retriesPerModel = 2, initialBackoff = 2000): Promise<Response> => {
+const fetchWithFallback = async (url: string, options: any, retriesPerModel = 1, initialBackoff = 1000): Promise<Response> => {
     let bodyObj;
     try {
         bodyObj = JSON.parse(options.body);
@@ -343,8 +335,18 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 2,
         return fetch(url, options);
     }
 
-    const primaryModel = bodyObj.model || GROQ_MODEL;
-    const modelsToTry = getFallbackModels(primaryModel);
+    const requestedModel = bodyObj.model || GROQ_MODEL;
+    
+    // If we already had to fallback globally, start with the known working model
+    const primaryModel = globalWorkingModel || requestedModel;
+    const fallbacks = [
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
+        "moonshotai/kimi-k2-instruct"
+    ];
+    
+    // Ensure primary is first, and remove duplicates
+    const modelsToTry = [primaryModel, ...fallbacks.filter(m => m !== primaryModel)];
 
     for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex++) {
         const currentModel = modelsToTry[modelIndex];
@@ -357,21 +359,25 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 2,
                 const response = await fetch(url, newOptions);
                 
                 if (response.ok) {
-                    if (modelIndex > 0) {
+                    if (modelIndex > 0 || currentModel !== requestedModel) {
                         console.log(`[AI Fallback] Successfully used fallback model: ${currentModel}`);
+                        globalWorkingModel = currentModel; // Remember this model for future calls
                     }
                     return response;
                 }
 
-                if (response.status === 429 || response.status >= 500) {
+                if (response.status === 429) {
+                    console.warn(`[API Error 429 Rate Limit] Model ${currentModel} failed. Switching immediately.`);
+                    // Rate limits usually persist, so don't retry the same model, switch immediately
+                    break; 
+                } else if (response.status >= 500) {
                     console.warn(`[API Error ${response.status}] Model ${currentModel} failed. Attempt ${attempt + 1}/${retriesPerModel}`);
                     if (attempt < retriesPerModel - 1) {
                         await new Promise(resolve => setTimeout(resolve, backoff));
                         backoff *= 2; // Exponential backoff
                     }
                 } else {
-                    // For other errors (e.g., 400 Bad Request), don't retry this model, but maybe try next model?
-                    // Actually, 400 is usually a prompt issue, next model might fail too, but let's break and try next model just in case.
+                    // For other errors (e.g., 400 Bad Request), don't retry this model
                     console.warn(`[API Error ${response.status}] Model ${currentModel} failed with non-retryable error.`);
                     break; 
                 }
@@ -389,8 +395,8 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 2,
         }
     }
 
-    // If all fail, make one last attempt with the primary model to return its specific error
-    bodyObj.model = primaryModel;
+    // If all fail, make one last attempt with the requested model to return its specific error
+    bodyObj.model = requestedModel;
     return fetch(url, { ...options, body: JSON.stringify(bodyObj) });
 };
 
