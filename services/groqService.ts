@@ -340,9 +340,8 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 1,
     // If we already had to fallback globally, start with the known working model
     const primaryModel = globalWorkingModel || requestedModel;
     const fallbacks = [
-        "llama-3.3-70b-versatile",
-        "openai/gpt-oss-120b",
-        "moonshotai/kimi-k2-instruct"
+        "groq/compound",
+        "llama-3.3-70b-versatile"
     ];
     
     // Ensure primary is first, and remove duplicates
@@ -370,6 +369,10 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 1,
                     console.warn(`[API Error 429 Rate Limit] Model ${currentModel} failed. Switching immediately.`);
                     // Rate limits usually persist, so don't retry the same model, switch immediately
                     break; 
+                } else if (response.status === 413) {
+                    console.warn(`[API Error 413 Content Too Large] Model ${currentModel} failed. Switching immediately.`);
+                    // Context limit exceeded, switch to another model that might have a larger context window
+                    break;
                 } else if (response.status >= 500) {
                     console.warn(`[API Error ${response.status}] Model ${currentModel} failed. Attempt ${attempt + 1}/${retriesPerModel}`);
                     if (attempt < retriesPerModel - 1) {
@@ -449,7 +452,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         `- "${d.name}" | Statut: ${d.status} | Note: ${d.grading?.quality || 'N/A'} | Retard: ${d.grading?.daysLate || 0}j | MVP: ${d.grading?.mvpId ? 'Oui' : 'Non'} | Feedback: "${d.feedback || 'Aucun'}"`
     ).join('\n');
 
-    const deliverablesText = `
+    let deliverablesText = `
 📁 Livrables de Conception & Recherche (Impacte BLOC 4 et BLOC 10) :
 ${formatDeliverableList(fileDeliverables) || 'Aucun'}
 
