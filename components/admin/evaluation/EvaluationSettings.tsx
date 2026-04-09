@@ -42,6 +42,9 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
         }));
     };
 
+    const totalGroupWeight = weights.group.ve + weights.group.budget + (weights.group.deliverables || 0) + weights.group.ai;
+    const totalIndivWeight = weights.individual.baseScore + weights.individual.peerReviews + (weights.individual.deliverables || 0) + weights.individual.ai;
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 animate-in slide-in-from-top-4">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -62,7 +65,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, ve: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.group.ve}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.group.ve} {totalGroupWeight > 0 ? `(${Math.round((weights.group.ve / totalGroupWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -73,7 +76,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, budget: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.group.budget}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.group.budget} {totalGroupWeight > 0 ? `(${Math.round((weights.group.budget / totalGroupWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -84,7 +87,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, deliverables: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.group.deliverables || 0}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.group.deliverables || 0} {totalGroupWeight > 0 ? `(${Math.round(((weights.group.deliverables || 0) / totalGroupWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -95,7 +98,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, ai: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.group.ai}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.group.ai} {totalGroupWeight > 0 ? `(${Math.round((weights.group.ai / totalGroupWeight) * 100)}%)` : ''}</div>
                     </div>
                 </div>
 
@@ -111,7 +114,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, baseScore: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.individual.baseScore}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.individual.baseScore} {totalIndivWeight > 0 ? `(${Math.round((weights.individual.baseScore / totalIndivWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -122,7 +125,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, peerReviews: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.individual.peerReviews}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.individual.peerReviews} {totalIndivWeight > 0 ? `(${Math.round((weights.individual.peerReviews / totalIndivWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -133,7 +136,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, deliverables: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.individual.deliverables || 0}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.individual.deliverables || 0} {totalIndivWeight > 0 ? `(${Math.round(((weights.individual.deliverables || 0) / totalIndivWeight) * 100)}%)` : ''}</div>
                     </div>
 
                     <div>
@@ -144,7 +147,7 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, ai: parseInt(e.target.value)}}))}
                             className="w-full"
                         />
-                        <div className="text-right text-xs text-slate-500">Poids: {weights.individual.ai}</div>
+                        <div className="text-right text-xs text-slate-500">Coef: {weights.individual.ai} {totalIndivWeight > 0 ? `(${Math.round((weights.individual.ai / totalIndivWeight) * 100)}%)` : ''}</div>
                     </div>
                 </div>
             </div>
