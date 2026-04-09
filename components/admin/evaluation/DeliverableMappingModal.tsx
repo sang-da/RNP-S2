@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, BrainCircuit, Plus, Trash2 } from 'lucide-react';
+import { X, Save, BrainCircuit, Plus, Trash2, Check } from 'lucide-react';
 
 interface DeliverableMappingModalProps {
     isOpen: boolean;
     onClose: () => void;
     mapping: Record<string, string[]>;
+    availableCriteria: { id: string, title: string }[];
     onSave: (newMapping: Record<string, string[]>) => void;
     onGenerate: () => void;
     isGenerating: boolean;
@@ -14,28 +15,32 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
     isOpen,
     onClose,
     mapping,
+    availableCriteria,
     onSave,
     onGenerate,
     isGenerating
 }) => {
     const [localMapping, setLocalMapping] = useState<Record<string, string[]>>({});
     const [newDeliverableName, setNewDeliverableName] = useState('');
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen) {
             setLocalMapping(mapping);
+            setOpenDropdown(null);
         }
     }, [isOpen, mapping]);
 
     if (!isOpen) return null;
 
-    const handleCriteriaChange = (deliverable: string, value: string) => {
-        // Parse comma separated values
-        const criteriaArray = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        setLocalMapping(prev => ({
-            ...prev,
-            [deliverable]: criteriaArray
-        }));
+    const toggleCriterion = (deliverable: string, criterionId: string) => {
+        setLocalMapping(prev => {
+            const current = prev[deliverable] || [];
+            const updated = current.includes(criterionId)
+                ? current.filter(id => id !== criterionId)
+                : [...current, criterionId];
+            return { ...prev, [deliverable]: updated };
+        });
     };
 
     const handleAddDeliverable = () => {
@@ -63,7 +68,7 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
 
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={() => setOpenDropdown(null)}>
                 <div className="flex items-center justify-between p-6 border-b border-slate-100">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800">Matrice Livrables / Critères</h2>
@@ -76,7 +81,7 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
 
                 <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                     <button 
-                        onClick={onGenerate}
+                        onClick={(e) => { e.stopPropagation(); onGenerate(); }}
                         disabled={isGenerating}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
                     >
@@ -84,7 +89,7 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
                         {isGenerating ? "Génération en cours..." : "Générer avec l'IA"}
                     </button>
                     <div className="text-sm text-slate-500">
-                        Séparez les identifiants de critères par des virgules (ex: 1.1, 2.3)
+                        Cliquez sur les tags pour sélectionner les critères.
                     </div>
                 </div>
 
@@ -97,15 +102,61 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
                         <div className="space-y-4">
                             {Object.entries(localMapping).map(([deliverable, criteria]) => (
                                 <div key={deliverable} className="flex items-start gap-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-                                    <div className="flex-1">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">{deliverable}</label>
-                                        <input 
-                                            type="text" 
-                                            value={criteria.join(', ')}
-                                            onChange={(e) => handleCriteriaChange(deliverable, e.target.value)}
-                                            placeholder="Ex: 1.1, 2.3"
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                        />
+                                    <div className="flex-1 relative">
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">{deliverable}</label>
+                                        
+                                        <div 
+                                            className="min-h-[42px] w-full px-3 py-2 border border-slate-300 rounded-md cursor-pointer flex flex-wrap gap-2 items-center bg-white"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenDropdown(openDropdown === deliverable ? null : deliverable);
+                                            }}
+                                        >
+                                            {criteria.length === 0 ? (
+                                                <span className="text-slate-400 text-sm">Sélectionner des critères...</span>
+                                            ) : (
+                                                criteria.map(critId => {
+                                                    const crit = availableCriteria.find(c => c.id === critId);
+                                                    return (
+                                                        <span key={critId} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs font-medium">
+                                                            {critId}
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); toggleCriterion(deliverable, critId); }}
+                                                                className="hover:text-indigo-900 ml-1"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </span>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        {openDropdown === deliverable && (
+                                            <div 
+                                                className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {availableCriteria.map(crit => {
+                                                    const isSelected = criteria.includes(crit.id);
+                                                    return (
+                                                        <div 
+                                                            key={crit.id}
+                                                            onClick={() => toggleCriterion(deliverable, crit.id)}
+                                                            className={`px-3 py-2 text-sm cursor-pointer flex items-start gap-2 hover:bg-slate-50 ${isSelected ? 'bg-indigo-50/50' : ''}`}
+                                                        >
+                                                            <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'}`}>
+                                                                {isSelected && <Check size={12} />}
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-bold text-slate-700">{crit.id}</span>
+                                                                <span className="text-slate-500 ml-2 line-clamp-1">{crit.title}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                     <button 
                                         onClick={() => handleDeleteDeliverable(deliverable)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, CriterionEval } from '../../../types';
 import { ClipboardCheck, Play, Download, Settings, Save, BrainCircuit } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
@@ -8,6 +8,7 @@ import { StudentEvalResult, calculateAlgoScores, getFinalGroupScore, getFinalInd
 import { EvaluationSettings } from './EvaluationSettings';
 import { EvaluationTable } from './EvaluationTable';
 import { DeliverableMappingModal } from './DeliverableMappingModal';
+import { doc, getDoc, setDoc, db } from '../../../services/firebase';
 
 interface AdminEvaluationProps {
     agencies: Agency[];
@@ -74,19 +75,46 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('ALL');
     const [deliverableMapping, setDeliverableMapping] = useState<Record<string, string[]>>({}); // NOUVEAU
 
+    const availableCriteria = useMemo(() => {
+        const criteria: { id: string, title: string }[] = [];
+        const lines = referentialRules.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('| **C')) {
+                const parts = line.split('|');
+                if (parts.length >= 3) {
+                    const id = parts[1].replace(/\*/g, '').trim();
+                    const title = parts[2].trim();
+                    criteria.push({ id, title });
+                }
+            }
+        }
+        return criteria;
+    }, [referentialRules]);
+
     const [weights, setWeights] = useState({
         group: { ve: 2, budget: 2, deliverables: 2, ai: 4 },
         individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3 }
     });
 
     useEffect(() => {
-        // Load mapping from localStorage for now (ideally Firebase)
-        const savedMapping = localStorage.getItem('deliverableMapping');
-        if (savedMapping) {
+        const loadMapping = async () => {
             try {
-                setDeliverableMapping(JSON.parse(savedMapping));
-            } catch (e) {}
-        }
+                const docRef = doc(db, 'settings', 'deliverableMapping');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists) {
+                    setDeliverableMapping(docSnap.data().mapping || {});
+                } else {
+                    // Fallback to localStorage if not in Firebase yet
+                    const savedMapping = localStorage.getItem('deliverableMapping');
+                    if (savedMapping) {
+                        setDeliverableMapping(JSON.parse(savedMapping));
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading mapping:", error);
+            }
+        };
+        loadMapping();
     }, []);
 
     useEffect(() => {
@@ -140,6 +168,11 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             if (result && result.mapping) {
                 setDeliverableMapping(result.mapping);
                 localStorage.setItem('deliverableMapping', JSON.stringify(result.mapping));
+                try {
+                    await setDoc(doc(db, 'settings', 'deliverableMapping'), { mapping: result.mapping });
+                } catch (e) {
+                    console.error("Error saving mapping to Firebase:", e);
+                }
                 toast('success', "Matrice générée avec succès !");
             }
         } catch (error) {
@@ -645,10 +678,17 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 isOpen={isMappingModalOpen}
                 onClose={() => setIsMappingModalOpen(false)}
                 mapping={deliverableMapping}
-                onSave={(newMapping) => {
+                availableCriteria={availableCriteria}
+                onSave={async (newMapping) => {
                     setDeliverableMapping(newMapping);
                     localStorage.setItem('deliverableMapping', JSON.stringify(newMapping));
-                    toast('success', "Matrice sauvegardée avec succès !");
+                    try {
+                        await setDoc(doc(db, 'settings', 'deliverableMapping'), { mapping: newMapping });
+                        toast('success', "Matrice sauvegardée avec succès !");
+                    } catch (error) {
+                        console.error("Error saving mapping:", error);
+                        toast('error', "Erreur lors de la sauvegarde de la matrice.");
+                    }
                 }}
                 onGenerate={handleGenerateMapping}
                 isGenerating={isMappingGenerating}

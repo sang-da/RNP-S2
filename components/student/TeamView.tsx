@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, PeerReview } from '../../types';
-import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save, ShoppingBag, Crown } from 'lucide-react';
+import { Clock, MessageCircle, Send, Lock, Coins, Award, Star, Wallet, Medal, HelpCircle, CheckCircle2, User, X, TrendingUp, History, FileText, Mic, Square, Loader2, Edit2, Save, ShoppingBag, Crown, ClipboardCheck } from 'lucide-react';
 import { Modal } from '../Modal';
 import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
@@ -377,6 +377,46 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
                             <p className="text-[10px] text-center text-slate-400 mt-6 italic relative z-10">
                                 Basé sur les évaluations anonymes de vos collègues
                             </p>
+                        </div>
+                    )}
+
+                    {selectedMember.evaluation && (
+                        <div className="space-y-4 mt-6 border-t border-slate-100 pt-6">
+                            <h5 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <ClipboardCheck size={16} className="text-indigo-500"/> Bilan de Compétences
+                            </h5>
+                            
+                            {selectedMember.evaluation.studentFeedback && (
+                                <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 text-sm text-indigo-900 italic">
+                                    "{selectedMember.evaluation.studentFeedback}"
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <h6 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Évaluation Individuelle</h6>
+                                {selectedMember.evaluation.individualEvaluation?.map((crit: any, idx: number) => (
+                                    <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-bold text-slate-700 text-sm">{crit.criterionId}</span>
+                                            <span className={`font-bold text-sm ${crit.score >= 10 ? 'text-emerald-600' : 'text-rose-600'}`}>{crit.score}/20</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500">{crit.feedback}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-3">
+                                <h6 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Évaluation de l'Agence</h6>
+                                {selectedMember.evaluation.groupEvaluation?.map((crit: any, idx: number) => (
+                                    <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-bold text-slate-700 text-sm">{crit.criterionId}</span>
+                                            <span className={`font-bold text-sm ${crit.score >= 10 ? 'text-emerald-600' : 'text-rose-600'}`}>{crit.score}/20</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500">{crit.feedback}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
