@@ -7,6 +7,7 @@ import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
 import { StudentEvalResult, calculateAlgoScores, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
 import { EvaluationSettings } from './EvaluationSettings';
 import { EvaluationTable } from './EvaluationTable';
+import { DeliverableMappingModal } from './DeliverableMappingModal';
 
 interface AdminEvaluationProps {
     agencies: Agency[];
@@ -16,6 +17,7 @@ interface AdminEvaluationProps {
 export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUpdateAgency }) => {
     const { toast, confirm } = useUI();
     const [isEvaluating, setIsEvaluating] = useState(false);
+    const [isMappingGenerating, setIsMappingGenerating] = useState(false);
     const [results, setResults] = useState<StudentEvalResult[]>([]);
     const [referentialRules, setReferentialRules] = useState<string>(referentialRaw || 'Évaluez la pertinence du projet, la gestion financière et la cohésion d\'équipe.');
     const [groupPrompt, setGroupPrompt] = useState<string>(`En tant que jury final, évaluez l'agence sur les critères du référentiel fourni.
@@ -68,6 +70,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     const [editingScore, setEditingScore] = useState<{ studentId: string, type: 'group' | 'individual', criterionId: string } | null>(null);
     const [editValue, setEditValue] = useState<string>("");
     const [showSettings, setShowSettings] = useState(false);
+    const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('ALL');
     const [deliverableMapping, setDeliverableMapping] = useState<Record<string, string[]>>({}); // NOUVEAU
 
@@ -113,7 +116,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     }, [agencies]);
 
     const handleGenerateMapping = async () => {
-        setIsEvaluating(true);
+        setIsMappingGenerating(true);
         toast('info', "Génération de la matrice de mapping en cours...");
         try {
             const allDeliverables = new Set<string>();
@@ -128,7 +131,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             
             if (uniqueDeliverables.length === 0) {
                 toast('error', "Aucun livrable trouvé.");
-                setIsEvaluating(false);
+                setIsMappingGenerating(false);
                 return;
             }
 
@@ -143,7 +146,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             console.error(error);
             toast('error', "Erreur lors de la génération de la matrice.");
         } finally {
-            setIsEvaluating(false);
+            setIsMappingGenerating(false);
         }
     };
 
@@ -543,12 +546,11 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 </div>
                 <div className="flex gap-3">
                     <button 
-                        onClick={handleGenerateMapping}
-                        disabled={isEvaluating}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium disabled:opacity-50"
+                        onClick={() => setIsMappingModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
                     >
                         <BrainCircuit size={18} />
-                        Générer Matrice
+                        Matrice Livrables
                     </button>
                     <button 
                         onClick={() => setShowSettings(!showSettings)}
@@ -638,6 +640,19 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     isEvaluating={isEvaluating}
                 />
             </div>
+
+            <DeliverableMappingModal 
+                isOpen={isMappingModalOpen}
+                onClose={() => setIsMappingModalOpen(false)}
+                mapping={deliverableMapping}
+                onSave={(newMapping) => {
+                    setDeliverableMapping(newMapping);
+                    localStorage.setItem('deliverableMapping', JSON.stringify(newMapping));
+                    toast('success', "Matrice sauvegardée avec succès !");
+                }}
+                onGenerate={handleGenerateMapping}
+                isGenerating={isMappingGenerating}
+            />
         </div>
     );
 };
