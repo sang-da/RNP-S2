@@ -326,7 +326,7 @@ export interface DetailedEvaluationResult {
 
 let globalWorkingModel: string | null = null;
 
-const fetchWithFallback = async (url: string, options: any, retriesPerModel = 1, initialBackoff = 1000): Promise<Response> => {
+const fetchWithFallback = async (url: string, options: any, retriesPerModel = 5, initialBackoff = 2000): Promise<Response> => {
     let bodyObj;
     try {
         bodyObj = JSON.parse(options.body);
@@ -366,9 +366,26 @@ const fetchWithFallback = async (url: string, options: any, retriesPerModel = 1,
                 }
 
                 if (response.status === 429) {
-                    console.warn(`[API Error 429 Rate Limit] Model ${currentModel} failed. Switching immediately.`);
-                    // Rate limits usually persist, so don't retry the same model, switch immediately
-                    break; 
+                    const errorData = await response.clone().json().catch(() => ({}));
+                    const errorMessage = errorData.error?.message || "";
+                    
+                    const match = errorMessage.match(/Please try again in ([0-9.]+)s/);
+                    let waitTimeMs = backoff;
+                    if (match && match[1]) {
+                        waitTimeMs = parseFloat(match[1]) * 1000 + 1000; // add 1s buffer
+                        console.warn(`[API Error 429 Rate Limit] Groq requested wait of ${match[1]}s. Waiting ${waitTimeMs}ms before retry...`);
+                    } else {
+                        console.warn(`[API Error 429 Rate Limit] Model ${currentModel} failed. Using exponential backoff: ${waitTimeMs}ms`);
+                    }
+
+                    if (attempt < retriesPerModel - 1) {
+                        await new Promise(resolve => setTimeout(resolve, waitTimeMs));
+                        backoff = waitTimeMs > backoff ? waitTimeMs : backoff * 1.5;
+                        continue;
+                    } else {
+                        console.warn(`[API Error 429 Rate Limit] Max retries reached for model ${currentModel}. Switching to fallback.`);
+                        break;
+                    }
                 } else if (response.status === 413) {
                     console.warn(`[API Error 413 Content Too Large] Model ${currentModel} failed. Switching immediately.`);
                     // Context limit exceeded, switch to another model that might have a larger context window
