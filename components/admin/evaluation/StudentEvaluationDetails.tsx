@@ -13,6 +13,8 @@ interface StudentEvaluationDetailsProps {
     setEditValue: (val: string) => void;
     startEditing: (studentId: string, type: 'group' | 'individual', criterionId: string, currentScore: number) => void;
     handleScoreSave: (studentId: string, type: 'group' | 'individual', criterionId: string) => void;
+    handleFeedbackSave?: (studentId: string, agencyId: string, newFeedback: string) => void;
+    handleCriterionFeedbackSave?: (studentId: string, agencyId: string, type: 'group' | 'individual', criterionId: string, newFeedback: string) => void;
     toast: (type: 'success' | 'error' | 'info', message: string) => void;
     reEvaluateStudent?: (studentId: string, agencyId: string) => void;
     reEvaluateAgency?: (agencyId: string) => void;
@@ -30,12 +32,43 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     setEditValue,
     startEditing,
     handleScoreSave,
+    handleFeedbackSave,
+    handleCriterionFeedbackSave,
     toast,
     reEvaluateStudent,
     reEvaluateAgency,
     isEvaluating,
     togglePublish
 }) => {
+    const [isEditingFeedback, setIsEditingFeedback] = React.useState(false);
+    const [feedbackEditValue, setFeedbackEditValue] = React.useState(result.studentFeedback || "");
+    const [editingCriterionFeedback, setEditingCriterionFeedback] = React.useState<{type: 'group' | 'individual', criterionId: string} | null>(null);
+    const [criterionFeedbackEditValue, setCriterionFeedbackEditValue] = React.useState("");
+
+    const onSaveFeedback = () => {
+        if (handleFeedbackSave) {
+            handleFeedbackSave(result.studentId, result.agencyId, feedbackEditValue);
+            setIsEditingFeedback(false);
+        }
+    };
+
+    const startEditingCriterionFeedback = (type: 'group' | 'individual', criterionId: string, currentFeedback: string) => {
+        setEditingCriterionFeedback({ type, criterionId });
+        setCriterionFeedbackEditValue(currentFeedback);
+    };
+
+    const saveCriterionFeedback = () => {
+        if (handleCriterionFeedbackSave && editingCriterionFeedback) {
+            handleCriterionFeedbackSave(
+                result.studentId, 
+                result.agencyId, 
+                editingCriterionFeedback.type, 
+                editingCriterionFeedback.criterionId, 
+                criterionFeedbackEditValue
+            );
+            setEditingCriterionFeedback(null);
+        }
+    };
     const handleGenerateGroupPrompt = () => {
         const prompt = generateGroupPrompt(result, weights, agency, deliverableMapping);
         navigator.clipboard.writeText(prompt).then(() => {
@@ -136,12 +169,45 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                             <div className="p-4 max-h-60 overflow-y-auto">
                                 {result.groupEvaluation.length > 0 ? (
                                     <ul className="space-y-3 text-sm text-slate-700">
-                                        {result.groupEvaluation.map(c => (
-                                            <li key={c.criterionId} className="flex gap-2">
-                                                <span className="font-bold text-slate-900 shrink-0">{c.criterionId}:</span>
-                                                <span className="italic">"{c.feedback}"</span>
-                                            </li>
-                                        ))}
+                                        {result.groupEvaluation.map(c => {
+                                            const isEditingThis = editingCriterionFeedback?.type === 'group' && editingCriterionFeedback?.criterionId === c.criterionId;
+                                            return (
+                                                <li key={c.criterionId} className="flex gap-2 group relative">
+                                                    <span className="font-bold text-slate-900 shrink-0 mt-1">{c.criterionId}:</span>
+                                                    {isEditingThis ? (
+                                                        <div className="flex-1 flex gap-2">
+                                                            <textarea 
+                                                                value={criterionFeedbackEditValue}
+                                                                onChange={(e) => setCriterionFeedbackEditValue(e.target.value)}
+                                                                className="flex-1 p-2 text-sm border border-blue-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                                                rows={2}
+                                                            />
+                                                            <div className="flex flex-col gap-1">
+                                                                <button onClick={saveCriterionFeedback} className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Enregistrer">
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button onClick={() => setEditingCriterionFeedback(null)} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200" title="Annuler">
+                                                                    <span className="text-xs font-bold px-0.5">X</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex-1 flex justify-between items-start">
+                                                            <span className="italic mt-1">"{c.feedback}"</span>
+                                                            {handleCriterionFeedbackSave && (
+                                                                <button 
+                                                                    onClick={() => startEditingCriterionFeedback('group', c.criterionId, c.feedback)}
+                                                                    className="p-1 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2"
+                                                                    title="Modifier la justification"
+                                                                >
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-slate-500 italic">Aucune justification générée.</p>
@@ -223,12 +289,51 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                         
                         {/* Student Feedback */}
                         {result.studentFeedback && (
-                            <div className="mb-6 p-5 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-xl shadow-sm">
-                                <h6 className="font-semibold text-purple-800 text-sm mb-3 flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                                    Feedback Profiler (IA)
-                                </h6>
-                                <p className="text-sm text-slate-700 leading-relaxed">{result.studentFeedback}</p>
+                            <div className="mb-6 p-5 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-xl shadow-sm relative group">
+                                <div className="flex justify-between items-start mb-3">
+                                    <h6 className="font-semibold text-purple-800 text-sm flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                        Feedback Profiler (IA)
+                                    </h6>
+                                    {!isEditingFeedback && handleFeedbackSave && (
+                                        <button 
+                                            onClick={() => {
+                                                setFeedbackEditValue(result.studentFeedback || "");
+                                                setIsEditingFeedback(true);
+                                            }} 
+                                            className="p-1.5 text-purple-400 hover:text-purple-700 hover:bg-purple-100 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Modifier le feedback"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {isEditingFeedback ? (
+                                    <div className="space-y-3">
+                                        <textarea 
+                                            value={feedbackEditValue}
+                                            onChange={(e) => setFeedbackEditValue(e.target.value)}
+                                            className="w-full p-3 text-sm text-slate-700 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none min-h-[100px]"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => setIsEditingFeedback(false)}
+                                                className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-md transition-colors"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button 
+                                                onClick={onSaveFeedback}
+                                                className="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded-md transition-colors flex items-center gap-1"
+                                            >
+                                                <Check size={14} /> Enregistrer
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{result.studentFeedback}</p>
+                                )}
                             </div>
                         )}
 
@@ -240,12 +345,45 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                             <div className="p-4 max-h-60 overflow-y-auto">
                                 {result.individualEvaluation.length > 0 ? (
                                     <ul className="space-y-3 text-sm text-slate-700">
-                                        {result.individualEvaluation.map(c => (
-                                            <li key={c.criterionId} className="flex gap-2">
-                                                <span className="font-bold text-slate-900 shrink-0">{c.criterionId}:</span>
-                                                <span className="italic">"{c.feedback}"</span>
-                                            </li>
-                                        ))}
+                                        {result.individualEvaluation.map(c => {
+                                            const isEditingThis = editingCriterionFeedback?.type === 'individual' && editingCriterionFeedback?.criterionId === c.criterionId;
+                                            return (
+                                                <li key={c.criterionId} className="flex gap-2 group relative">
+                                                    <span className="font-bold text-slate-900 shrink-0 mt-1">{c.criterionId}:</span>
+                                                    {isEditingThis ? (
+                                                        <div className="flex-1 flex gap-2">
+                                                            <textarea 
+                                                                value={criterionFeedbackEditValue}
+                                                                onChange={(e) => setCriterionFeedbackEditValue(e.target.value)}
+                                                                className="flex-1 p-2 text-sm border border-purple-300 rounded focus:ring-1 focus:ring-purple-500 outline-none"
+                                                                rows={2}
+                                                            />
+                                                            <div className="flex flex-col gap-1">
+                                                                <button onClick={saveCriterionFeedback} className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Enregistrer">
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button onClick={() => setEditingCriterionFeedback(null)} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200" title="Annuler">
+                                                                    <span className="text-xs font-bold px-0.5">X</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex-1 flex justify-between items-start">
+                                                            <span className="italic mt-1">"{c.feedback}"</span>
+                                                            {handleCriterionFeedbackSave && (
+                                                                <button 
+                                                                    onClick={() => startEditingCriterionFeedback('individual', c.criterionId, c.feedback)}
+                                                                    className="p-1 text-slate-300 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2"
+                                                                    title="Modifier la justification"
+                                                                >
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 ) : (
                                     <p className="text-sm text-slate-500 italic">Aucune justification générée.</p>

@@ -81,6 +81,7 @@ export interface StudentEvaluation {
     budgetScore: number;
     baseIndividualScore: number;
     peerReviewScore: number;
+    deliverableScore?: number;
     studentFeedback?: string;
     lastUpdated: string;
     isPublished?: boolean;
@@ -298,6 +299,7 @@ export interface PeerReview {
         quality: number;
         involvement: number;
     };
+    totalScore?: number;
     comment: string;
     classId?: string; // Derived in UI often
 }

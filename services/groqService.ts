@@ -119,7 +119,7 @@ Assure-toi que les clés du dictionnaire "mapping" correspondent EXACTEMENT aux 
 `;
 
     try {
-        const response = await fetchWithRetry(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -159,7 +159,7 @@ export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIIns
     const gameContext = formatAgenciesForAI(agencies);
 
     try {
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -218,7 +218,7 @@ export const askGroq = async (
             { role: "user", content: prompt }
         ];
 
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -278,7 +278,7 @@ Format attendu :
 `;
 
     try {
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -324,20 +324,74 @@ export interface DetailedEvaluationResult {
     membersEvaluation: Record<string, { criteria: CriterionEval[], studentFeedback: string }>;
 }
 
-const fetchWithRetry = async (url: string, options: any, retries = 6, backoff = 10000): Promise<Response> => {
-    for (let i = 0; i < retries; i++) {
-        const response = await fetch(url, options);
-        if (response.ok) return response;
+const getFallbackModels = (primaryModel: string) => {
+    const fallbacks = [
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
+        "moonshotai/kimi-k2-instruct"
+    ];
+    // Ensure primary is first, and remove duplicates
+    return [primaryModel, ...fallbacks.filter(m => m !== primaryModel)];
+};
+
+const fetchWithFallback = async (url: string, options: any, retriesPerModel = 2, initialBackoff = 2000): Promise<Response> => {
+    let bodyObj;
+    try {
+        bodyObj = JSON.parse(options.body);
+    } catch (e) {
+        // If body is not JSON or not present, just use standard fetch
+        return fetch(url, options);
+    }
+
+    const primaryModel = bodyObj.model || GROQ_MODEL;
+    const modelsToTry = getFallbackModels(primaryModel);
+
+    for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex++) {
+        const currentModel = modelsToTry[modelIndex];
+        bodyObj.model = currentModel;
+        const newOptions = { ...options, body: JSON.stringify(bodyObj) };
+        let backoff = initialBackoff;
+
+        for (let attempt = 0; attempt < retriesPerModel; attempt++) {
+            try {
+                const response = await fetch(url, newOptions);
+                
+                if (response.ok) {
+                    if (modelIndex > 0) {
+                        console.log(`[AI Fallback] Successfully used fallback model: ${currentModel}`);
+                    }
+                    return response;
+                }
+
+                if (response.status === 429 || response.status >= 500) {
+                    console.warn(`[API Error ${response.status}] Model ${currentModel} failed. Attempt ${attempt + 1}/${retriesPerModel}`);
+                    if (attempt < retriesPerModel - 1) {
+                        await new Promise(resolve => setTimeout(resolve, backoff));
+                        backoff *= 2; // Exponential backoff
+                    }
+                } else {
+                    // For other errors (e.g., 400 Bad Request), don't retry this model, but maybe try next model?
+                    // Actually, 400 is usually a prompt issue, next model might fail too, but let's break and try next model just in case.
+                    console.warn(`[API Error ${response.status}] Model ${currentModel} failed with non-retryable error.`);
+                    break; 
+                }
+            } catch (error) {
+                console.warn(`[Network Error] Model ${currentModel} failed. Attempt ${attempt + 1}/${retriesPerModel}`, error);
+                if (attempt < retriesPerModel - 1) {
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    backoff *= 2;
+                }
+            }
+        }
         
-        if (response.status === 429) {
-            console.warn(`Rate limited (429). Retrying in ${backoff}ms... (Attempt ${i + 1}/${retries})`);
-            await new Promise(resolve => setTimeout(resolve, backoff));
-            backoff *= 2; // Exponential backoff
-        } else {
-            return response; // Return non-429 errors immediately
+        if (modelIndex < modelsToTry.length - 1) {
+            console.warn(`[AI Fallback] Switching to fallback model: ${modelsToTry[modelIndex + 1]}`);
         }
     }
-    return fetch(url, options); // Final attempt
+
+    // If all fail, make one last attempt with the primary model to return its specific error
+    bodyObj.model = primaryModel;
+    return fetch(url, { ...options, body: JSON.stringify(bodyObj) });
 };
 
 export const evaluateAgencyWithGroq = async (agencyData: any, referentialRules: string, customPrompt?: string, dataConfig?: any): Promise<CriterionEval[]> => {
@@ -432,7 +486,7 @@ ${customPrompt || defaultInstructions}
 `;
 
     try {
-        const response = await fetchWithRetry(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -528,7 +582,7 @@ ${customPrompt || defaultInstructions}
 `;
 
     try {
-        const response = await fetchWithRetry(apiUrl, {
+        const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,

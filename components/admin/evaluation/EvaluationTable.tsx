@@ -16,6 +16,8 @@ interface EvaluationTableProps {
     setEditValue: (val: string) => void;
     startEditing: (studentId: string, type: 'group' | 'individual', criterionId: string, currentScore: number) => void;
     handleScoreSave: (studentId: string, type: 'group' | 'individual', criterionId: string) => void;
+    handleFeedbackSave: (studentId: string, agencyId: string, newFeedback: string) => void;
+    handleCriterionFeedbackSave: (studentId: string, agencyId: string, type: 'group' | 'individual', criterionId: string, newFeedback: string) => void;
     toast: (type: 'success' | 'error' | 'info', message: string) => void;
     reEvaluateStudent: (studentId: string, agencyId: string) => void;
     reEvaluateAgency: (agencyId: string) => void;
@@ -35,6 +37,8 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
     setEditValue,
     startEditing,
     handleScoreSave,
+    handleFeedbackSave,
+    handleCriterionFeedbackSave,
     toast,
     reEvaluateStudent,
     reEvaluateAgency,
@@ -84,7 +88,14 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
                                                 {result.studentName.charAt(0)}
                                             </div>
-                                            <span className="font-medium text-slate-800">{result.studentName}</span>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium text-slate-800 flex items-center gap-2">
+                                                    {result.studentName}
+                                                    {agency?.members.find(m => m.id === result.studentId)?.evaluation?.isPublished && (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider">Publié</span>
+                                                    )}
+                                                </span>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="p-4 text-slate-600">{result.agencyName}</td>
@@ -125,6 +136,8 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                                 setEditValue={setEditValue}
                                                 startEditing={startEditing}
                                                 handleScoreSave={handleScoreSave}
+                                                handleFeedbackSave={handleFeedbackSave}
+                                                handleCriterionFeedbackSave={handleCriterionFeedbackSave}
                                                 toast={toast}
                                                 reEvaluateStudent={reEvaluateStudent}
                                                 reEvaluateAgency={reEvaluateAgency}

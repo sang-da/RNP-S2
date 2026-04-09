@@ -66,6 +66,9 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
         onClose();
     };
 
+    const assignedCriteriaIds = new Set(Object.values(localMapping).flat());
+    const unassignedCriteria = availableCriteria.filter(c => !assignedCriteriaIds.has(c.id));
+
     return (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={() => setOpenDropdown(null)}>
@@ -79,18 +82,41 @@ export const DeliverableMappingModal: React.FC<DeliverableMappingModalProps> = (
                     </button>
                 </div>
 
-                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onGenerate(); }}
-                        disabled={isGenerating}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                    >
-                        <BrainCircuit size={18} className={isGenerating ? "animate-pulse" : ""} />
-                        {isGenerating ? "Génération en cours..." : "Générer avec l'IA"}
-                    </button>
-                    <div className="text-sm text-slate-500">
-                        Cliquez sur les tags pour sélectionner les critères.
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onGenerate(); }}
+                            disabled={isGenerating}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                            <BrainCircuit size={18} className={isGenerating ? "animate-pulse" : ""} />
+                            {isGenerating ? "Génération en cours..." : "Générer avec l'IA"}
+                        </button>
+                        <div className="text-sm text-slate-500">
+                            Cliquez sur les tags pour sélectionner les critères.
+                        </div>
                     </div>
+                    
+                    {/* Unassigned Criteria Indicator */}
+                    {unassignedCriteria.length > 0 ? (
+                        <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                            <h3 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                                Critères non assignés ({unassignedCriteria.length})
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                                {unassignedCriteria.map(crit => (
+                                    <span key={crit.id} className="inline-flex items-center px-2 py-1 bg-white text-slate-500 border border-slate-200 rounded text-xs font-medium opacity-75" title={crit.title}>
+                                        {crit.id}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-sm font-medium flex items-center gap-2">
+                            <Check size={16} />
+                            Tous les critères sont assignés à au moins un livrable.
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6">

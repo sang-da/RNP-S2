@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, CriterionEval } from '../../../types';
-import { ClipboardCheck, Play, Download, Settings, Save, BrainCircuit } from 'lucide-react';
+import { ClipboardCheck, Play, Download, Settings, Save, BrainCircuit, Eye, EyeOff } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
 import { evaluateAgencyWithGroq, evaluateMemberWithGroq } from '../../../services/groqService';
 import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
@@ -18,6 +18,7 @@ interface AdminEvaluationProps {
 export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUpdateAgency }) => {
     const { toast, confirm } = useUI();
     const [isEvaluating, setIsEvaluating] = useState(false);
+    const [evaluationProgress, setEvaluationProgress] = useState<{ total: number, current: number, label: string } | null>(null);
     const [isMappingGenerating, setIsMappingGenerating] = useState(false);
     const [results, setResults] = useState<StudentEvalResult[]>([]);
     const [referentialRules, setReferentialRules] = useState<string>(referentialRaw || 'Évaluez la pertinence du projet, la gestion financière et la cohésion d\'équipe.');
@@ -185,18 +186,22 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 
     const runEvaluation = async () => {
         setIsEvaluating(true);
-        toast('info', "Analyse IA détaillée en cours pour les agences sélectionnées. Cela peut prendre du temps...");
-
+        
         try {
             let currentResults: StudentEvalResult[] = [...results];
             const agenciesToEval = selectedAgencyId === 'ALL' 
                 ? agencies.filter(a => a.id !== 'unassigned') 
                 : agencies.filter(a => a.id === selectedAgencyId);
 
+            const totalMembers = agenciesToEval.reduce((acc, agency) => acc + agency.members.length, 0);
+            let currentMemberIndex = 0;
+            
+            setEvaluationProgress({ total: totalMembers, current: 0, label: "Initialisation de l'évaluation..." });
+
             for (let i = 0; i < agenciesToEval.length; i++) {
                 const agency = agenciesToEval[i];
                 try {
-                    toast('info', `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...`);
+                    setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...` } : null);
                     const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
                     
                     const updatedAgency = { ...agency };
@@ -211,7 +216,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         }
                         
                         const student = updatedAgency.members[j];
-                        toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
+                        setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'étudiant ${student.name} (${agency.name})...` } : null);
                         
                         const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
                         const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
@@ -243,6 +248,9 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                                 isPublished: student.evaluation?.isPublished || false
                             }
                         });
+
+                        currentMemberIndex++;
+                        setEvaluationProgress(prev => prev ? { ...prev, current: currentMemberIndex } : null);
 
                         // Add a small delay between members to avoid rate limiting
                         if (j < updatedAgency.members.length - 1) {
@@ -279,6 +287,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             toast('error', "Une erreur est survenue lors de l'évaluation globale.");
         } finally {
             setIsEvaluating(false);
+            setEvaluationProgress(null);
         }
     };
 
@@ -426,6 +435,86 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         } finally {
             setIsEvaluating(false);
         }
+    };
+
+    const handleFeedbackSave = (studentId: string, agencyId: string, newFeedback: string) => {
+        setResults(prev => prev.map(result => {
+            if (result.studentId !== studentId) return result;
+            return { ...result, studentFeedback: newFeedback };
+        }));
+
+        if (onUpdateAgency) {
+            const agency = agencies.find(a => a.id === agencyId);
+            if (agency) {
+                const updatedAgency = { ...agency };
+                updatedAgency.members = updatedAgency.members.map(student => {
+                    if (student.id === studentId && student.evaluation) {
+                        return {
+                            ...student,
+                            evaluation: {
+                                ...student.evaluation,
+                                studentFeedback: newFeedback,
+                                lastUpdated: new Date().toISOString()
+                            }
+                        };
+                    }
+                    return student;
+                });
+                onUpdateAgency(updatedAgency);
+            }
+        }
+        
+        toast('success', "Le feedback a été mis à jour.");
+    };
+
+    const handleCriterionFeedbackSave = (studentId: string, agencyId: string, type: 'group' | 'individual', criterionId: string, newFeedback: string) => {
+        setResults(prev => prev.map(result => {
+            if (result.studentId !== studentId) return result;
+            
+            const updatedResult = { ...result };
+            if (type === 'group') {
+                updatedResult.groupEvaluation = updatedResult.groupEvaluation.map(c => 
+                    c.criterionId === criterionId ? { ...c, feedback: newFeedback } : c
+                );
+            } else {
+                updatedResult.individualEvaluation = updatedResult.individualEvaluation.map(c => 
+                    c.criterionId === criterionId ? { ...c, feedback: newFeedback } : c
+                );
+            }
+            return updatedResult;
+        }));
+
+        if (onUpdateAgency) {
+            const agency = agencies.find(a => a.id === agencyId);
+            if (agency) {
+                const updatedAgency = { ...agency };
+                updatedAgency.members = updatedAgency.members.map(student => {
+                    if (student.id === studentId && student.evaluation) {
+                        const updatedEval = { ...student.evaluation };
+                        if (type === 'group') {
+                            updatedEval.groupEvaluation = updatedEval.groupEvaluation.map(c => 
+                                c.criterionId === criterionId ? { ...c, feedback: newFeedback } : c
+                            );
+                        } else {
+                            updatedEval.individualEvaluation = updatedEval.individualEvaluation.map(c => 
+                                c.criterionId === criterionId ? { ...c, feedback: newFeedback } : c
+                            );
+                        }
+                        return {
+                            ...student,
+                            evaluation: {
+                                ...updatedEval,
+                                lastUpdated: new Date().toISOString()
+                            }
+                        };
+                    }
+                    return student;
+                });
+                onUpdateAgency(updatedAgency);
+            }
+        }
+        
+        toast('success', "La justification a été mise à jour.");
     };
 
     const handleScoreSave = (studentId: string, type: 'group' | 'individual', criterionId: string) => {
@@ -595,6 +684,33 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         setExpandedStudentId(prev => prev === studentId ? null : studentId);
     };
 
+    const togglePublishAll = (publish: boolean) => {
+        if (!onUpdateAgency) return;
+        
+        const agenciesToUpdate = selectedAgencyId === 'ALL' 
+            ? agencies.filter(a => a.id !== 'unassigned') 
+            : agencies.filter(a => a.id === selectedAgencyId);
+
+        agenciesToUpdate.forEach(agency => {
+            const updatedAgency = { ...agency };
+            updatedAgency.members = updatedAgency.members.map(student => {
+                if (student.evaluation) {
+                    return {
+                        ...student,
+                        evaluation: {
+                            ...student.evaluation,
+                            isPublished: publish
+                        }
+                    };
+                }
+                return student;
+            });
+            onUpdateAgency(updatedAgency);
+        });
+        
+        toast('success', `Tous les bulletins ont été ${publish ? 'publiés' : 'masqués'}.`);
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -606,6 +722,21 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     <p className="text-slate-500 mt-1">Générez des bulletins de notes détaillés basés sur le référentiel de compétences.</p>
                 </div>
                 <div className="flex gap-3">
+                    <button 
+                        onClick={() => togglePublishAll(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors font-medium text-sm"
+                    >
+                        <Eye size={16} />
+                        Tout Publier
+                    </button>
+                    <button 
+                        onClick={() => togglePublishAll(false)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors font-medium text-sm"
+                    >
+                        <EyeOff size={16} />
+                        Tout Masquer
+                    </button>
+                    <div className="w-px h-8 bg-slate-200 mx-1 self-center"></div>
                     <button 
                         onClick={() => setIsMappingModalOpen(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
@@ -683,6 +814,21 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     </div>
                 </div>
 
+                {evaluationProgress && (
+                    <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-100">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-indigo-800">{evaluationProgress.label}</span>
+                            <span className="text-sm font-bold text-indigo-600">{evaluationProgress.current} / {evaluationProgress.total}</span>
+                        </div>
+                        <div className="w-full bg-indigo-200 rounded-full h-2.5 overflow-hidden">
+                            <div 
+                                className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500 ease-out" 
+                                style={{ width: `${Math.max(5, (evaluationProgress.current / evaluationProgress.total) * 100)}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                )}
+
                 <EvaluationTable 
                     results={results}
                     weights={weights}
@@ -695,6 +841,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     setEditValue={setEditValue}
                     startEditing={startEditing}
                     handleScoreSave={handleScoreSave}
+                    handleFeedbackSave={handleFeedbackSave}
+                    handleCriterionFeedbackSave={handleCriterionFeedbackSave}
                     toast={toast}
                     reEvaluateStudent={reEvaluateStudent}
                     reEvaluateAgency={reEvaluateAgency}
