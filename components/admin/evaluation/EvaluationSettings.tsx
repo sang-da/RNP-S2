@@ -3,12 +3,12 @@ import { Settings } from 'lucide-react';
 
 interface EvaluationSettingsProps {
     weights: {
-        group: { ve: number, budget: number, ai: number },
-        individual: { baseScore: number, peerReviews: number, ai: number }
+        group: { ve: number, budget: number, deliverables?: number, ai: number },
+        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     };
     setWeights: React.Dispatch<React.SetStateAction<{
-        group: { ve: number, budget: number, ai: number },
-        individual: { baseScore: number, peerReviews: number, ai: number }
+        group: { ve: number, budget: number, deliverables?: number, ai: number },
+        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     }>>;
     referentialRules: string;
     setReferentialRules: (rules: string) => void;
@@ -77,6 +77,17 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                     </div>
 
                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Livrables (Contrôle Continu)</label>
+                        <input 
+                            type="range" min="0" max="10" step="1" 
+                            value={weights.group.deliverables || 0} 
+                            onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, deliverables: parseInt(e.target.value)}}))}
+                            className="w-full"
+                        />
+                        <div className="text-right text-xs text-slate-500">Poids: {weights.group.deliverables || 0}</div>
+                    </div>
+
+                    <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Évaluation IA (Référentiel)</label>
                         <input 
                             type="range" min="0" max="10" step="1" 
@@ -112,6 +123,17 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             className="w-full"
                         />
                         <div className="text-right text-xs text-slate-500">Poids: {weights.individual.peerReviews}</div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Livrables (Contrôle Continu)</label>
+                        <input 
+                            type="range" min="0" max="10" step="1" 
+                            value={weights.individual.deliverables || 0} 
+                            onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, deliverables: parseInt(e.target.value)}}))}
+                            className="w-full"
+                        />
+                        <div className="text-right text-xs text-slate-500">Poids: {weights.individual.deliverables || 0}</div>
                     </div>
 
                     <div>

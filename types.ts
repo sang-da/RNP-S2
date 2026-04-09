@@ -57,6 +57,17 @@ export interface AuditResult {
     date: string; // Date de l'audit pour savoir s'il est périmé
 }
 
+export interface EvaluationWeights {
+    note1: number;
+    note2: number;
+    deliverables: number;
+    ia: number;
+}
+
+export interface DeliverableMapping {
+    [deliverableName: string]: string[]; // e.g. "Charte Graphique": ["C11.1", "C4.2"]
+}
+
 export interface CriterionEval {
     criterionId: string;
     score: number;

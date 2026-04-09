@@ -1,11 +1,13 @@
 import React from 'react';
-import { CriterionEval } from '../../../types';
+import { CriterionEval, Agency } from '../../../types';
 import { Check, Edit2, Copy, RefreshCw, Users, Calculator } from 'lucide-react';
-import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt, getAverageScore, getFinalGroupScore, getFinalIndividualScore, getWeightedGroupCriterionScore, getWeightedIndividualCriterionScore } from './EvaluationUtils';
+import { StudentEvalResult, generateGroupPrompt, generateIndividualPrompt, getAverageScore, getFinalGroupScore, getFinalIndividualScore, getWeightedGroupCriterionScore, getWeightedIndividualCriterionScore, calculateDeliverableScore } from './EvaluationUtils';
 
 interface StudentEvaluationDetailsProps {
     result: StudentEvalResult;
     weights: any;
+    agency?: Agency;
+    deliverableMapping?: Record<string, string[]>;
     editingScore: { studentId: string, type: 'group' | 'individual', criterionId: string } | null;
     editValue: string;
     setEditValue: (val: string) => void;
@@ -20,6 +22,8 @@ interface StudentEvaluationDetailsProps {
 export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     result,
     weights,
+    agency,
+    deliverableMapping,
     editingScore,
     editValue,
     setEditValue,
@@ -31,7 +35,7 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     isEvaluating
 }) => {
     const handleGenerateGroupPrompt = () => {
-        const prompt = generateGroupPrompt(result, weights);
+        const prompt = generateGroupPrompt(result, weights, agency, deliverableMapping);
         navigator.clipboard.writeText(prompt).then(() => {
             toast('success', "Prompt Groupe copié dans le presse-papier !");
         }).catch(err => {
@@ -41,7 +45,7 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     };
 
     const handleGenerateIndividualPrompt = () => {
-        const prompt = generateIndividualPrompt(result, weights);
+        const prompt = generateIndividualPrompt(result, weights, agency, deliverableMapping);
         navigator.clipboard.writeText(prompt).then(() => {
             toast('success', "Prompt Individuel copié dans le presse-papier !");
         }).catch(err => {
@@ -53,11 +57,11 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
     const groupAiScore = getAverageScore(result.groupEvaluation);
     const individualAiScore = getAverageScore(result.individualEvaluation);
     
-    const totalGroupWeight = weights.group.ve + weights.group.budget + weights.group.ai;
-    const totalIndivWeight = weights.individual.baseScore + weights.individual.peerReviews + weights.individual.ai;
+    const totalGroupWeight = weights.group.ve + weights.group.budget + weights.group.ai + (weights.group.deliverables || 0);
+    const totalIndivWeight = weights.individual.baseScore + weights.individual.peerReviews + weights.individual.ai + (weights.individual.deliverables || 0);
 
-    const finalGroupScore = getFinalGroupScore(result, weights);
-    const finalIndivScore = getFinalIndividualScore(result, weights);
+    const finalGroupScore = getFinalGroupScore(result, weights, agency, deliverableMapping);
+    const finalIndivScore = getFinalIndividualScore(result, weights, agency, deliverableMapping);
 
     return (
         <div className="p-6 bg-slate-50 border-t border-slate-200">
@@ -140,19 +144,22 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                                             <th className="px-4 py-3 font-semibold">Critère</th>
                                             <th className="px-4 py-3 font-semibold">VE <span className="text-xs font-normal text-slate-400">(Coef {weights.group.ve})</span></th>
                                             <th className="px-4 py-3 font-semibold">Budget <span className="text-xs font-normal text-slate-400">(Coef {weights.group.budget})</span></th>
+                                            <th className="px-4 py-3 font-semibold text-emerald-700">Livrables <span className="text-xs font-normal text-emerald-400">(Coef {weights.group.deliverables || 0})</span></th>
                                             <th className="px-4 py-3 font-semibold text-blue-700">Note IA <span className="text-xs font-normal text-blue-400">(Coef {weights.group.ai})</span></th>
                                             <th className="px-4 py-3 font-bold text-slate-800">Moyenne Pondérée</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {result.groupEvaluation.map(crit => {
-                                            const finalScore = getWeightedGroupCriterionScore(result, crit.score, weights);
+                                            const specificDelivScore = agency && deliverableMapping ? calculateDeliverableScore(agency, crit.criterionId, deliverableMapping) : result.deliverableScore;
+                                            const finalScore = getWeightedGroupCriterionScore(result, crit.score, weights, specificDelivScore);
                                             const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'group' && editingScore?.criterionId === crit.criterionId;
                                             return (
                                                 <tr key={crit.criterionId} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-4 py-3 font-medium text-slate-800">{crit.criterionId}</td>
                                                     <td className="px-4 py-3 text-slate-600">{result.veScore.toFixed(1)}</td>
                                                     <td className="px-4 py-3 text-slate-600">{result.budgetScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3 text-emerald-600 font-medium">{specificDelivScore >= 0 ? specificDelivScore.toFixed(1) : '-'}</td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <div className="flex items-center gap-1">
@@ -241,19 +248,22 @@ export const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> =
                                             <th className="px-4 py-3 font-semibold">Critère</th>
                                             <th className="px-4 py-3 font-semibold">Manager <span className="text-xs font-normal text-slate-400">(Coef {weights.individual.baseScore})</span></th>
                                             <th className="px-4 py-3 font-semibold">Pairs <span className="text-xs font-normal text-slate-400">(Coef {weights.individual.peerReviews})</span></th>
+                                            <th className="px-4 py-3 font-semibold text-emerald-700">Livrables <span className="text-xs font-normal text-emerald-400">(Coef {weights.individual.deliverables || 0})</span></th>
                                             <th className="px-4 py-3 font-semibold text-purple-700">Note IA <span className="text-xs font-normal text-purple-400">(Coef {weights.individual.ai})</span></th>
                                             <th className="px-4 py-3 font-bold text-slate-800">Moyenne Pondérée</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {result.individualEvaluation.map(crit => {
-                                            const finalScore = getWeightedIndividualCriterionScore(result, crit.score, weights);
+                                            const specificDelivScore = agency && deliverableMapping ? calculateDeliverableScore(agency, crit.criterionId, deliverableMapping) : result.deliverableScore;
+                                            const finalScore = getWeightedIndividualCriterionScore(result, crit.score, weights, specificDelivScore);
                                             const isEditing = editingScore?.studentId === result.studentId && editingScore?.type === 'individual' && editingScore?.criterionId === crit.criterionId;
                                             return (
                                                 <tr key={crit.criterionId} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-4 py-3 font-medium text-slate-800">{crit.criterionId}</td>
                                                     <td className="px-4 py-3 text-slate-600">{result.baseIndividualScore.toFixed(1)}</td>
                                                     <td className="px-4 py-3 text-slate-600">{result.peerReviewScore.toFixed(1)}</td>
+                                                    <td className="px-4 py-3 text-emerald-600 font-medium">{specificDelivScore >= 0 ? specificDelivScore.toFixed(1) : '-'}</td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <div className="flex items-center gap-1">

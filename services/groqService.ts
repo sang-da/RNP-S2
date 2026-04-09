@@ -93,6 +93,64 @@ const formatAgenciesForAI = (agencies: Agency[]) => {
         });
 };
 
+export const generateDeliverableMappingWithGroq = async (uniqueDeliverables: string[], referentialRules: string): Promise<any> => {
+    const apiKey = getGroqKey();
+    const apiUrl = getGroqApiUrl();
+    if (!apiKey || apiKey.includes("TA_CLE")) throw new Error("Clé API Groq non configurée.");
+
+    const prompt = `
+Tu es un expert pédagogique. Ta mission est de mapper une liste de livrables aux critères d'un référentiel de compétences.
+Pour chaque livrable, identifie les 1 à 3 critères (ex: C1.1, C4.2) qui sont les plus directement évalués par ce livrable.
+
+RÉFÉRENTIEL :
+${referentialRules}
+
+LISTE DES LIVRABLES À MAPPER :
+${uniqueDeliverables.map(d => `- ${d}`).join('\n')}
+
+Retourne UNIQUEMENT un objet JSON avec cette structure exacte :
+{
+    "mapping": {
+        "Nom du Livrable 1": ["C1.1", "C2.1"],
+        "Nom du Livrable 2": ["C4.2"]
+    }
+}
+Assure-toi que les clés du dictionnaire "mapping" correspondent EXACTEMENT aux noms des livrables fournis.
+`;
+
+    try {
+        const response = await fetchWithRetry(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [
+                    { role: "system", content: "Tu es un expert pédagogique. Tu réponds uniquement en JSON valide." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.1,
+                max_tokens: 2000,
+                response_format: { type: "json_object" }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        return JSON.parse(content);
+    } catch (error) {
+        console.error("Erreur Groq (generateDeliverableMappingWithGroq):", error);
+        throw error;
+    }
+};
+
 export const analyzeAgenciesWithGroq = async (agencies: Agency[]): Promise<AIInsight[]> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
@@ -302,9 +360,23 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 
     const config = dataConfig?.group || { ve: true, budget: true, projectDef: true, deliverables: true, events: true };
 
+    // Calculate VE Trend
+    let veTrendText = `Actuel: ${agencyData.ve_current || agencyData.ve}`;
+    if (agencyData.ve_history && agencyData.ve_history.length > 0) {
+        const firstVE = agencyData.ve_history[0].value;
+        const lastVE = agencyData.ve_current || agencyData.ve;
+        const minVE = Math.min(...agencyData.ve_history.map((h: any) => h.value), lastVE);
+        const maxVE = Math.max(...agencyData.ve_history.map((h: any) => h.value), lastVE);
+        veTrendText = `Départ: ${firstVE} | Actuel: ${lastVE} | Plus bas: ${minVE} | Plus haut: ${maxVE} | Tendance: ${lastVE >= firstVE ? 'CROISSANCE/STABILITÉ' : 'DÉCLIN'}`;
+    }
+
     // Extract deliverables from all weeks
     const allDeliverables = Object.values(agencyData.progress || {}).flatMap((week: any) => week.deliverables || []);
     
+    // Categorize deliverables
+    const brandingDeliverables = allDeliverables.filter((d: any) => ['SPECIAL_LOGO', 'SPECIAL_BANNER', 'FORM_CHARTER', 'FORM_NAMING'].includes(d.type));
+    const fileDeliverables = allDeliverables.filter((d: any) => ['FILE', 'LINK'].includes(d.type) || !d.type);
+
     // Calculate stats
     const countA = allDeliverables.filter((d: any) => d.grading?.quality === 'A').length;
     const countB = allDeliverables.filter((d: any) => d.grading?.quality === 'B').length;
@@ -313,9 +385,24 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     const countLate = allDeliverables.filter((d: any) => d.grading && d.grading.daysLate > 0).length;
     const countMVP = allDeliverables.filter((d: any) => d.grading?.mvpId || d.nominatedMvpId).length;
 
-    const deliverablesText = allDeliverables.map((d: any) => 
-        `- Livrable: "${d.name}" | Statut: ${d.status} | Qualité: ${d.grading?.quality || 'N/A'} | Retard: ${d.grading?.daysLate || 0}j | MVP: ${d.grading?.mvpId ? 'Oui' : 'Non'} | Feedback Admin: "${d.feedback || 'Aucun'}"`
+    const formatDeliverableList = (list: any[]) => list.map((d: any) => 
+        `- "${d.name}" | Statut: ${d.status} | Note: ${d.grading?.quality || 'N/A'} | Retard: ${d.grading?.daysLate || 0}j | MVP: ${d.grading?.mvpId ? 'Oui' : 'Non'} | Feedback: "${d.feedback || 'Aucun'}"`
     ).join('\n');
+
+    const deliverablesText = `
+📁 Livrables de Conception & Recherche (Impacte BLOC 4 et BLOC 10) :
+${formatDeliverableList(fileDeliverables) || 'Aucun'}
+
+🎨 Livrables de Branding & Production (Impacte BLOC 11) :
+${formatDeliverableList(brandingDeliverables) || 'Aucun'}
+`;
+
+    const eventsText = agencyData.eventLog?.map((e: any) => {
+        let tag = "";
+        if (e.type === 'CRISIS') tag = " [Test de Résilience - C10.5/C11.5]";
+        if (e.type === 'BLACK_OP') tag = " [Action Offensive/Éthique - C5.2]";
+        return `- ${e.date} : [${e.type}]${tag} ${e.label} (Impact VE: ${e.deltaVE || 0}, Budget: ${e.deltaBudgetReal || 0})`;
+    }).join('\n') || 'Aucun événement majeur.';
 
     const prompt = `
 En tant que jury final, évaluez l'agence "${agencyData.name}" sur CHAQUE CRITÈRE (C1.1, C2.1, etc.) du référentiel fourni.
@@ -324,7 +411,7 @@ Règles du référentiel :
 ${referentialRules}
 
 Données de l'agence (Évaluation Groupe) :
-${config.ve ? `- Valeur d'Entreprise (VE) : ${agencyData.ve_current || agencyData.ve}` : ''}
+${config.ve ? `- Valeur d'Entreprise (VE) : ${veTrendText}` : ''}
 ${config.budget ? `- Budget (Richesse) : ${agencyData.budget_real || agencyData.budget}€` : ''}
 ${config.projectDef ? `- Concept du projet : ${agencyData.projectDef?.concept || 'Non défini'}
 - Cible : ${agencyData.projectDef?.target || 'Non défini'}
@@ -336,10 +423,10 @@ ${config.deliverables ? `STATISTIQUES DES LIVRABLES :
 - Nominations MVP : ${countMVP}
 
 DÉTAIL DES LIVRABLES ET FEEDBACKS :
-${deliverablesText || 'Aucun livrable soumis.'}` : ''}
+${deliverablesText}` : ''}
 
 ${config.events ? `ÉVÉNEMENTS MARQUANTS (Fluctuations marché, crises, bonus) :
-${agencyData.eventLog?.map((e: any) => `- ${e.date} : [${e.type}] ${e.label} (Impact VE: ${e.deltaVE || 0}, Impact Budget: ${e.deltaBudgetReal || 0})`).join('\n') || 'Aucun événement majeur.'}` : ''}
+${eventsText}` : ''}
 
 ${customPrompt || defaultInstructions}
 `;
@@ -394,17 +481,30 @@ export const evaluateMemberWithGroq = async (agencyData: any, memberData: any, r
 1. Évaluez l'étudiant UNIQUEMENT sur les critères pertinents pour un travail individuel (ex: communication, rôle, implication, posture professionnelle, expression). Ignorez les critères purement collectifs.
 2. Pour chaque critère évalué, donnez une note sur 20.
 3. Prenez en compte son rôle, son score individuel, les retours de ses pairs et les notes de l'admin.
-4. Générez également un "studentFeedback" : un commentaire global (3-4 phrases) sur le travail de l'étudiant, son évolution, son profil psychologique et professionnel (comme un profiler RH).
+4. ANALYSE RH CRITIQUE : Cherchez activement les contradictions. Si un étudiant a d'excellentes notes individuelles mais de mauvaises évaluations par ses pairs, sanctionnez sévèrement les compétences du BLOC 8 (Coopérer) et soulignez-le.
+5. Générez un profil RH structuré dans l'objet "profile".
 
 Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 {
     "criteria": [
         { "criterionId": "C2.1", "score": 14, "feedback": "Justification courte" }
     ],
-    "studentFeedback": "Analyse détaillée du comportement, de l'évolution et du travail de l'étudiant..."
+    "profile": {
+        "archetype": "Le Solitaire Technique / Le Leader Charismatique...",
+        "superpower": "Ce qu'il fait de mieux...",
+        "achillesHeel": "Son point faible critique...",
+        "advice": "Un conseil brut et direct pour son avenir pro."
+    }
 }`;
 
-    const historyText = memberData.history?.map((h: any) => `- ${h.date} (Semaine ${h.weekId}) : [${h.action}] Agence ${h.agencyName} (VE: ${h.contextVE || 'N/A'}) ${h.reason ? `Motif: "${h.reason}"` : ''}`).join('\n  ') || 'Aucun historique de transfert.';
+    const historyText = memberData.history?.map((h: any) => {
+        let tag = "";
+        if (['TRANSFER', 'RESIGNED'].includes(h.action)) tag = " [Mobilité/Initiative - Lié à C5.1/C8.3]";
+        if (['PROMOTED', 'DEMOTED'].includes(h.action)) tag = " [Évolution de rôle - Lié à C5.1]";
+        if (h.action === 'FIRED') tag = " [Rupture d'équipe - Lié à C8.2/C5.2]";
+        
+        return `- ${h.date} (Semaine ${h.weekId}) : [${h.action}]${tag} Agence ${h.agencyName} (VE: ${h.contextVE || 'N/A'}) ${h.reason ? `Motif: "${h.reason}"` : ''}`;
+    }).join('\n  ') || 'Aucun historique de transfert.';
 
     const prompt = `
 En tant que jury final et profiler RH expert, évaluez l'étudiant "${memberData.name}" de l'agence "${agencyData.name}".

@@ -69,11 +69,22 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     const [editValue, setEditValue] = useState<string>("");
     const [showSettings, setShowSettings] = useState(false);
     const [selectedAgencyId, setSelectedAgencyId] = useState<string>('ALL');
+    const [deliverableMapping, setDeliverableMapping] = useState<Record<string, string[]>>({}); // NOUVEAU
 
     const [weights, setWeights] = useState({
-        group: { ve: 2, budget: 2, ai: 6 },
-        individual: { baseScore: 3, peerReviews: 2, ai: 5 }
+        group: { ve: 2, budget: 2, deliverables: 2, ai: 4 },
+        individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3 }
     });
+
+    useEffect(() => {
+        // Load mapping from localStorage for now (ideally Firebase)
+        const savedMapping = localStorage.getItem('deliverableMapping');
+        if (savedMapping) {
+            try {
+                setDeliverableMapping(JSON.parse(savedMapping));
+            } catch (e) {}
+        }
+    }, []);
 
     useEffect(() => {
         const loadedResults: StudentEvalResult[] = [];
@@ -92,6 +103,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         budgetScore: student.evaluation.budgetScore,
                         baseIndividualScore: student.evaluation.baseIndividualScore,
                         peerReviewScore: student.evaluation.peerReviewScore,
+                        deliverableScore: student.evaluation.deliverableScore || 10,
                         studentFeedback: student.evaluation.studentFeedback || ""
                     });
                 }
@@ -99,6 +111,41 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         });
         setResults(loadedResults);
     }, [agencies]);
+
+    const handleGenerateMapping = async () => {
+        setIsEvaluating(true);
+        toast('info', "Génération de la matrice de mapping en cours...");
+        try {
+            const allDeliverables = new Set<string>();
+            agencies.forEach(a => {
+                if (a.progress) {
+                    Object.values(a.progress).forEach(w => {
+                        w.deliverables?.forEach(d => allDeliverables.add(d.name));
+                    });
+                }
+            });
+            const uniqueDeliverables = Array.from(allDeliverables);
+            
+            if (uniqueDeliverables.length === 0) {
+                toast('error', "Aucun livrable trouvé.");
+                setIsEvaluating(false);
+                return;
+            }
+
+            const { generateDeliverableMappingWithGroq } = await import('../../../services/groqService');
+            const result = await generateDeliverableMappingWithGroq(uniqueDeliverables, referentialRules);
+            if (result && result.mapping) {
+                setDeliverableMapping(result.mapping);
+                localStorage.setItem('deliverableMapping', JSON.stringify(result.mapping));
+                toast('success', "Matrice générée avec succès !");
+            }
+        } catch (error) {
+            console.error(error);
+            toast('error', "Erreur lors de la génération de la matrice.");
+        } finally {
+            setIsEvaluating(false);
+        }
+    };
 
     const runEvaluation = async () => {
         setIsEvaluating(true);
@@ -131,7 +178,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                         
                         const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                        const algoScores = calculateAlgoScores(agency, student);
+                        const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
                         
                         const studentResult: StudentEvalResult = {
                             studentId: student.id,
@@ -154,6 +201,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                                 budgetScore: studentResult.budgetScore,
                                 baseIndividualScore: studentResult.baseIndividualScore,
                                 peerReviewScore: studentResult.peerReviewScore,
+                                deliverableScore: studentResult.deliverableScore,
                                 studentFeedback: memberEvalResult.studentFeedback || "",
                                 lastUpdated: new Date().toISOString()
                             }
@@ -209,7 +257,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             if (!student) throw new Error("Étudiant non trouvé.");
 
             const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-            const algoScores = calculateAlgoScores(agency, student);
+            const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
             
             // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
             const existingResult = results.find(r => r.studentId === studentId);
@@ -242,6 +290,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                             budgetScore: studentResult.budgetScore,
                             baseIndividualScore: studentResult.baseIndividualScore,
                             peerReviewScore: studentResult.peerReviewScore,
+                            deliverableScore: studentResult.deliverableScore,
                             studentFeedback: studentResult.studentFeedback,
                             lastUpdated: new Date().toISOString()
                         }
@@ -288,7 +337,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                 
                 const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                const algoScores = calculateAlgoScores(agency, student);
+                const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
                 
                 const studentResult: StudentEvalResult = {
                     studentId: student.id,
@@ -312,6 +361,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         budgetScore: studentResult.budgetScore,
                         baseIndividualScore: studentResult.baseIndividualScore,
                         peerReviewScore: studentResult.peerReviewScore,
+                        deliverableScore: studentResult.deliverableScore,
                         studentFeedback: studentResult.studentFeedback,
                         lastUpdated: new Date().toISOString()
                     }
@@ -424,7 +474,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
 
         const headers = [
             "Agence", "Étudiant", 
-            "Score VE", "Score Budget", "Score IA Groupe", "Note Finale Groupe",
+            "Score VE", "Score Budget", "Score Livrables", "Score IA Groupe", "Note Finale Groupe",
             "Score Indiv. Base", "Score Pairs", "Score IA Indiv.", "Note Finale Indiv.",
             "Note Globale",
             ...criteriaList
@@ -433,13 +483,14 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
         const csvContent = [
             headers.join(','),
             ...results.map(r => {
-                const finalGroup = getFinalGroupScore(r, weights);
-                const finalIndiv = getFinalIndividualScore(r, weights);
+                const agency = agencies.find(a => a.id === r.agencyId);
+                const finalGroup = getFinalGroupScore(r, weights, agency, deliverableMapping);
+                const finalIndiv = getFinalIndividualScore(r, weights, agency, deliverableMapping);
                 const finalGlobal = (finalGroup + finalIndiv) / 2;
 
                 const row = [
                     `"${r.agencyName}"`, `"${r.studentName}"`,
-                    r.veScore.toFixed(2), r.budgetScore.toFixed(2), 
+                    r.veScore.toFixed(2), r.budgetScore.toFixed(2), (r.deliverableScore || 0).toFixed(2),
                     (r.groupEvaluation.reduce((acc, c) => acc + c.score, 0) / (r.groupEvaluation.length || 1)).toFixed(2),
                     finalGroup.toFixed(2),
                     r.baseIndividualScore.toFixed(2), r.peerReviewScore.toFixed(2),
@@ -491,6 +542,14 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     <p className="text-slate-500 mt-1">Générez des bulletins de notes détaillés basés sur le référentiel de compétences.</p>
                 </div>
                 <div className="flex gap-3">
+                    <button 
+                        onClick={handleGenerateMapping}
+                        disabled={isEvaluating}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium disabled:opacity-50"
+                    >
+                        <BrainCircuit size={18} />
+                        Générer Matrice
+                    </button>
                     <button 
                         onClick={() => setShowSettings(!showSettings)}
                         className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
@@ -564,6 +623,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 <EvaluationTable 
                     results={results}
                     weights={weights}
+                    agencies={agencies}
+                    deliverableMapping={deliverableMapping}
                     expandedStudentId={expandedStudentId}
                     toggleStudentDetails={toggleStudentDetails}
                     editingScore={editingScore}

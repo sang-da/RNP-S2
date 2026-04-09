@@ -2,10 +2,13 @@ import React from 'react';
 import { Trophy, ChevronDown, ChevronUp } from 'lucide-react';
 import { StudentEvalResult, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
 import { StudentEvaluationDetails } from './StudentEvaluationDetails';
+import { Agency } from '../../../types';
 
 interface EvaluationTableProps {
     results: StudentEvalResult[];
     weights: any;
+    agencies: Agency[];
+    deliverableMapping: Record<string, string[]>;
     expandedStudentId: string | null;
     toggleStudentDetails: (studentId: string) => void;
     editingScore: { studentId: string, type: 'group' | 'individual', criterionId: string } | null;
@@ -22,6 +25,8 @@ interface EvaluationTableProps {
 export const EvaluationTable: React.FC<EvaluationTableProps> = ({
     results,
     weights,
+    agencies,
+    deliverableMapping,
     expandedStudentId,
     toggleStudentDetails,
     editingScore,
@@ -63,8 +68,9 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 </thead>
                 <tbody>
                     {results.map(result => {
-                        const finalGroup = getFinalGroupScore(result, weights);
-                        const finalIndiv = getFinalIndividualScore(result, weights);
+                        const agency = agencies.find(a => a.id === result.agencyId);
+                        const finalGroup = getFinalGroupScore(result, weights, agency, deliverableMapping);
+                        const finalIndiv = getFinalIndividualScore(result, weights, agency, deliverableMapping);
                         const finalGlobal = (finalGroup + finalIndiv) / 2;
                         const isExpanded = expandedStudentId === result.studentId;
 
@@ -110,6 +116,8 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                             <StudentEvaluationDetails 
                                                 result={result}
                                                 weights={weights}
+                                                agency={agency}
+                                                deliverableMapping={deliverableMapping}
                                                 editingScore={editingScore}
                                                 editValue={editValue}
                                                 setEditValue={setEditValue}
