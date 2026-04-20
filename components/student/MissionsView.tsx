@@ -147,6 +147,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   const [nominatedMvp, setNominatedMvp] = useState<string | null>(null);
 
   const { isUploading, handleFileUpload, getDynamicDeadline } = useSubmissionLogic(agency, onUpdateAgency, agency.id === 'mock-agency-id');
+  const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
 
   useEffect(() => {
       if (agency.projectDef) setCharterForm({ ...agency.projectDef } as any);
@@ -154,6 +155,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   }, [agency]);
 
   const handleFileClick = (deliverableId: string) => {
+    if (isJuryModeActive) return; // BLOQUÉ PAR LE JURY
     if (isWeekLocked) return; // Sécurité double
     const deliverable = displayDeliverables.find(d => d.id === deliverableId);
     if (!deliverable) return;
@@ -178,6 +180,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
     
     const targetDel = displayDeliverables.find(d => d.id === targetDeliverableId) as any;
     const uploadWeekId = activeWeekId === 'SPECIAL' ? targetDel?._originalWeekId : activeWeekId;
+    if (isJuryModeActive) return; // BLOQUÉ PAR LE JURY
     
     if (!uploadWeekId) return;
 

@@ -7,7 +7,8 @@ import { updateProfile } from '../services/firebase';
 import { auth } from '../services/firebase';
 import { Settings, Save, Database, AlertTriangle, LogOut, User, Loader2, Bell, FileSpreadsheet } from 'lucide-react';
 import { DataExportModal } from './admin/DataExportModal';
-import { SupervisorPermissions } from './admin/settings/SupervisorPermissions'; // IMPORT
+import { SupervisorPermissions } from './admin/settings/SupervisorPermissions';
+import { JuryModeConfig } from './admin/settings/JuryModeConfig';
 
 interface AdminSettingsProps {
     readOnly?: boolean;
@@ -208,6 +209,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ readOnly }) => {
 
                 {/* COLONNE DROITE : PERMISSIONS */}
                 <div className="space-y-8">
+                    {!readOnly && <JuryModeConfig />}
                     {!readOnly && <SupervisorPermissions />}
                 </div>
 

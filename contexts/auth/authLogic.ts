@@ -6,7 +6,7 @@ interface UserData {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
-  role: 'admin' | 'student' | 'pending' | 'supervisor';
+  role: 'admin' | 'student' | 'pending' | 'supervisor' | 'jury';
   agencyId?: string | null;
 }
 

@@ -37,6 +37,8 @@ import { AdminShop } from './components/admin/shop/AdminShop';
 import { QuizButton } from './components/student/QuizButton';
 import { ConnectivityTest } from './components/student/ConnectivityTest';
 
+import { JuryDashboard } from './components/JuryDashboard';
+
 // NOTE: Le type AdminViewType doit correspondre aux IDs dans adminMenu.ts
 type AdminViewType = 'OVERVIEW' | 'ANALYTICS' | 'BANK' | 'PEER_REVIEWS' | 'MARKET' | 'MERCATO' | 'PROJECTS' | 'CRISIS' | 'SCHEDULE' | 'ACCESS' | 'RESOURCES' | 'SETTINGS' | 'VIEWS' | 'AI_ASSISTANT' | 'BLACK_MARKET' | 'STUDENT_TRACKER' | 'BADGES' | 'QUIZZES' | 'SHOP' | 'EVALUATION';
 
@@ -271,6 +273,15 @@ const GameContainer: React.FC = () => {
           <StudentAgencyView agency={myAgency} allAgencies={agencies} onUpdateAgency={updateAgency} />
           <QuizButton />
         </Layout>
+      );
+  }
+
+  // CAS 4 : JURY
+  if (userData?.role === 'jury') {
+      return (
+          <Layout role="student" switchRole={() => {}} onLogout={handleLogout}>
+            <JuryDashboard agencies={agencies} userData={userData} />
+          </Layout>
       );
   }
 

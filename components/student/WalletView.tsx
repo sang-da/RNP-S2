@@ -35,6 +35,10 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     const isPrecarious = (student.wallet || 0) < 0;
     const isBankrupt = agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD;
     
+    // Check Jury Mode (Locking financial ops)
+    const { gameConfig } = useGame();
+    const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
+
     // Data
     const walletBalance = student.wallet || 0;
     const savingsBalance = student.savings || 0;
@@ -190,6 +194,16 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
             {/* CONTENT */}
             {activeTab === 'WALLET' ? (
                 <div className="space-y-6 animate-in slide-in-from-left-4 duration-300">
+                    {isJuryModeActive && (
+                        <div className="bg-red-600 text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 animate-pulse">
+                            <AlertTriangle size={24}/>
+                            <div>
+                                <h4 className="font-bold">Verrouillage Jury Actif</h4>
+                                <p className="text-xs text-red-100">Les transactions financières sont temporairement bloquées.</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* PERSONAL WALLET CARD */}
                     <div className={`p-8 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center relative overflow-hidden transition-colors ${
                         isPrecarious ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white'
@@ -227,8 +241,8 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                                 <p className="text-[10px] text-red-500 font-bold mt-2 uppercase">Taxe : 20% (Lissée sur historique)</p>
                             </div>
                             <div className="mt-auto space-y-3">
-                                <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant brut" value={amount} onChange={e => setAmount(e.target.value)} />
-                                <button onClick={handleInject} disabled={Number(amount) <= 0 || Number(amount) > walletBalance} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50">Injecter</button>
+                                <input type="number" disabled={isJuryModeActive} className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50 disabled:opacity-50" placeholder="Montant brut" value={amount} onChange={e => setAmount(e.target.value)} />
+                                <button onClick={handleInject} disabled={isJuryModeActive || Number(amount) <= 0 || Number(amount) > walletBalance} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50">Injecter</button>
                             </div>
                         </div>
 
@@ -242,14 +256,14 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                                 <p className="text-sm text-slate-500 mt-1">Envoyer de l'argent à un collègue.</p>
                             </div>
                             <div className="mt-auto space-y-3">
-                                <select className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm" onChange={e => setTargetId(e.target.value)} value={targetId}>
+                                <select disabled={isJuryModeActive} className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm disabled:opacity-50" onChange={e => setTargetId(e.target.value)} value={targetId}>
                                     <option value="">-- Bénéficiaire --</option>
                                     {allStudents.filter(s => s.id !== student.id).map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>
-                                <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Montant" value={amount} onChange={e => setAmount(e.target.value)} />
-                                <button onClick={handleTransfer} disabled={Number(amount) <= 0 || Number(amount) > walletBalance} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">Envoyer</button>
+                                <input type="number" disabled={isJuryModeActive} className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50 disabled:opacity-50" placeholder="Montant" value={amount} onChange={e => setAmount(e.target.value)} />
+                                <button onClick={handleTransfer} disabled={isJuryModeActive || Number(amount) <= 0 || Number(amount) > walletBalance} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">Envoyer</button>
                             </div>
                         </div>
 
@@ -263,8 +277,8 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
                                 <p className="text-sm text-slate-500 mt-1">200 PiXi = 1 Point Score.</p>
                             </div>
                             <div className="mt-auto space-y-3">
-                                <input type="number" className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50" placeholder="Points voulus" value={scoreToBuy} onChange={e => setScoreToBuy(e.target.value)} />
-                                <button onClick={handleBuyScore} disabled={Number(scoreToBuy) <= 0 || (Number(scoreToBuy) * 200) > walletBalance} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50">Acheter</button>
+                                <input type="number" disabled={isJuryModeActive} className="w-full p-3 rounded-xl border border-slate-200 font-bold bg-slate-50 disabled:opacity-50" placeholder="Points voulus" value={scoreToBuy} onChange={e => setScoreToBuy(e.target.value)} />
+                                <button onClick={handleBuyScore} disabled={isJuryModeActive || Number(scoreToBuy) <= 0 || (Number(scoreToBuy) * 200) > walletBalance} className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50">Acheter</button>
                             </div>
                         </div>
                     </div>

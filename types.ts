@@ -283,6 +283,7 @@ export interface Agency {
     logoUrl?: string;
     badges: Badge[];
     aiAudit?: AuditResult; // STOCKAGE DU RÉSULTAT
+    juryFeedbacks?: { juryName: string; juryId: string; score: number; comment: string; date: string }[];
 }
 
 export interface PeerReview {
@@ -418,6 +419,9 @@ export interface GameConfig {
     lastPerformanceRun: string | null;
     supervisorPermissions?: SupervisorPermissions;
     quizzes?: Quiz[]; // NOUVEAU
+    isJuryModeActive?: boolean;
+    juryDeadline?: string | null;
+    juryMissingDeliverablePenalty?: number;
 }
 
 export interface AIInsight {

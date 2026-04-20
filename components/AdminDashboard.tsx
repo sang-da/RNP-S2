@@ -16,6 +16,7 @@ import { AIBriefing } from './admin/dashboard/AIBriefing';
 import { GradingModal } from './admin/dashboard/modals/GradingModal';
 import { AuditRHModal } from './admin/dashboard/modals/AuditRHModal';
 import { ControlPanelModal } from './admin/dashboard/modals/ControlPanelModal';
+import { JurySanctionsModal } from './admin/dashboard/modals/JurySanctionsModal';
 
 interface AdminDashboardProps {
   agencies: Agency[];
@@ -189,6 +190,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ agencies, onSele
         isOpen={showControlPanel} 
         onClose={() => setShowControlPanel(false)}
       />
+
+      {/* JURY SANCTIONS AUTO-POPUP */}
+      {!readOnly && (
+          <JurySanctionsModal agencies={agencies} />
+      )}
     </div>
   );
 };

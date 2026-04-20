@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Agency, Student } from '../types';
-import { Search, Database, UserX, Shield, Trash2, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock, LifeBuoy } from 'lucide-react';
+import { Search, Database, UserX, Shield, Trash2, AlertCircle, RefreshCw, KeyRound, Check, ExternalLink, Activity, Clock, LifeBuoy, Gavel } from 'lucide-react';
 import { collection, query, onSnapshot, doc, writeBatch, updateDoc, deleteDoc, db, getDoc } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 
@@ -15,7 +15,7 @@ export interface UserProfile {
     displayName: string;
     email: string;
     photoURL: string;
-    role: 'admin' | 'student' | 'pending' | 'supervisor';
+    role: 'admin' | 'student' | 'pending' | 'supervisor' | 'jury';
     linkedStudentId?: string | null;
     studentProfileName?: string | null;
     agencyId?: string | null;
@@ -230,7 +230,15 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       if(readOnly) return;
       if (await confirm({ title: "Promouvoir Superviseur ?", message: "Cet utilisateur pourra voir toutes les agences en lecture seule." })) {
           await updateDoc(doc(db, "users", uid), { role: 'supervisor', linkedStudentId: null, agencyId: null });
-          toast('success', "Promu !");
+          toast('success', "Promu Superviseur !");
+      }
+  };
+
+  const handlePromoteJury = async (uid: string) => {
+      if(readOnly) return;
+      if (await confirm({ title: "Promouvoir Jury ?", message: "Cet utilisateur aura accès à la plateforme en tant que Membre du Jury." })) {
+          await updateDoc(doc(db, "users", uid), { role: 'jury', linkedStudentId: null, agencyId: null });
+          toast('success', "Promu Jury !");
       }
   };
 
@@ -343,6 +351,9 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                 <button onClick={() => handlePromote(user.uid)} className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
                                     <Shield size={14}/> Prof / Staff
                                 </button>
+                                <button onClick={() => handlePromoteJury(user.uid)} className="px-4 py-2 bg-pink-600 text-white text-xs font-bold rounded-xl hover:bg-pink-700 transition-colors flex items-center gap-2">
+                                    <Gavel size={14}/> Jury
+                                </button>
                                 <button onClick={() => handleKickUser(user.uid, user.displayName)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Supprimer le compte">
                                     <Trash2 size={20}/>
                                 </button>
@@ -426,6 +437,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                             <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
                                                 user.role === 'admin' ? 'bg-indigo-600 text-white' : 
                                                 user.role === 'supervisor' ? 'bg-purple-100 text-purple-700' : 
+                                                user.role === 'jury' ? 'bg-pink-100 text-pink-700' :
                                                 'bg-slate-100 text-slate-400'
                                             }`}>
                                                 {user.role}
