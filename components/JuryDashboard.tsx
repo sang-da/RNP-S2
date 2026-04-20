@@ -7,9 +7,10 @@ import { Gavel, TrendingUp, Building2, Banknote, ShieldCheck } from 'lucide-reac
 interface JuryDashboardProps {
     agencies: Agency[];
     userData: any; // we will pass the userData so we have their UID
+    isSimulation?: boolean;
 }
 
-export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData }) => {
+export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData, isSimulation = false }) => {
     const { toast, confirm } = useUI();
     const [investmentAmount, setInvestmentAmount] = useState<Record<string, number>>({});
     const [feedbackScores, setFeedbackScores] = useState<Record<string, number>>({});
@@ -44,8 +45,10 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
             const batch = writeBatch(db);
             
             // Deduct from Jury
-            const newJuryWallet = currentWallet - amount;
-            batch.update(doc(db, "users", userData.uid), { juryWallet: newJuryWallet });
+            if (!isSimulation) {
+                const newJuryWallet = currentWallet - amount;
+                batch.update(doc(db, "users", userData.uid), { juryWallet: newJuryWallet });
+            }
 
             // Add to Agency
             const agency = agencies.find(a => a.id === agencyId);
@@ -62,14 +65,15 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
                 description: `Investissement reçu par le membre du Jury : ${userData.displayName}`
             };
 
-            batch.update(doc(db, "agencies", agency.id), {
-                budget_real: newBudget,
-                eventLog: arrayUnion(investmentEvent)
-            });
-
-            await batch.commit();
+            if (!isSimulation) {
+                batch.update(doc(db, "agencies", agency.id), {
+                    budget_real: newBudget,
+                    eventLog: arrayUnion(investmentEvent)
+                });
+                await batch.commit();
+            }
             
-            toast('success', `Investissement de ${amount} PiXi validé !`);
+            toast('success', isSimulation ? `[SIMULATION] Investissement de ${amount} validé` : `Investissement de ${amount} PiXi validé !`);
             setInvestmentAmount(prev => ({...prev, [agencyId]: 0}));
         } catch(e) {
             console.error(e);
@@ -87,17 +91,19 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
         }
         
         try {
-            const agencyRef = doc(db, "agencies", agencyId);
-            await updateDoc(agencyRef, {
-                juryFeedbacks: arrayUnion({
-                    juryName: userData.displayName,
-                    juryId: userData.uid,
-                    score,
-                    comment: comment || '',
-                    date: new Date().toISOString()
-                })
-            });
-            toast('success', 'Évaluation envoyée avec succès !');
+            if (!isSimulation) {
+                const agencyRef = doc(db, "agencies", agencyId);
+                await updateDoc(agencyRef, {
+                    juryFeedbacks: arrayUnion({
+                        juryName: userData.displayName,
+                        juryId: userData.uid,
+                        score,
+                        comment: comment || '',
+                        date: new Date().toISOString()
+                    })
+                });
+            }
+            toast('success', isSimulation ? '[SIMULATION] Évaluation envoyée !' : 'Évaluation envoyée avec succès !');
             setFeedbackScores(prev => ({...prev, [agencyId]: 0}));
             setFeedbackComments(prev => ({...prev, [agencyId]: ''}));
         } catch(e) {

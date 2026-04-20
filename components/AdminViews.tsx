@@ -9,9 +9,10 @@ interface AdminViewsProps {
   onSimulateWaitingRoom: () => void;
   onSimulateBackdoor: () => void;
   onSimulateSpecial: () => void;
+  onSimulateJury: () => void;
 }
 
-export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgency, onSimulateWaitingRoom, onSimulateBackdoor, onSimulateSpecial }) => {
+export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgency, onSimulateWaitingRoom, onSimulateBackdoor, onSimulateSpecial, onSimulateJury }) => {
   return (
     <div className="animate-in fade-in duration-500 pb-20">
         <div className="mb-8">
@@ -83,6 +84,23 @@ export const AdminViews: React.FC<AdminViewsProps> = ({ agencies, onSimulateAgen
                 </div>
                 <button className="mt-2 text-indigo-600 font-bold text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
                     Simuler <ArrowRight size={16}/>
+                </button>
+            </div>
+
+            {/* JURY VIEW CARD (NEW) */}
+            <div 
+                onClick={onSimulateJury}
+                className="bg-pink-50 p-6 rounded-2xl border border-pink-200 hover:border-pink-500 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center gap-4"
+            >
+                <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center group-hover:bg-pink-100 transition-colors shadow-sm border border-pink-100">
+                    <Eye size={32} className="text-pink-400 group-hover:text-pink-600"/>
+                </div>
+                <div>
+                    <h3 className="font-bold text-lg text-pink-900">Espace Jury</h3>
+                    <p className="text-sm text-pink-700/80">Aperçu du tableau de bord spécifique aux membres du jury.</p>
+                </div>
+                <button className="mt-2 text-pink-600 font-bold text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
+                    Simuler le Jury <ArrowRight size={16}/>
                 </button>
             </div>
 

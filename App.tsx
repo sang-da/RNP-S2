@@ -58,7 +58,7 @@ const GameContainer: React.FC = () => {
 
   const [adminView, setAdminView] = useState<AdminViewType>('OVERVIEW');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR' | 'STUDENT_SPECIAL'>('NONE');
+  const [simulationMode, setSimulationMode] = useState<'NONE' | 'WAITING' | 'AGENCY' | 'BACKDOOR' | 'STUDENT_SPECIAL' | 'JURY'>('NONE');
   const [simulatedAgencyId, setSimulatedAgencyId] = useState<string | null>(null);
 
   // Redirection initiale pour les superviseurs (car OVERVIEW peut être caché)
@@ -96,6 +96,7 @@ const GameContainer: React.FC = () => {
                         <span className="font-bold text-sm uppercase tracking-wide">
                             {simulationMode === 'BACKDOOR' ? 'Aperçu Isolé : The Backdoor (22-04)' : 
                              simulationMode === 'STUDENT_SPECIAL' ? 'Simulateur d\'Interfaces Spéciales' :
+                             simulationMode === 'JURY' ? 'Simulateur Espace Jury' :
                              'Mode Simulation Étudiant'}
                         </span>
                       </div>
@@ -127,6 +128,16 @@ const GameContainer: React.FC = () => {
                         <StudentSpecialSimulation 
                             onClose={exitSimulation}
                         />
+                    )}
+
+                    {simulationMode === 'JURY' && (
+                        <Layout role="student" switchRole={() => {}} onLogout={exitSimulation}>
+                            <JuryDashboard 
+                                agencies={agencies} 
+                                userData={{ displayName: "Admin (Jury Simulé)", uid: "admin-sim", juryWallet: 1000000 }} 
+                                isSimulation={true}
+                            />
+                        </Layout>
                     )}
                   </div>
               </div>
@@ -183,6 +194,7 @@ const GameContainer: React.FC = () => {
                             onSimulateAgency={(id) => { setSimulatedAgencyId(id); setSimulationMode('AGENCY'); }} 
                             onSimulateBackdoor={() => setSimulationMode('BACKDOOR')} 
                             onSimulateSpecial={() => setSimulationMode('STUDENT_SPECIAL')}
+                            onSimulateJury={() => setSimulationMode('JURY')}
                         />
                     )}
                     {adminView === 'SETTINGS' && <AdminSettings readOnly={isViewReadOnly} />}

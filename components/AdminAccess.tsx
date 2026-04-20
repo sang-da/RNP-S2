@@ -242,6 +242,18 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
       }
   };
 
+  const handleReassignRole = async (user: UserProfile, newRole: 'supervisor' | 'jury' | 'pending') => {
+      if(readOnly) return;
+      const roleLabels = { 'supervisor': 'Superviseur', 'jury': 'Jury', 'pending': 'En attente' };
+      if (await confirm({ 
+          title: `Changer le rôle vers ${roleLabels[newRole]} ?`, 
+          message: `L'utilisateur "${user.displayName}" passera du rôle actuel "${user.role}" au rôle "${roleLabels[newRole]}".\n\nS'il était étudiant, notez qu'il sera déconnecté de son agence.` 
+      })) {
+           await updateDoc(doc(db, "users", user.uid), { role: newRole, linkedStudentId: null, agencyId: null, studentProfileName: null });
+           toast('success', `Rôle mis à jour.`);
+      }
+  };
+
   const filteredDirectory = allUsers.filter(u => 
       u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || 
       u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -446,12 +458,33 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
                                     </td>
                                     <td className="p-4 text-right">
                                         {user.role !== 'admin' && !readOnly && (
-                                            <button 
-                                                onClick={() => handleKickUser(user.uid, user.displayName)}
-                                                className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all flex items-center gap-2 ml-auto shadow-sm"
-                                            >
-                                                <Trash2 size={12}/> Supprimer
-                                            </button>
+                                            <div className="flex justify-end items-center gap-2">
+                                                {user.role !== 'supervisor' && (
+                                                    <button 
+                                                        onClick={() => handleReassignRole(user, 'supervisor')}
+                                                        className="text-[10px] font-bold text-slate-500 hover:text-purple-600 hover:bg-purple-50 px-2 py-1.5 rounded-lg border border-transparent hover:border-purple-200 transition-all shadow-sm"
+                                                        title="Transformer en Superviseur"
+                                                    >
+                                                        <Shield size={12}/> Staff
+                                                    </button>
+                                                )}
+                                                {user.role !== 'jury' && (
+                                                    <button 
+                                                        onClick={() => handleReassignRole(user, 'jury')}
+                                                        className="text-[10px] font-bold text-slate-500 hover:text-pink-600 hover:bg-pink-50 px-2 py-1.5 rounded-lg border border-transparent hover:border-pink-200 transition-all shadow-sm"
+                                                        title="Transformer en Jury"
+                                                    >
+                                                        <Gavel size={12}/> Jury
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => handleKickUser(user.uid, user.displayName)}
+                                                    className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-lg border border-transparent hover:border-red-100 transition-all shadow-sm"
+                                                    title="Supprimer le compte"
+                                                >
+                                                    <Trash2 size={12}/>
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>
