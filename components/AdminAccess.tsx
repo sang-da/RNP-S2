@@ -328,7 +328,7 @@ export const AdminAccess: React.FC<AdminAccessProps> = ({ agencies, onUpdateAgen
 
         <DuplicateAlerts duplicates={duplicates} onReset={handleKickUser} />
 
-        <SupervisorsList users={allUsers} />
+        <SupervisorsList users={allUsers} onReassignRole={handleReassignRole} readOnly={readOnly} />
 
         {/* SECTION : NOUVELLES CONNEXIONS (PENDING) */}
         {pendingUsers.length > 0 && (

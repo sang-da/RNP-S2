@@ -28,7 +28,7 @@ import { StudentSpecialSimulation } from './components/admin/StudentSpecialSimul
 import { GameProvider, useGame } from './contexts/GameContext';
 import { UIProvider } from './contexts/UIContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Terminal, LayoutDashboard, Briefcase, Flame } from 'lucide-react';
+import { Menu, EyeOff, ChevronRight, Home, Eye, Unplug, RefreshCw, LogOut, Terminal, LayoutDashboard, Briefcase, Flame, Gavel } from 'lucide-react';
 import { signOut, auth } from './services/firebase';
 import { NewsTicker } from './components/NewsTicker';
 
@@ -90,17 +90,19 @@ const GameContainer: React.FC = () => {
 
           return (
               <div className="flex flex-col min-h-screen bg-slate-50">
-                  <div className="bg-red-600 text-white px-4 py-3 shadow-md z-[100] flex justify-between items-center sticky top-0">
+                  <div className={`text-white px-4 py-3 shadow-md z-[100] flex justify-between items-center sticky top-0 ${simulationMode === 'JURY' ? 'bg-pink-600' : 'bg-red-600'}`}>
                       <div className="flex items-center gap-2">
-                        <EyeOff size={20}/>
+                        {simulationMode === 'JURY' ? <Gavel size={20}/> : <EyeOff size={20}/>}
                         <span className="font-bold text-sm uppercase tracking-wide">
                             {simulationMode === 'BACKDOOR' ? 'Aperçu Isolé : The Backdoor (22-04)' : 
                              simulationMode === 'STUDENT_SPECIAL' ? 'Simulateur d\'Interfaces Spéciales' :
-                             simulationMode === 'JURY' ? 'Simulateur Espace Jury' :
+                             simulationMode === 'JURY' ? 'Espace Grand Jury' :
                              'Mode Simulation Étudiant'}
                         </span>
                       </div>
-                      <button onClick={exitSimulation} className="bg-white text-red-600 hover:bg-red-50 px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm">Quitter</button>
+                      <button onClick={exitSimulation} className={`bg-white px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition-colors shadow-sm ${simulationMode === 'JURY' ? 'text-pink-600 hover:bg-pink-50' : 'text-red-600 hover:bg-red-50'}`}>
+                          {simulationMode === 'JURY' ? 'Retour au Dashboard' : 'Quitter'}
+                      </button>
                   </div>
                   <div className="flex-1 relative">
                     {simulationMode === 'WAITING' && <WaitingScreen />}
@@ -134,8 +136,8 @@ const GameContainer: React.FC = () => {
                         <Layout role="student" switchRole={() => {}} onLogout={exitSimulation}>
                             <JuryDashboard 
                                 agencies={agencies} 
-                                userData={{ displayName: "Admin (Jury Simulé)", uid: "admin-sim", juryWallet: 1000000 }} 
-                                isSimulation={true}
+                                userData={userData} 
+                                isSimulation={false}
                             />
                         </Layout>
                     )}
@@ -172,6 +174,14 @@ const GameContainer: React.FC = () => {
             />
             <div className="md:ml-64 min-h-screen bg-slate-50/50 flex flex-col pb-24 md:pb-0">
                 <NewsTicker />
+                {gameConfig.isJuryModeActive && (
+                    <div className="px-4 py-2 text-sm font-bold bg-pink-600 text-white text-center shadow-sm z-40 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4">
+                        <span className="flex items-center gap-2 tracking-wide"><Gavel size={16}/> Le Grand Jury a commencé</span>
+                        <button onClick={() => setSimulationMode('JURY')} className="px-3 py-1 bg-white text-pink-700 rounded-md shadow-sm text-xs uppercase hover:bg-pink-50 transition-colors flex items-center gap-2">
+                            <Eye size={14}/> Accéder au Dashboard Jury
+                        </button>
+                    </div>
+                )}
                 {isSupervisor && (
                     <div className={`px-4 py-2 text-xs font-bold uppercase tracking-widest text-center shadow-sm z-40 flex items-center justify-center gap-2 ${hasWriteAccess ? 'bg-amber-600 text-white' : 'bg-purple-600 text-white'}`}>
                         {hasWriteAccess ? <EyeOff size={14}/> : <Eye size={14}/>} 
