@@ -3,7 +3,7 @@ import {
     LayoutDashboard, PieChart, Landmark, Contact, Medal, HeartHandshake, 
     TrendingUp, Bot, KeyRound, CalendarRange, Users, Briefcase, Flame, 
     EyeOff, FolderOpen, MonitorPlay, Settings, ShoppingBag, HelpCircle,
-    ClipboardCheck
+    ClipboardCheck, Gavel
 } from 'lucide-react';
 
 export const ADMIN_MENU_STRUCTURE = [
@@ -35,7 +35,7 @@ export const ADMIN_MENU_STRUCTURE = [
             { id: 'QUIZZES', label: 'Gestion des Quiz', icon: HelpCircle },
             { id: 'PEER_REVIEWS', label: 'Bilans & Feedbacks', icon: HeartHandshake },
             { id: 'MERCATO', label: 'Mercato RH', icon: Users },
-            { id: 'SHOP', label: 'Boutique Jury', icon: ShoppingBag },
+            { id: 'JURY_ADMIN', label: 'Espace Jury', icon: Gavel },
         ]
     },
     {

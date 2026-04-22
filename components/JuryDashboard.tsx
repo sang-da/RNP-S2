@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Agency, Deliverable } from '../types';
 import { db, doc, updateDoc, writeBatch, arrayUnion } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
+import { useGame } from '../contexts/GameContext';
 import { Gavel, TrendingUp, Presentation, Banknote, ShieldCheck, X, FileText, Image as ImageIcon, ExternalLink, Link as LinkIcon, Download, Star, CheckCircle, Mic, Square, Loader2 } from 'lucide-react';
 import { useVoiceDictation } from '../hooks/useVoiceDictation';
 
@@ -13,6 +14,7 @@ interface JuryDashboardProps {
 
 export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData, isSimulation = false }) => {
     const { toast, confirm } = useUI();
+    const { gameConfig } = useGame();
     const [investmentAmount, setInvestmentAmount] = useState<Record<string, number>>({});
     const [feedbackComments, setFeedbackComments] = useState<Record<string, string>>({});
     const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
@@ -141,7 +143,27 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
                 all = [...all, ...subbed];
             }
         });
-        return all;
+
+        const portfolioConfig = gameConfig.juryPortfolio;
+        if (!portfolioConfig || portfolioConfig.length === 0) {
+            return all; // By default, show all if not configured
+        }
+
+        // Filter and sort according to config
+        return all
+            .filter(d => {
+                const configItem = portfolioConfig.find(item => item.name === d.name);
+                // If not in config or visible in config, allow it
+                return configItem ? configItem.isVisible : true;
+            })
+            .sort((a, b) => {
+                const configA = portfolioConfig.find(item => item.name === a.name);
+                const configB = portfolioConfig.find(item => item.name === b.name);
+                // Items without config go to the end
+                const orderA = configA ? configA.order : Number.MAX_SAFE_INTEGER;
+                const orderB = configB ? configB.order : Number.MAX_SAFE_INTEGER;
+                return orderA - orderB;
+            });
     };
 
     return (

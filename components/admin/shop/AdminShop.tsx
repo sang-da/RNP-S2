@@ -10,9 +10,10 @@ import { ShopBilan } from './ShopBilan';
 interface AdminShopProps {
     agencies: Agency[];
     readOnly?: boolean;
+    hideTitle?: boolean;
 }
 
-export const AdminShop: React.FC<AdminShopProps> = ({ agencies, readOnly }) => {
+export const AdminShop: React.FC<AdminShopProps> = ({ agencies, readOnly, hideTitle }) => {
     const { toast } = useUI();
     const [items, setItems] = useState<ShopItem[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,10 +89,12 @@ export const AdminShop: React.FC<AdminShopProps> = ({ agencies, readOnly }) => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
+                {!hideTitle && (
                 <div>
                     <h2 className="text-2xl font-display font-bold text-slate-900">Boutique du Jury</h2>
                     <p className="text-slate-500">Gérez les avantages et les enchères pour le jury final.</p>
                 </div>
+                )}
                 {!readOnly && (
                     <button 
                         onClick={() => { setEditingItem(null); setIsModalOpen(true); }}

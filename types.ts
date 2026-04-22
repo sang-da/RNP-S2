@@ -410,6 +410,12 @@ export interface BilanSimulation {
     agencies: AgencyPerformancePreview[];
 }
 
+export interface JuryPortfolioItem {
+    name: string;
+    isVisible: boolean;
+    order: number;
+}
+
 export interface GameConfig {
     id: string;
     currentCycle: number;
@@ -422,6 +428,7 @@ export interface GameConfig {
     isJuryModeActive?: boolean;
     juryDeadline?: string | null;
     juryMissingDeliverablePenalty?: number;
+    juryPortfolio?: JuryPortfolioItem[];
 }
 
 export interface AIInsight {
