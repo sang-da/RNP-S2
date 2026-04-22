@@ -23,21 +23,8 @@ interface Debtor {
 export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
     const { toast, confirm } = useUI();
     const { wipeDebt } = useGame();
-    const [activeView, setActiveView] = useState<'GLOBAL' | 'DEBT' | 'MICRO' | 'JURY'>('GLOBAL');
+    const [activeView, setActiveView] = useState<'GLOBAL' | 'DEBT' | 'MICRO'>('GLOBAL');
     const [focusedDebtor, setFocusedDebtor] = useState<Debtor | null>(null);
-    const [juryUsers, setJuryUsers] = useState<any[]>([]);
-
-    useEffect(() => {
-        const q = query(collection(db, "users"), where("role", "==", "jury"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const users: any[] = [];
-            snapshot.forEach((doc) => {
-                users.push({ uid: doc.id, ...doc.data() });
-            });
-            setJuryUsers(users);
-        });
-        return () => unsubscribe();
-    }, []);
 
     // 1. CALCULS MACRO
     const stats = useMemo(() => {
@@ -274,15 +261,6 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
         }
     };
 
-    const handleUpdateJuryWallet = async (uid: string, newAmount: number) => {
-        try {
-            await updateDoc(doc(db, "users", uid), { juryWallet: newAmount });
-            toast('success', "Portefeuille du Jury mis à jour.");
-        } catch(e) {
-            toast('error', "Échec de la mise à jour.");
-        }
-    };
-
     return (
         <div className="animate-in fade-in duration-500 pb-20 space-y-8">
             {/* HEADER */}
@@ -305,9 +283,6 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
                     </button>
                     <button onClick={() => setActiveView('MICRO')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'MICRO' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
                         <Microscope size={14}/> Audit Micro
-                    </button>
-                    <button onClick={() => setActiveView('JURY')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${activeView === 'JURY' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-400'}`}>
-                        <Gavel size={14}/> Fonds Jury
                     </button>
                 </div>
             </div>
@@ -559,59 +534,6 @@ export const AdminBank: React.FC<AdminBankProps> = ({ agencies }) => {
 
             {/* MICRO VIEW */}
             {activeView === 'MICRO' && <BankMicroView agencies={agencies} />}
-            
-            {/* JURY VIEW */}
-            {activeView === 'JURY' && (
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-right-4">
-                    <div className="p-6 border-b border-slate-100 bg-pink-50/50 flex justify-between items-center">
-                        <h3 className="font-bold text-pink-700 flex items-center gap-2">
-                            <Gavel size={20}/> Investisseurs & Fonds Jury
-                        </h3>
-                        <div className="text-xs text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
-                            {juryUsers.length} Membres du Jury
-                        </div>
-                    </div>
-                    {juryUsers.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400 italic">
-                            <Gavel size={48} className="mx-auto mb-4 text-pink-200"/>
-                            Aucun membre du jury configuré dans les Accès.
-                        </div>
-                    ) : (
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {juryUsers.map(user => (
-                                    <div key={user.uid} className="bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <img src={user.photoURL} alt={user.displayName} className="w-12 h-12 rounded-full shadow-sm border-2 border-white" />
-                                            <div>
-                                                <h4 className="font-bold text-slate-900">{user.displayName}</h4>
-                                                <p className="text-[10px] uppercase text-pink-600 font-bold bg-pink-100 px-2 py-0.5 rounded inline-block mt-1">Jury</p>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Capacité d'investissement (PiXi)</label>
-                                            <div className="flex items-center gap-2">
-                                                <input 
-                                                    type="number" 
-                                                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pink-500 font-mono text-sm"
-                                                    defaultValue={user.juryWallet || 0}
-                                                    onBlur={(e) => handleUpdateJuryWallet(user.uid, Number(e.target.value))}
-                                                />
-                                                <div className="flex gap-1 shrink-0">
-                                                    <button onClick={() => handleUpdateJuryWallet(user.uid, 50000)} className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-[10px] font-bold rounded">50k</button>
-                                                    <button onClick={() => handleUpdateJuryWallet(user.uid, 100000)} className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-[10px] font-bold rounded">100k</button>
-                                                    <button onClick={() => handleUpdateJuryWallet(user.uid, 250000)} className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-[10px] font-bold rounded">250k</button>
-                                                </div>
-                                            </div>
-                                            <p className="text-[10px] text-slate-400 mt-2 italic">Modifiez la valeur ou choisissez un palier. Sauvegarde automatique en quittant le champ.</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* DEBTOR MODAL */}
             {focusedDebtor && (
