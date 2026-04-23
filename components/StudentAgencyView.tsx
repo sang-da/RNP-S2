@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Agency, BrandColor, GameEvent } from '../types';
-import { Eye, AlertTriangle, PartyPopper, Zap, History } from 'lucide-react';
+import { Eye, AlertTriangle, PartyPopper, Zap, History, Star } from 'lucide-react';
 import { MarketOverview } from './student/MarketOverview';
 import { MissionsView } from './student/MissionsView';
 import { TeamView } from './student/TeamView';
@@ -43,7 +43,7 @@ const COLOR_THEMES: Record<BrandColor, { bg: string, text: string }> = {
 
 export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgencies, onUpdateAgency }) => {
   const { currentUser } = useAuth();
-  const { getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote } = useGame();
+  const { getCurrentGameWeek, updateAgenciesList, submitMercatoVote, submitChallengeVote, gameConfig } = useGame();
   
   // Si l'étudiant est "unassigned", on démarre sur RECRUITMENT, sinon MARKET
   const defaultTab = agency.id === 'unassigned' ? 'RECRUITMENT' : 'MARKET';
@@ -173,6 +173,65 @@ export const StudentAgencyView: React.FC<StudentViewProps> = ({ agency, allAgenc
             onOpenHistory={() => setShowHistory(true)}
             onOpenFinance={() => setShowFinanceModal(true)}
         />
+
+        {/* JURY FEEDBACK (ONLY WHEN JURY MODE IS ACTIVE) */}
+        {gameConfig.isJuryModeActive && agency.id !== 'unassigned' && (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full -mt-4 mb-8 relative z-20">
+                <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-pink-500/20 relative overflow-hidden">
+                    {/* Decorative Background */}
+                    <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                        <PartyPopper size={120} />
+                    </div>
+                    
+                    <div className="relative z-10 flex items-start gap-4 mb-6">
+                        <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0">
+                            <Star className="text-white fill-white" size={28} />
+                        </div>
+                        <div>
+                            <h3 className="font-display font-bold text-2xl mb-1">Retours du Grand Jury</h3>
+                            <p className="text-pink-100 text-sm">Découvrez les commentaires officiels et les fonds récoltés à l'issue de votre présentation.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Total Investment Card */}
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+                            <div className="text-pink-200 text-xs uppercase tracking-widest font-bold mb-2">Fonds Levés (Jury)</div>
+                            <div className="text-4xl font-mono font-bold text-white">
+                                {agency.eventLog?.filter(e => e.label === 'INVESTISSEMENT JURY').reduce((sum, e) => sum + (e.deltaBudgetReal || 0), 0).toLocaleString()} <span className="text-xl">PiXi</span>
+                            </div>
+                            <p className="text-pink-200 text-xs mt-2 italic">Injectés directement dans votre compte réel.</p>
+                        </div>
+
+                        {/* Feedbacks Grid */}
+                        <div className="lg:col-span-2 space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                            {(!agency.juryFeedbacks || agency.juryFeedbacks.length === 0) ? (
+                                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/10 border-dashed">
+                                    <p className="text-pink-100 italic">Aucun commentaire publié pour l'instant.</p>
+                                </div>
+                            ) : (
+                                agency.juryFeedbacks.map((fb, idx) => (
+                                    <div key={idx} className="bg-white/95 rounded-2xl p-5 text-slate-800 shadow-sm relative">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="font-bold font-display text-pink-700 flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center text-xs">{fb.juryName.charAt(0).toUpperCase()}</span>
+                                                {fb.juryName}
+                                            </div>
+                                            <div className="text-xs text-slate-400 font-mono">
+                                                {new Date(fb.date).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                        <p className="text-sm whitespace-pre-wrap leading-relaxed text-slate-600">
+                                            {fb.comment}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* VOTING BOOTHS */}
         {myMemberProfile && (

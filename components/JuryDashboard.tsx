@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Agency, Deliverable } from '../types';
 import { db, doc, updateDoc, writeBatch, arrayUnion } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
