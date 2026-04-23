@@ -166,6 +166,15 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
             });
     };
 
+    // Keyboard shortcut to close modal
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setSelectedAgencyId(null);
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, []);
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-pink-500/30">
             {/* Header / Navbar minimalist */}
@@ -193,14 +202,24 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
             </div>
 
             <div className="max-w-7xl mx-auto p-4 sm:p-6 md:py-12">
-                <div className="mb-8 md:mb-10 max-w-2xl">
-                    <h2 className="text-3xl md:text-5xl font-bold text-slate-900 font-display tracking-tight mb-4 " style={{ textWrap: 'balance' }}>
-                        Découvrez, évaluez et investissez.
-                    </h2>
-                    <p className="text-slate-600 text-base md:text-lg leading-relaxed">
-                        Bienvenue, <span className="text-slate-900 font-bold">{userData.displayName}</span>. 
-                        Sélectionnez une agence pour consulter ses travaux, formuler vos retours et investir.
-                    </p>
+                <div className="mb-8 md:mb-12 relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div className="max-w-2xl relative z-10">
+                        <h2 className="text-3xl md:text-5xl font-bold text-slate-900 font-display tracking-tight mb-4 " style={{ textWrap: 'balance' }}>
+                            Découvrez, évaluez et investissez.
+                        </h2>
+                        <p className="text-slate-600 text-base md:text-lg leading-relaxed">
+                            Bienvenue, <span className="text-slate-900 font-bold">{userData.displayName}</span>. 
+                            Sélectionnez une agence pour consulter ses travaux, formuler vos retours et investir.
+                        </p>
+                    </div>
+                    {/* PiXi Mascot */}
+                    <div className="hidden lg:block absolute right-0 -top-8 pointer-events-none">
+                        <img 
+                            src="https://raw.githubusercontent.com/sang-da/svg/main/PiXi_2.png" 
+                            className="w-48 xl:w-56 object-contain opacity-90 drop-shadow-2xl animate-in slide-in-from-right duration-1000" 
+                            alt="Mascotte PiXi" 
+                        />
+                    </div>
                 </div>
 
                 {/* Minimalist Grid */}
