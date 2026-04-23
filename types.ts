@@ -250,6 +250,7 @@ export interface Agency {
     ve_history?: { week: string, value: number }[]; // Pour calculer la croissance
     pendingEffects?: { type: string, amount: number, label: string }[]; // Pour les effets différés (ex: Pump & Dump)
     status: 'stable' | 'fragile' | 'critique';
+    isBankrupt?: boolean; // SI true, l'agence est bloquée
     classId: 'A' | 'B' | 'ALL';
     budget_real: number;
     budget_valued: number;

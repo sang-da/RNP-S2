@@ -205,55 +205,82 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
 
                 {/* Minimalist Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {activeAgencies.map(agency => (
-                        <div 
-                            key={agency.id} 
-                            onClick={() => setSelectedAgencyId(agency.id)}
-                            className="group cursor-pointer bg-white rounded-3xl overflow-hidden border border-slate-200 hover:border-pink-300 hover:shadow-xl hover:shadow-pink-500/10 transition-all duration-500 flex flex-col h-[380px]"
-                        >
-                            {/* Banner Image */}
-                            <div className="h-48 relative overflow-hidden bg-slate-100 shrink-0">
-                                {agency.branding?.bannerUrl ? (
-                                    <img 
-                                        src={agency.branding.bannerUrl} 
-                                        alt="Banner" 
-                                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 group-hover:scale-105 transition-transform duration-700" />
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-slate-900/10 to-transparent"></div>
-                                
-                                {/* Logo Floating */}
-                                {agency.logoUrl && (
-                                    <div className="absolute bottom-4 left-6 w-16 h-16 bg-white rounded-2xl p-1 shadow-lg transform group-hover:-translate-y-2 transition-transform duration-500 border border-slate-100">
-                                        <div className="w-full h-full bg-slate-50 rounded-xl overflow-hidden">
-                                            <img src={agency.logoUrl} className="w-full h-full object-cover" alt="Logo" referrerPolicy="no-referrer" />
+                    {activeAgencies.map(agency => {
+                        const isBankrupt = agency.isBankrupt;
+                        
+                        return (
+                            <div 
+                                key={agency.id} 
+                                onClick={() => {
+                                    if (!isBankrupt) setSelectedAgencyId(agency.id);
+                                }}
+                                className={`group bg-white rounded-3xl overflow-hidden border border-slate-200 flex flex-col h-[380px] relative
+                                    ${isBankrupt 
+                                        ? 'opacity-80 cursor-not-allowed grayscale-[0.8]' 
+                                        : 'cursor-pointer hover:border-pink-300 hover:shadow-xl hover:shadow-pink-500/10 transition-all duration-500'}`
+                                }
+                            >
+                                {/* Bankruptcy Overlay */}
+                                {isBankrupt && (
+                                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/40 backdrop-blur-[2px]">
+                                        <div className="border-4 border-red-500 text-red-500 uppercase tracking-widest font-black text-4xl py-4 px-8 transform -rotate-12 bg-white/10 backdrop-blur-sm rounded-xl shadow-2xl">
+                                            FAILLITE
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                            
-                            {/* Content */}
-                            <div className="p-6 flex-1 flex flex-col">
-                                <h3 className="text-2xl font-bold text-slate-900 mb-2">{agency.name}</h3>
-                                <p className="text-sm text-slate-500 line-clamp-2 transition-opacity flex-1">
-                                    {agency.tagline || 'Projet en cours de développement...'}
-                                </p>
+
+                                {/* Banner Image */}
+                                <div className="h-48 relative overflow-hidden bg-slate-100 shrink-0">
+                                    {agency.branding?.bannerUrl ? (
+                                        <img 
+                                            src={agency.branding.bannerUrl} 
+                                            alt="Banner" 
+                                            className={`w-full h-full object-cover opacity-90 ${isBankrupt ? '' : 'group-hover:opacity-100 group-hover:scale-105 transition-all duration-700'}`}
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        <div className={`w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 ${isBankrupt ? '' : 'group-hover:scale-105 transition-transform duration-700'}`} />
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-slate-900/10 to-transparent"></div>
+                                    
+                                    {/* Logo Floating */}
+                                    {agency.logoUrl && (
+                                        <div className={`absolute bottom-4 left-6 w-16 h-16 bg-white rounded-2xl p-1 shadow-lg border border-slate-100 ${isBankrupt ? '' : 'transform group-hover:-translate-y-2 transition-transform duration-500'}`}>
+                                            <div className="w-full h-full bg-slate-50 rounded-xl overflow-hidden">
+                                                <img src={agency.logoUrl} className="w-full h-full object-cover" alt="Logo" referrerPolicy="no-referrer" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 
-                                <div className="pt-4 mt-auto flex items-center justify-between border-t border-slate-100">
-                                    <div className="text-xs font-medium text-slate-400 uppercase tracking-widest flex items-center gap-1.5 group-hover:text-pink-600 transition-colors">
-                                        <Presentation size={14} className="text-pink-500"/>
-                                        Examiner le projet
-                                    </div>
-                                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-pink-100 group-hover:text-pink-600 transition-colors">
-                                        <ExternalLink size={14} />
+                                {/* Content */}
+                                <div className="p-6 flex-1 flex flex-col">
+                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">{agency.name}</h3>
+                                    <p className="text-sm text-slate-500 line-clamp-2 transition-opacity flex-1">
+                                        {agency.tagline || 'Projet en cours de développement...'}
+                                    </p>
+                                    
+                                    <div className="pt-4 mt-auto flex items-center justify-between border-t border-slate-100">
+                                        {!isBankrupt ? (
+                                            <>
+                                                <div className="text-xs font-medium text-slate-400 uppercase tracking-widest flex items-center gap-1.5 group-hover:text-pink-600 transition-colors">
+                                                    <Presentation size={14} className="text-pink-500"/>
+                                                    Examiner le projet
+                                                </div>
+                                                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-pink-100 group-hover:text-pink-600 transition-colors">
+                                                    <ExternalLink size={14} />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs font-medium text-red-500 uppercase tracking-widest flex items-center gap-1.5">
+                                                Dossier clos
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -344,11 +371,6 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
                                                         <div className="p-2 bg-slate-100 rounded-lg text-slate-500 group-hover:text-pink-600 transition-colors">
                                                             {renderDeliverableIcon(del.type)}
                                                         </div>
-                                                        {del.grading?.quality && (
-                                                            <div className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                                                                Note Pédagogique: {del.grading.quality}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                     <div className="font-bold text-slate-900 text-sm leading-tight truncate">{del.name}</div>
                                                     <div className="text-xs text-slate-500 mt-1 flex items-center gap-1 group-hover:text-slate-700 transition-colors">
