@@ -48,6 +48,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     // --- LOGIQUE DE CONFIRMATION WALLET ---
 
     const handleTransfer = async () => {
+        if (isJuryModeActive) return;
         const val = Number(amount);
         if(!targetId || val <= 0) return;
         
@@ -68,6 +69,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     };
 
     const handleInject = async () => {
+        if (isJuryModeActive) return;
         const val = Number(amount);
         if(val <= 0) return;
 
@@ -97,6 +99,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     };
 
     const handleBuyScore = async () => {
+        if (isJuryModeActive) return;
         const pts = Number(scoreToBuy);
         if(pts <= 0) return;
         const cost = pts * 200;
@@ -118,6 +121,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     // --- LOGIQUE BANQUE ---
 
     const handleSavings = async (type: 'DEPOSIT' | 'WITHDRAW') => {
+        if (isJuryModeActive) return;
         const val = Number(savingsAmount);
         if(val <= 0) return;
         
@@ -126,6 +130,7 @@ export const WalletView: React.FC<WalletViewProps> = ({student, agency, allStude
     };
 
     const handleLoan = async (type: 'TAKE' | 'REPAY') => {
+        if (isJuryModeActive) return;
         const val = Number(loanAmount);
         if(val <= 0) return;
 

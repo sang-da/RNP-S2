@@ -28,8 +28,9 @@ const MAX_CV_SIZE = 5 * 1024 * 1024;
 
 export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, onUpdateAgency, onUpdateAgencies, currentUserOverride }) => {
   const { toast } = useUI();
-  const { submitMercatoVote, getCurrentGameWeek, proposeMerger, finalizeMerger } = useGame();
+  const { submitMercatoVote, getCurrentGameWeek, proposeMerger, finalizeMerger, gameConfig } = useGame();
   const { currentUser: authUser } = useAuth();
+  const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
   
   const [isCVModalOpen, setIsCVModalOpen] = useState(false);
   const [isMotivationModalOpen, setIsMotivationModalOpen] = useState(false);
@@ -53,6 +54,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   const canMerge = currentWeek >= GAME_RULES.UNLOCK_WEEK_MERGERS;
 
   const handleSubmitRequest = () => {
+      if (isJuryModeActive) { toast('error', 'Le réseau du Jury est actif. Les transferts sont bloqués.'); return; }
       if(motivationText.length < 5) {
           toast('error', 'La motivation doit faire au moins 5 caractères.');
           return;
@@ -134,6 +136,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   };
 
   const handleVote = async (request: MercatoRequest, vote: 'APPROVE' | 'REJECT') => {
+      if (isJuryModeActive) return;
       if (!currentUser) return;
       await submitMercatoVote(agency.id, request.id, currentUser.id, vote);
   };
@@ -171,6 +174,7 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   }
 
   const handleUploadCV = async () => {
+      if (isJuryModeActive) { toast('error', 'Le téléchargement de CV est bloqué pendant le Jury.'); return; }
     if(!currentUser || !cvFile) return;
 
     if (cvFile.size > MAX_CV_SIZE) {
@@ -199,11 +203,13 @@ export const MercatoView: React.FC<MercatoViewProps> = ({ agency, allAgencies, o
   };
 
   const handleProposeMerger = async (targetId: string) => {
+      if (isJuryModeActive) return;
       await proposeMerger(agency.id, targetId);
       setShowMergerModal(false);
   };
 
   const handleMergerResponse = async (req: MergerRequest, approved: boolean) => {
+      if (isJuryModeActive) return;
       await finalizeMerger(req.id, agency.id, approved);
   };
 

@@ -25,7 +25,8 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
   const [editedRole, setEditedRole] = useState("");
 
   const { currentUser: firebaseUser } = useAuth();
-  const { getCurrentGameWeek, reviews } = useGame(); // On récupère les reviews globales
+  const { getCurrentGameWeek, reviews, gameConfig } = useGame(); // On récupère les reviews globales
+  const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
   
   const currentUser = currentUserOverride || agency.members.find(m => m.id === firebaseUser?.uid);
   const currentWeek = getCurrentGameWeek();
@@ -74,6 +75,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
 
   // NOUVELLE FONCTION D'ENVOI
   const handlePeerReview = async (review: PeerReview) => {
+    if (isJuryModeActive) return;
     try {
         await setDoc(doc(db, "reviews", review.id), review);
         setReviewMode(null);

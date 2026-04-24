@@ -189,6 +189,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   };
 
   const handleSubmitCharter = () => {
+      if (isJuryModeActive) return;
       const charterDeliverable = displayDeliverables.find(d => d.type === 'FORM_CHARTER') as any;
       
       let updatedAgency = { ...agency, projectDef: { ...agency.projectDef, ...charterForm, isLocked: false } };
@@ -221,6 +222,7 @@ export const MissionsView: React.FC<MissionsViewProps> = ({ agency, onUpdateAgen
   };
 
   const handleSubmitNaming = () => {
+      if (isJuryModeActive) return;
       const namingDeliverable = displayDeliverables.find(d => d.type === 'FORM_NAMING') as any;
       if (!namingDeliverable) { setIsNamingModalOpen(false); return; }
 

@@ -48,6 +48,11 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
+    const [collapsedAgencies, setCollapsedAgencies] = useState<Record<string, boolean>>({});
+
+    const toggleAgencyCollapse = (agencyId: string) => {
+        setCollapsedAgencies(prev => ({ ...prev, [agencyId]: !prev[agencyId] }));
+    };
 
     const handleCopy = (text: string, key: string, name: string, type: string) => {
         navigator.clipboard.writeText(text);
@@ -133,8 +138,14 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 return (
                     <div key={agencyId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         {/* Agency Header */}
-                        <div className="bg-slate-50 border-b border-slate-200 p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div 
+                            className="bg-slate-50 border-b border-slate-200 p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                            onClick={() => toggleAgencyCollapse(agencyId)}
+                        >
                             <div className="flex items-center gap-4">
+                                <div className="p-2 text-slate-400">
+                                    {collapsedAgencies[agencyId] ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
+                                </div>
                                 <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center font-bold text-xl text-indigo-700">
                                     {agency?.name ? agency.name.charAt(0) : '?'}
                                 </div>
@@ -164,7 +175,8 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                         </div>
 
                         {/* Students Table or Cards */}
-                        {viewMode === 'list' ? (
+                        { !collapsedAgencies[agencyId] && (
+                            viewMode === 'list' ? (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
@@ -362,7 +374,7 @@ export const EvaluationTable: React.FC<EvaluationTableProps> = ({
                                     );
                                 })}
                             </div>
-                        )}
+                        ))}
                     </div>
                 );
             })}

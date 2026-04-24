@@ -23,8 +23,9 @@ const generateAlias = (name: string) => {
 const ROTATION_DURATION = 72 * 60 * 60 * 1000; 
 
 export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, currentUser, onClose }) => {
-    const { performBlackOp, reviews } = useGame();
+    const { performBlackOp, reviews, gameConfig } = useGame();
     const { toast } = useUI();
+    const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
     
     const [terminalOutput, setTerminalOutput] = useState<string[]>(["Initialisation protocole 22-04...", "Connexion sécurisée établie."]);
     const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
     };
 
     const handleBuy = async () => {
+        if (isJuryModeActive) { addToTerminal("ERREUR: RÉSEAU JURY ACTIF. ACCÈS REFUSÉ."); return; }
         if (!selectedItem) return;
 
         let opType: any = selectedItem;

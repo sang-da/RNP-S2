@@ -14,8 +14,9 @@ interface StudentShopProps {
 
 export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
     const { currentUser } = useAuth();
-    const { executeBuyShopItem, executePlaceBid } = useGame();
+    const { executeBuyShopItem, executePlaceBid, gameConfig } = useGame();
     const { toast } = useUI();
+    const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
     
     const [items, setItems] = useState<ShopItem[]>([]);
     const [bidAmounts, setBidAmounts] = useState<Record<string, number>>({});
@@ -37,11 +38,13 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
     }, []);
 
     const handleBuy = async (item: ShopItem) => {
+        if (isJuryModeActive) return;
         if (!currentUser) return;
         setConfirmBuyItem(item);
     };
 
     const confirmAndExecuteBuy = async () => {
+        if (isJuryModeActive) return;
         if (!currentUser || !confirmBuyItem) return;
         
         setIsProcessing(true);
@@ -54,6 +57,7 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
     };
 
     const handleBid = async (item: ShopItem) => {
+        if (isJuryModeActive) return;
         if (!currentUser) return;
         const amount = bidAmounts[item.id];
         const minBid = (item.currentPrice || item.startingPrice || 0) + 10;
@@ -67,6 +71,7 @@ export const StudentShop: React.FC<StudentShopProps> = ({ agency }) => {
     };
 
     const confirmAndExecuteBid = async () => {
+        if (isJuryModeActive) return;
         if (!currentUser || !confirmBidItem) return;
 
         setIsProcessing(true);

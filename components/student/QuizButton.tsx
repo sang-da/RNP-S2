@@ -27,13 +27,17 @@ export const QuizButton: React.FC = () => {
         fetchAttempts();
     }, [currentUser]);
 
+    const isJuryModeActive = gameConfig.isJuryModeActive || (gameConfig.juryDeadline && new Date() > new Date(gameConfig.juryDeadline));
+
     useEffect(() => {
-        if (gameConfig.quizzes) {
+        if (gameConfig.quizzes && !isJuryModeActive) {
             // Filter visible quizzes that haven't been completed
             const visible = gameConfig.quizzes.filter(q => q.isVisible && !completedQuizIds.includes(q.id));
             setAvailableQuizzes(visible);
+        } else {
+            setAvailableQuizzes([]);
         }
-    }, [gameConfig.quizzes, completedQuizIds]);
+    }, [gameConfig.quizzes, completedQuizIds, isJuryModeActive]);
 
     if (availableQuizzes.length === 0) return null;
 
