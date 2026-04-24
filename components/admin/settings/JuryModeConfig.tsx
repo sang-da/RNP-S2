@@ -69,7 +69,7 @@ export const JuryModeConfig: React.FC = () => {
                     label: `🚨 FAILLITE DÉCLARÉE`,
                     description: `L'agence a été déclarée en faillite.`
                 }];
-                await updateAgency(agency.id, { isBankrupt: true, eventLog: updatedEventLog });
+                await updateAgency({ ...agency, isBankrupt: true, eventLog: updatedEventLog });
                 toast('success', `${agency.name} a été déclarée en faillite.`);
             } catch (e) {
                 toast('error', `Erreur lors de la déclaration de faillite.`);

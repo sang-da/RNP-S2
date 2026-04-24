@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Agency, Student, CriterionEval } from '../../../types';
 import { ClipboardCheck, Play, Download, Settings, Save, BrainCircuit, Eye, EyeOff } from 'lucide-react';
 import { useUI } from '../../../contexts/UIContext';
+import { useGame } from '../../../contexts/GameContext';
 import { evaluateAgencyWithGroq, evaluateMemberWithGroq } from '../../../services/groqService';
 import referentialRaw from '../../../documentation/REFERENTIAL.md?raw';
 import { StudentEvalResult, calculateAlgoScores, getFinalGroupScore, getFinalIndividualScore } from './EvaluationUtils';
@@ -17,6 +18,7 @@ interface AdminEvaluationProps {
 
 export const AdminEvaluation: React.FC<AdminEvaluationProps> = ({ agencies, onUpdateAgency }) => {
     const { toast, confirm } = useUI();
+    const { reviews: globalReviews } = useGame();
     const [isEvaluating, setIsEvaluating] = useState(false);
     const [evaluationProgress, setEvaluationProgress] = useState<{ total: number, current: number, label: string } | null>(null);
     const [isMappingGenerating, setIsMappingGenerating] = useState(false);
@@ -219,7 +221,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'étudiant ${student.name} (${agency.name})...` } : null);
                         
                         const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                        const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
+                        const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
                         
                         const studentResult: StudentEvalResult = {
                             studentId: student.id,
@@ -303,7 +305,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             if (!student) throw new Error("Étudiant non trouvé.");
 
             const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-            const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
+            const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
             
             // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
             const existingResult = results.find(r => r.studentId === studentId);
@@ -384,7 +386,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                 
                 const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                const algoScores = calculateAlgoScores(agency, student, deliverableMapping);
+                const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
                 
                 const studentResult: StudentEvalResult = {
                     studentId: student.id,

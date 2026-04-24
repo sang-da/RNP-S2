@@ -1,4 +1,4 @@
-import { Agency, Student, CriterionEval } from '../../../types';
+import { Agency, Student, CriterionEval, PeerReview } from '../../../types';
 
 export interface StudentEvalResult {
     studentId: string;
@@ -57,7 +57,7 @@ export const calculateDeliverableScore = (agency: Agency, criterionId?: string, 
     return totalScore / count;
 };
 
-export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: Record<string, string[]>) => {
+export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: Record<string, string[]>, globalReviews?: PeerReview[]) => {
     // VE Score (max 20, assuming 100 VE = 20/20)
     const veScore = Math.min(20, Math.max(0, (agency.ve_current / 100) * 20));
     
@@ -69,7 +69,7 @@ export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: 
 
     // Peer Review Score (max 20, assuming 5/5 = 20/20)
     let peerReviewScore = 10; // Default average score if no reviews
-    const peerReviews = agency.peerReviews?.filter(pr => pr.targetId === student.id) || [];
+    const peerReviews = (globalReviews || agency.peerReviews || []).filter(pr => pr.targetId === student.id);
     
     if (peerReviews.length > 0) {
         const avgRating = peerReviews.reduce((acc, pr) => acc + ((pr.ratings.attendance + pr.ratings.quality + pr.ratings.involvement) / 3), 0) / peerReviews.length;
