@@ -10,6 +10,7 @@ interface UserData {
   photoURL: string | null;
   role: 'admin' | 'student' | 'pending' | 'supervisor' | 'jury';
   agencyId?: string | null;
+  juryWallet?: number;
 }
 
 interface AuthContextType {
@@ -52,7 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                       displayName: data.displayName || user.displayName,
                       photoURL: data.photoURL || user.photoURL,
                       role: isRoot ? 'admin' : data.role,
-                      agencyId: data.agencyId
+                      agencyId: data.agencyId,
+                      juryWallet: data.juryWallet
                   });
                   setLoading(false);
               } else {
