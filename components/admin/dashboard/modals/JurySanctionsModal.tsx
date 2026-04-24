@@ -53,7 +53,16 @@ export const JurySanctionsModal: React.FC<JurySanctionsModalProps> = ({ agencies
                 }
             });
 
-            const hasBeenSanctioned = agency.eventLog?.some(e => e.label === 'SANCTION JURY' && e.date >= (gameConfig.juryDeadline || ''));
+            const hasBeenSanctioned = agency.eventLog?.some(e => {
+                if (e.label !== 'SANCTION JURY') return false;
+                if (!gameConfig.juryDeadline) {
+                    const today = new Date().toISOString().split('T')[0];
+                    return e.date.startsWith(today);
+                }
+                const deadlineDate = gameConfig.juryDeadline.split('T')[0];
+                const eventDate = e.date.split('T')[0];
+                return eventDate >= deadlineDate;
+            });
             if (agencyMissing > 0 && !hasBeenSanctioned) {
                 requiresAction = true;
                 newSanctions.push({ id: agency.id, name: agency.name, missingCount: agencyMissing, adjustedCount: agencyMissing });

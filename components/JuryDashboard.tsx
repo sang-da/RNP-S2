@@ -3,6 +3,7 @@ import { Agency, Deliverable } from '../types';
 import { db, doc, updateDoc, writeBatch, arrayUnion } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import { useGame } from '../contexts/GameContext';
+import { GAME_RULES } from '../constants';
 import { Gavel, TrendingUp, Presentation, Banknote, ShieldCheck, X, FileText, Image as ImageIcon, ExternalLink, Link as LinkIcon, Download, Star, CheckCircle, Mic, Square, Loader2 } from 'lucide-react';
 import { useVoiceDictation } from '../hooks/useVoiceDictation';
 
@@ -225,7 +226,7 @@ export const JuryDashboard: React.FC<JuryDashboardProps> = ({ agencies, userData
                 {/* Minimalist Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {activeAgencies.map(agency => {
-                        const isBankrupt = agency.isBankrupt;
+                        const isBankrupt = agency.isBankrupt || (agency.budget_real !== undefined && agency.budget_real <= GAME_RULES.BANKRUPTCY_THRESHOLD);
                         
                         return (
                             <div 
