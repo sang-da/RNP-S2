@@ -63,6 +63,7 @@ export const JuryFundsConfig: React.FC = () => {
                                     <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Capacité d'investissement (PiXi)</label>
                                     <div className="flex items-center gap-2">
                                         <input 
+                                            id={`wallet-${user.uid}`}
                                             type="number" 
                                             className="w-full p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 font-mono text-sm bg-white"
                                             defaultValue={user.juryWallet || 0}
