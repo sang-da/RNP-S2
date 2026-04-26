@@ -6,13 +6,21 @@ import { RefreshCw, Send, Bot, BrainCircuit, Sparkles, Database } from 'lucide-r
 import { useUI } from '../../../contexts/UIContext';
 import { GAME_RULES } from '../../../constants';
 import Markdown from 'react-markdown';
+import { useOpenScienceAnalysis } from './useOpenScienceAnalysis';
+import { useSociometricAudit } from './useSociometricAudit';
+import { generateGMPrompt } from '../../../prompts/gmPrompt';
 
 export const AssistantChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
     const { toast } = useUI();
     const [chatInput, setChatInput] = useState("");
     const [chatHistory, setChatHistory] = useState<{role: 'user'|'ai', content: string}[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+
+    const { generateMemo: generateOpenScienceMemo, loading: loadingOS } = useOpenScienceAnalysis(agencies, setChatHistory);
+    const { generateAudit: generateSociometricAudit, loading: loadingSM } = useSociometricAudit(agencies, setChatHistory);
+
+    const loading = isThinking || loadingOS || loadingSM;
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -49,7 +57,7 @@ export const AssistantChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
     };
 
     const handleRunGMAudit = async () => {
-        setLoading(true);
+        setIsThinking(true);
         try {
             const insights = await analyzeAgenciesWithGroq(agencies);
             
@@ -73,212 +81,10 @@ export const AssistantChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
         } catch (error) {
             toast('error', "Erreur lors de l'audit GM.");
         } finally {
-            setLoading(false);
+            setIsThinking(false);
         }
     };
 
-    const generateOpenScienceMemo = async () => {
-        setLoading(true);
-        try {
-            // Aggregate Statistics
-            const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
-            let totalStudents = 0;
-            let totalDismissals = 0;
-            let totalCrises = 0;
-            let totalFinancialCharges = 0;
-            let successfulAgencies = 0;
-            let failedAgencies = 0;
-            let minDate = new Date();
-            let maxDate = new Date(0);
-
-            activeAgencies.forEach(a => {
-                totalStudents += a.members.length;
-                a.members.forEach(m => {
-                    totalDismissals += (m.history || []).filter(h => h.action === 'FIRED').length;
-                });
-                a.eventLog.forEach(e => {
-                    if (e.type === 'CRISIS' || (e.deltaVE && e.deltaVE < 0)) totalCrises++;
-                    if (e.deltaBudgetReal && e.deltaBudgetReal < 0) totalFinancialCharges += Math.abs(e.deltaBudgetReal);
-                    const eDate = new Date(e.date);
-                    if (eDate < minDate) minDate = eDate;
-                    if (eDate > maxDate) maxDate = eDate;
-                });
-                
-                if (a.ve_current >= 60 && !a.isBankrupt) successfulAgencies++;
-                else if (a.ve_current < 40 || a.isBankrupt) failedAgencies++;
-            });
-
-            const statsPrompt = `
-                Generate a comprehensive Open Science Research Memo based on the following gamification experiment dataset.
-                
-                Format: Professional Markdown Document.
-                Language: French.
-                Sections: 
-                - Période & Population (Dates: ${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}, Students: ${totalStudents})
-                - Dynamique Financière & Sociale (Crises: ${totalCrises}, Dismissals: ${totalDismissals}, Total Financial Charges: ${totalFinancialCharges} PiXi)
-                - Réussite & Échec (Success: ${successfulAgencies}, Failures: ${failedAgencies}, Total Agencies: ${activeAgencies.length})
-                - Analyse Pédagogique (Extrapolate what this indicates about peer-regulation, accountability, and the gamified format's success)
-                
-                Write it formally as an academic abstract/memo. Do not invent numbers, only use those provided.
-            `;
-
-            const answer = await askGroq(statsPrompt, [], "Tu es un chercheur en pédagogie rédigeant une note de synthèse Open Science.");
-            
-            // Add download functionality
-            setChatHistory(prev => [...prev, { role: 'ai', content: answer + "\n\n*Memo généré avec succès. Vous pouvez maintenant l'exporter.*" }]);
-
-            // Anonymize active agencies data for Open Science
-            const anonymizedAgencies = activeAgencies.map(a => ({
-                ...a,
-                members: a.members.map(m => ({
-                    ...m,
-                    name: `Student_${m.id.substring(0,6)}`,
-                    email: undefined,
-                    avatar: undefined,
-                }))
-            }));
-
-            // Export raw JSON dataset + Memo text to a download file
-            const fullExport = {
-                metadata: {
-                    generatedAt: new Date().toISOString(),
-                    type: "OPEN_SCIENCE_DATASET_AND_MEMO",
-                    stats: {
-                        duration: { start: minDate.toISOString(), end: maxDate.toISOString() },
-                        students: totalStudents,
-                        dismissals: totalDismissals,
-                        crises: totalCrises,
-                        totalFinancialCharges: totalFinancialCharges,
-                        successCount: successfulAgencies,
-                        failCount: failedAgencies
-                    }
-                },
-                memo: answer,
-                raw_agencies: anonymizedAgencies
-            };
-
-            // 1. Download JSON
-            const jsonBlob = new Blob([JSON.stringify(fullExport, null, 2)], { type: 'application/json;charset=utf-8;' });
-            const jsonUrl = URL.createObjectURL(jsonBlob);
-            const jsonLink = document.createElement('a');
-            jsonLink.href = jsonUrl;
-            jsonLink.setAttribute('download', `RNP_OpenScience_Export_${new Date().toISOString().split('T')[0]}.json`);
-            document.body.appendChild(jsonLink);
-            jsonLink.click();
-            document.body.removeChild(jsonLink);
-
-            // 2. Download Markdown Memo
-            const mdBlob = new Blob([answer], { type: 'text/markdown;charset=utf-8;' });
-            const mdUrl = URL.createObjectURL(mdBlob);
-            const mdLink = document.createElement('a');
-            mdLink.href = mdUrl;
-            mdLink.setAttribute('download', `RNP_OpenScience_Memo_${new Date().toISOString().split('T')[0]}.md`);
-            document.body.appendChild(mdLink);
-            mdLink.click();
-            document.body.removeChild(mdLink);
-
-            toast('success', "Memo Open Science généré et données (JSON + MD) exportées.");
-
-        } catch (error) {
-            toast('error', "Erreur lors de la génération du Memo Open Science.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const generateSociometricAudit = async () => {
-        setLoading(true);
-        try {
-            const activeAgencies = agencies.filter(a => a.id !== 'unassigned');
-            let totalP2PTransfers = 0;
-            let totalPhantomMarketTxs = 0;
-            let totalFired = 0;
-            let totalResigned = 0;
-            let totalTransfers = 0;
-            let totalJuryEvents = 0;
-            let minDate = new Date();
-            let maxDate = new Date(0);
-
-            activeAgencies.forEach(a => {
-                a.members.forEach(m => {
-                    const history = m.history || [];
-                    totalFired += history.filter(h => h.action === 'FIRED').length;
-                    totalResigned += history.filter(h => h.action === 'RESIGNED').length;
-                    totalTransfers += history.filter(h => h.action === 'TRANSFER').length;
-                });
-                
-                a.eventLog.forEach(e => {
-                    if (e.description.includes(' -> ') && e.description.includes('PiXi')) totalP2PTransfers++;
-                    if (e.type === 'BLACK_OP' || e.description.includes('Achat de :') || e.description.includes('Enchère')) totalPhantomMarketTxs++;
-                    if (e.type === 'JURY' || e.label.includes('Jury')) totalJuryEvents++;
-                    
-                    const eDate = new Date(e.date);
-                    if (eDate < minDate) minDate = eDate;
-                    if (eDate > maxDate) maxDate = eDate;
-                });
-            });
-
-            const prompt = `
-                Generate a Sociometric & Behavioral Audit Memo based on the following gamification experiment dataset.
-                
-                Format: Professional Markdown Document.
-                Language: French.
-                Sections: 
-                - Dynamique de l'Emploi (Fired: ${totalFired}, Resigned: ${totalResigned}, Transfers/Poaching: ${totalTransfers})
-                - Économie Souterraine & Espace Fantôme (Transactions Black Market / Backdoor: ${totalPhantomMarketTxs}, P2P Transfers: ${totalP2PTransfers})
-                - Intervention Externe (Actions Jury: ${totalJuryEvents})
-                - Analyse des Interactions Sociales (Analyze what these numbers tell us about the cohort's trust, collaboration, and propensity for shadow-economy hacking vs regular agency work)
-                
-                Write it formally as an academic abstract/memo. Do not invent numbers, only use those provided.
-            `;
-
-            const answer = await askGroq(prompt, [], "Tu es un chercheur en sociologie des groupes et pédagogie rédigeant une note de synthèse sociométrique.");
-            
-            setChatHistory(prev => [...prev, { role: 'ai', content: answer + "\n\n*Audit sociométrique généré avec succès. Exportation en cours...*" }]);
-
-            const exportData = {
-                metadata: {
-                    generatedAt: new Date().toISOString(),
-                    type: "SOCIOMETRIC_AUDIT_DATASET_AND_MEMO",
-                    stats: {
-                        duration: { start: minDate.toISOString(), end: maxDate.toISOString() },
-                        p2pTransfers: totalP2PTransfers,
-                        phantomTransactions: totalPhantomMarketTxs,
-                        fired: totalFired,
-                        resigned: totalResigned,
-                        transfers: totalTransfers,
-                        juryEvents: totalJuryEvents
-                    }
-                },
-                memo: answer
-            };
-
-            const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8;' });
-            const jsonUrl = URL.createObjectURL(jsonBlob);
-            const jsonLink = document.createElement('a');
-            jsonLink.href = jsonUrl;
-            jsonLink.setAttribute('download', `RNP_Sociometric_Export_${new Date().toISOString().split('T')[0]}.json`);
-            document.body.appendChild(jsonLink);
-            jsonLink.click();
-            document.body.removeChild(jsonLink);
-
-            const mdBlob = new Blob([answer], { type: 'text/markdown;charset=utf-8;' });
-            const mdUrl = URL.createObjectURL(mdBlob);
-            const mdLink = document.createElement('a');
-            mdLink.href = mdUrl;
-            mdLink.setAttribute('download', `RNP_Sociometric_Memo_${new Date().toISOString().split('T')[0]}.md`);
-            document.body.appendChild(mdLink);
-            mdLink.click();
-            document.body.removeChild(mdLink);
-
-            toast('success', "Audit sociométrique généré et exporté (JSON + MD).");
-
-        } catch (error) {
-            toast('error', "Erreur lors de la génération de l'audit sociométrique.");
-        } finally {
-            setLoading(false);
-        }
-    };
     const handleChatSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!chatInput.trim()) return;
@@ -286,20 +92,17 @@ export const AssistantChat: React.FC<{agencies: Agency[]}> = ({ agencies }) => {
         const userMsg = chatInput;
         setChatInput("");
         setChatHistory(prev => [...prev, { role: 'user', content: userMsg }]);
-        setLoading(true);
+        setIsThinking(true);
 
         try {
             const context = getRichContextData();
-            const systemPrompt = `
-                Tu es le Game Master et Directeur Stratégique du RNP. Tu as accès aux données financières et aux projets.
-                Si on te demande de rédiger un événement (crise, challenge, bonus), rédige un texte immersif et court (max 280 caractères) destiné aux étudiants, en précisant les impacts (ex: -500 PiXi, -10 VE).
-            `;
+            const systemPrompt = generateGMPrompt();
             const answer = await askGroq(userMsg, context, systemPrompt, chatHistory);
             setChatHistory(prev => [...prev, { role: 'ai', content: answer }]);
         } catch (error) {
             toast('error', "Erreur IA.");
         } finally {
-            setLoading(false);
+            setIsThinking(false);
         }
     };
 
