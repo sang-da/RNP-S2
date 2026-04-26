@@ -7,7 +7,7 @@ import { GAME_RULES } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { SoloPanel } from './team/SoloPanel';
-import { doc, setDoc, db } from '../../services/firebase'; // Direct Write for Reviews
+import { doc, setDoc, db, runTransaction } from '../../services/firebase'; // Direct Write for Reviews
 
 import { transcribeAudioWithGroq, askGroq } from '../../services/groqService';
 
@@ -77,7 +77,22 @@ export const TeamView: React.FC<TeamViewProps> = ({ agency, onUpdateAgency, curr
   const handlePeerReview = async (review: PeerReview) => {
     if (isJuryModeActive) return;
     try {
-        await setDoc(doc(db, "reviews", review.id), review);
+        await runTransaction(db, async (transaction) => {
+            await transaction.set(doc(db, "reviews", review.id), review);
+            if (currentUser && agency.id) {
+                const agencyRef = doc(db, "agencies", agency.id);
+                const agencyDoc = await transaction.get(agencyRef);
+                if (agencyDoc.exists()) {
+                    const agencyData = agencyDoc.data() as Agency;
+                    const updatedMembers = agencyData.members.map(m => 
+                        m.id === currentUser.id 
+                        ? { ...m, karma: (m.karma || 50) + 2 } 
+                        : m
+                    );
+                    transaction.update(agencyRef, { members: updatedMembers });
+                }
+            }
+        });
         setReviewMode(null);
     } catch (e) {
         console.error("Erreur envoi review", e);
@@ -521,6 +536,7 @@ const PeerReviewForm: React.FC<PeerReviewFormProps> = ({ reviewer, target, weekI
             targetName: target.name,
             agencyId: agencyId, // LINKED TO AGENCY
             ratings: { attendance, quality, involvement },
+            totalScore: ((attendance + quality + involvement) / 15) * 20,
             comment: comment.trim()
         };
         onSubmit(review);

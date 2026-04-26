@@ -29,8 +29,8 @@ export const BADGE_DEFINITIONS: Badge[] = [
     },
     { 
         id: 'tycoon', 
-        label: 'Magnat', 
-        description: 'Posséder plus de 5000 PiXi sur son Wallet personnel.', 
+        label: 'Magnat / Mania', 
+        description: 'Posséder plus de 5000 PiXi cumulés (Wallet Personnel + Banque/Épargne).', 
         icon: 'gem',
         rewards: { score: 2 }
     },
@@ -132,6 +132,27 @@ export const BADGE_DEFINITIONS: Badge[] = [
         description: 'Avoir réussi une OPA (Fusion/Rachat) sur une autre agence.', 
         icon: 'swords',
         rewards: { ve: 10 }
+    },
+    {
+        id: 'hacker',
+        label: 'Mr. Robot',
+        description: 'Avoir utilisé le Dark Web.',
+        icon: 'zap',
+        rewards: { karma: -5 }
+    },
+    {
+        id: 'bankrupt',
+        label: 'Too Big To Fail',
+        description: 'Avoir survécu à un endettement très critique et en être ressorti.',
+        icon: 'shield',
+        rewards: { ve: 5 }
+    },
+    {
+        id: 'philanthropist',
+        label: 'Philanthrope',
+        description: 'Avoir effectué plusieurs dons importants.',
+        icon: 'heart-handshake',
+        rewards: { karma: 15 }
     },
 
     // S1 AWARDS (HISTORIQUE)

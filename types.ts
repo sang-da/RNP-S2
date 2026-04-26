@@ -115,7 +115,7 @@ export interface Student {
 export interface GameEvent {
     id: string;
     date: string;
-    type: 'INFO' | 'CRISIS' | 'VE_DELTA' | 'REVENUE' | 'PAYROLL' | 'BLACK_OP' | 'BUDGET_DELTA';
+    type: 'INFO' | 'CRISIS' | 'VE_DELTA' | 'REVENUE' | 'PAYROLL' | 'BLACK_OP' | 'BUDGET_DELTA' | 'MERGER';
     label: string;
     description: string;
     deltaVE?: number;
@@ -248,7 +248,7 @@ export interface Agency {
     ve_current: number;
     veCapOverride?: number;
     ve_history?: { week: string, value: number }[]; // Pour calculer la croissance
-    pendingEffects?: { type: string, amount: number, label: string }[]; // Pour les effets différés (ex: Pump & Dump)
+    pendingEffects?: { type: string, amount: number, label: string, targetId?: string, targetStartingVE?: number, studentId?: string }[]; // Pour les effets différés (ex: Pump & Dump, Short Sell)
     status: 'stable' | 'fragile' | 'critique';
     isBankrupt?: boolean; // SI true, l'agence est bloquée
     classId: 'A' | 'B' | 'ALL';

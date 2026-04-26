@@ -89,8 +89,9 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
             payload = { targetId };
         } 
         else if (selectedItem === 'BUY_VOTE') {
-            if (!targetId) { addToTerminal("ERREUR: Requête cible manquante."); return; }
-            payload = { requestId: targetId };
+            if (!targetId || !targetId.includes('|')) { addToTerminal("ERREUR: Requête cible invalide."); return; }
+            const [tAgencyId, tReqId] = targetId.split('|');
+            payload = { targetAgencyId: tAgencyId, requestId: tReqId };
         }
         else if (selectedItem === 'CORRUPTED_FILE') {
             let lateDeliv: {weekId: string, delId: string} | null = null;
@@ -190,8 +191,8 @@ export const TheBackdoor: React.FC<TheBackdoorProps> = ({ agency, allAgencies, c
                     onChange={(e) => setTargetId(e.target.value)}
                 >
                     <option value="">-- SÉLECTIONNER VOTE --</option>
-                    {allAgencies.flatMap(a => a.mercatoRequests).filter(r => r.status === 'PENDING').map(r => (
-                        <option key={r.id} value={r.id}>{r.type} : {r.studentName}</option>
+                    {allAgencies.flatMap(a => (a.mercatoRequests || []).map(r => ({ ...r, _agencyId: a.id }))).filter(r => r.status === 'PENDING').map(r => (
+                        <option key={r.id} value={`${r._agencyId}|${r.id}`}>{r.type} : {r.studentName}</option>
                     ))}
                 </select>
             );

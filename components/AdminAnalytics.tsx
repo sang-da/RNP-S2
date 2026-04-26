@@ -4,14 +4,18 @@ import { Agency, Student } from '../types';
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { TrendingUp, Users, Wallet, Trophy, AlertTriangle, Lightbulb, Activity, PieChart, Eye, EyeOff } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
+import { useUI } from '../contexts/UIContext';
+import { RefreshCw } from 'lucide-react';
 
 interface AdminAnalyticsProps {
     agencies: Agency[];
 }
 
 export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
-    const { reviews } = useGame();
+    const { reviews, updateAgenciesList } = useGame();
+    const { toast } = useUI();
     const [showKarma, setShowKarma] = useState(false);
+    const [isCalculatingKarma, setIsCalculatingKarma] = useState(false);
     
     // --- DATA PROCESSING ---
     const activeAgencies = useMemo(() => agencies.filter(a => a.id !== 'unassigned'), [agencies]);
@@ -83,6 +87,61 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
     const karmaList = useMemo(() => {
         return [...allStudents].sort((a,b) => (b.karma || 0) - (a.karma || 0));
     }, [allStudents]);
+
+    const handleRecalculateKarma = async () => {
+        setIsCalculatingKarma(true);
+        try {
+            const updatedAgencies = agencies.map(agency => {
+                if (agency.id === 'unassigned') return agency;
+
+                const newMembers = agency.members.map(member => {
+                    let calculatedKarma = 50; // Base karma
+
+                    // 1. Add karma for reviews submitted
+                    const memberReviews = reviews.filter(r => r.reviewerId === member.id);
+                    calculatedKarma += memberReviews.length * 2;
+
+                    // 2. Add karma for deliverables MVP and grades
+                    Object.values(agency.progress).forEach(week => {
+                        week.deliverables.forEach(d => {
+                            if (d.grading?.mvpId === member.id || d.nominatedMvpId === member.id) {
+                                calculatedKarma += 15; // MVP Bonus
+                            }
+                            if (d.status === 'validated') {
+                                calculatedKarma += 2; // Team bonus for completed project
+                            } else if (d.status === 'rejected') {
+                                calculatedKarma -= 5; // Team penalty
+                            }
+                        });
+                    });
+
+                    // 3. Add karma from earned Badges
+                    if (member.badges) {
+                        member.badges.forEach(badge => {
+                            if (badge.rewards && badge.rewards.karma) {
+                                calculatedKarma += badge.rewards.karma;
+                            }
+                        });
+                    }
+
+                    // 4. Prevent karma from dropping below 0
+                    calculatedKarma = Math.max(0, calculatedKarma);
+
+                    return { ...member, karma: calculatedKarma };
+                });
+
+                return { ...agency, members: newMembers };
+            });
+
+            await updateAgenciesList(updatedAgencies);
+            toast('success', 'Karma recalculé pour tous les étudiants avec succès !');
+        } catch (error) {
+            console.error(error);
+            toast('error', 'Erreur lors du recalcul du Karma.');
+        } finally {
+            setIsCalculatingKarma(false);
+        }
+    };
 
     // Custom Tooltip for Scatter
     const ScatterTooltip = ({ active, payload }: any) => {
@@ -268,15 +327,25 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ agencies }) => {
                         <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
                             <EyeOff size={20}/> Karma Police (Secret)
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Score caché comportemental (Donations +10, Retards -5, etc.)</p>
+                        <p className="text-xs text-slate-500 mt-1">Score caché comportemental (Calculé depuis l'historique)</p>
                     </div>
-                    <button 
-                        onClick={() => setShowKarma(!showKarma)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showKarma ? 'bg-slate-900 text-white' : 'bg-white border text-slate-500'}`}
-                    >
-                        {showKarma ? <EyeOff size={16}/> : <Eye size={16}/>}
-                        {showKarma ? 'Masquer' : 'Révéler'}
-                    </button>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={handleRecalculateKarma}
+                            disabled={isCalculatingKarma}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                        >
+                            <RefreshCw size={16} className={isCalculatingKarma ? "animate-spin" : ""} />
+                            Recalculer Tout
+                        </button>
+                        <button 
+                            onClick={() => setShowKarma(!showKarma)}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showKarma ? 'bg-slate-900 text-white' : 'bg-white border text-slate-500'}`}
+                        >
+                            {showKarma ? <EyeOff size={16}/> : <Eye size={16}/>}
+                            {showKarma ? 'Masquer' : 'Révéler'}
+                        </button>
+                    </div>
                 </div>
 
                 {showKarma ? (

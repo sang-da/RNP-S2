@@ -188,12 +188,20 @@ export const GradingModal: React.FC<GradingModalProps> = ({ isOpen, onClose, ite
             let mvpName = "";
             let updatedMembers = agency.members.map(m => {
                 let newScore = m.individualScore;
+                let newKarma = m.karma || 50;
+                
                 if (calculation.lucidityBonus !== 0) newScore = Math.min(100, Math.max(0, newScore + calculation.lucidityBonus));
                 if (selectedMvpId !== "NONE" && m.id === selectedMvpId) {
                     newScore = Math.min(100, newScore + 5); 
+                    newKarma += 15;
                     mvpName = m.name;
                 }
-                return { ...m, individualScore: newScore };
+
+                if (daysLate > 0) {
+                    newKarma -= (daysLate * 2);
+                }
+
+                return { ...m, individualScore: newScore, karma: newKarma };
             });
 
             let desc = `Note ${quality} ${daysLate > 0 ? `(-${daysLate}j)` : ''} ${constraintBroken ? '(Contrainte)' : ''} ${bonusEarly ? '(Avance)' : ''}. Lucidité: +${calculation.lucidityBonus} score.`;

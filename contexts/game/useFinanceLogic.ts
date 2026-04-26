@@ -329,7 +329,7 @@ export const useFinanceLogic = (
             // Update Source
             const updatedSourceMembers = sourceData.members.map(m => 
                 m.id === sourceId 
-                ? { ...m, wallet: (m.wallet || 0) - amount } 
+                ? { ...m, wallet: (m.wallet || 0) - amount, karma: (m.karma || 50) + 5 } 
                 : m
             );
 
@@ -429,7 +429,8 @@ export const useFinanceLogic = (
                 ? { 
                     ...m, 
                     wallet: Math.round((m.wallet || 0) - amount),
-                    cumulativeInjection: newTotalInjection
+                    cumulativeInjection: newTotalInjection,
+                    karma: (m.karma || 50) + 10
                   } 
                 : m
             );

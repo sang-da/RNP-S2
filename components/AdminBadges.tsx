@@ -39,65 +39,207 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
     const handleSimulateScan = () => {
         const detectedAwards: PendingAward[] = [];
 
+        // Check for globally unique badges
+        const anyAgencyHasLegend = agencies.some(a => a.badges?.some(b => b.id === 'legend_100'));
+        const anyStudentHasPioneer = agencies.some(a => a.members?.some(m => m.badges?.some(b => b.id === 'score_100')));
+
+        let legendAssignedInThisScan = false;
+        let pioneerAssignedInThisScan = false;
+
         agencies.forEach(agency => {
             if (agency.id === 'unassigned') return;
 
-            // A. BADGE LÉGENDE (100 VE)
-            if (agency.ve_current >= 100) {
-                const hasBadge = agency.badges?.some(b => b.id === 'legend_100');
-                if (!hasBadge) {
-                    const def = BADGE_DEFINITIONS.find(b => b.id === 'legend_100');
-                    if (def) {
-                        detectedAwards.push({
-                            targetId: agency.id,
-                            targetName: agency.name,
-                            type: 'AGENCY',
-                            badge: def,
-                            reason: "A atteint 100 VE"
-                        });
-                    }
+            // --- AGENCY BADGES ---
+            // A. BADGE LÉGENDE (100 VE) - UNIQUE
+            if (agency.ve_current >= 100 && !anyAgencyHasLegend && !legendAssignedInThisScan) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'legend_100');
+                if (def && !agency.badges?.some(b => b.id === 'legend_100')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "Première agence à atteindre 100 VE" });
+                    legendAssignedInThisScan = true;
                 }
             }
 
-            // B. BADGE LICORNE (20k Budget)
+            // SHARK (OPA)
+            const hasMerger = agency.eventLog.some(e => e.type === 'MERGER' || e.label === 'Acquisition');
+            if (hasMerger) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'shark');
+                if (def && !agency.badges?.some(b => b.id === 'shark')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "Acquisition réussie" });
+                }
+            }
+
+            // PHOENIX (Remontada: was in crisis but now > 70 VE)
+            const hadCrisis = agency.eventLog.some(e => e.type === 'CRISIS' && (e.deltaVE || 0) <= -10);
+            if (agency.ve_current >= 70 && hadCrisis) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'phoenix');
+                if (def && !agency.badges?.some(b => b.id === 'phoenix')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "Remontada impressionnante" });
+                }
+            }
+
+            // BANKRUPT (Too Big To Fail: was deep in debt, now > 0)
+            const wasInDebt = agency.eventLog.some(e => e.type === 'CRISIS' && e.label === 'Dette' && (e.deltaVE || 0) <= -5); // Approximation
+            if (agency.budget_real >= 0 && wasInDebt) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'bankrupt');
+                if (def && !agency.badges?.some(b => b.id === 'bankrupt')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "A survécu à un taux d'endettement critique et redressé la barre" });
+                }
+            }
+            
+            // SURVIVOR: ve >= 40 and survived crisis
+            if (agency.ve_current >= 40 && hadCrisis) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'survivor');
+                if (def && !agency.badges?.some(b => b.id === 'survivor')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "A survécu à de graves crises avec une VE résiliente" });
+                }
+            }
+
+            // B. BADGE LICORNE (20k Budget) -> Given to all students
             if (agency.budget_real >= 20000) {
                 agency.members.forEach(m => {
                     const hasBadge = m.badges?.some(b => b.id === 'wealthy');
                     if (!hasBadge) {
                         const def = BADGE_DEFINITIONS.find(b => b.id === 'wealthy');
                         if (def) {
-                            detectedAwards.push({
-                                targetId: m.id,
-                                targetName: m.name,
-                                type: 'STUDENT',
-                                badge: def,
-                                reason: "Trésorerie Agence > 20k",
-                                agencyName: agency.name
-                            });
+                            detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "Trésorerie Agence > 20k", agencyName: agency.name });
                         }
                     }
                 });
             }
-            
-            // C. BADGE PIONNIER (100 SCORE)
+
+            // --- STUDENT BADGES ---
             agency.members.forEach(m => {
-                if (m.individualScore >= 100) {
-                    const hasBadge = m.badges?.some(b => b.id === 'score_100');
-                    if (!hasBadge) {
-                        const def = BADGE_DEFINITIONS.find(b => b.id === 'score_100');
-                        if (def) {
-                            detectedAwards.push({
-                                targetId: m.id,
-                                targetName: m.name,
-                                type: 'STUDENT',
-                                badge: def,
-                                reason: "A atteint 100/100 Score Individuel",
-                                agencyName: agency.name
-                            });
-                        }
+                // C. PIONNIER (100 SCORE) - UNIQUE
+                if (m.individualScore >= 100 && !anyStudentHasPioneer && !pioneerAssignedInThisScan) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'score_100');
+                    if (def && !m.badges?.some(b => b.id === 'score_100')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "Premier à atteindre 100/100 Score Individuel", agencyName: agency.name });
+                        pioneerAssignedInThisScan = true;
+                    }
+                }
+                
+                // MAGNAT (5000+ PiXi cumulé: Wallet + Épargne)
+                const totalWealth = (m.wallet || 0) + (m.savings || 0);
+                if (totalWealth >= 5000) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'tycoon');
+                    if (def && !m.badges?.some(b => b.id === 'tycoon')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "Fortune (Wallet + Banque) >= 5000", agencyName: agency.name });
+                    }
+                }
+
+                // INVESTOR (A injecté de l'argent)
+                if (m.cumulativeInjection && m.cumulativeInjection > 0) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'investor');
+                    if (def && !m.badges?.some(b => b.id === 'investor')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A injecté du capital personnel", agencyName: agency.name });
+                    }
+                }
+
+                // VISIONARY (Streak >= 3)
+                if (m.streak && m.streak >= 3) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'visionary');
+                    if (def && !m.badges?.some(b => b.id === 'visionary')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "3 cycles consécutifs d'excellence (Streak >= 3)", agencyName: agency.name });
+                    }
+                }
+
+                // TEAMWORK (>90 indivScore + streak > 0)
+                if (m.individualScore >= 90 && (m.streak || 0) > 0) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'teamwork');
+                    if (def && !m.badges?.some(b => b.id === 'teamwork')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "Participation collective exceptionnelle (Score > 90)", agencyName: agency.name });
+                    }
+                }
+
+                // PATRON / PHILANTHROPE (Dons aux collègues)
+                // Crude check: how many Virement P2P (Sortant) did this student make?
+                const donations = agency.eventLog.filter(e => e.label === 'Virement P2P (Sortant)' && e.description?.includes(`${m.name} ->`)).length;
+                if (donations >= 1) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'patron');
+                    if (def && !m.badges?.some(b => b.id === 'patron')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A fait un don généreux", agencyName: agency.name });
+                    }
+                }
+                if (donations >= 3) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'philanthropist');
+                    if (def && !m.badges?.some(b => b.id === 'philanthropist')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A effectué plusieurs dons importants", agencyName: agency.name });
+                    }
+                }
+
+                // HACKER (Utilisé backdoor / Intelligence)
+                const blackOps = agency.eventLog.filter(e => e.type === 'BLACK_OP' && e.description?.includes(m.name)).length;
+                if ((m.karma && m.karma < 30) || blackOps > 0) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'hacker');
+                    if (def && !m.badges?.some(b => b.id === 'hacker')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A exploré le côté obscur des affaires (Karma < 30 ou Opération Spéciale)", agencyName: agency.name });
+                    }
+                }
+
+                // SPY MASTER (Multiple ops)
+                const agencyOps = agency.eventLog.filter(e => e.type === 'BLACK_OP').length;
+                if (agencyOps >= 3 && m.individualScore > 50) { // Give it to performing members if agency did 3 ops
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'spy_master');
+                    if (def && !m.badges?.some(b => b.id === 'spy_master')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A opéré à l'ombre de son agence (Multiples Opérations)", agencyName: agency.name });
+                    }
+                }
+
+                // TECH WIZARD (MVP Technique désigné)
+                const isMVP = agency.eventLog.filter(e => e.description?.includes(`MVP: ${m.name}`)).length;
+                if (isMVP >= 1) {
+                    const def = BADGE_DEFINITIONS.find(b => b.id === 'tech_wizard');
+                    if (def && !m.badges?.some(b => b.id === 'tech_wizard')) {
+                        detectedAwards.push({ targetId: m.id, targetName: m.name, type: 'STUDENT', badge: def, reason: "A été désigné MVP sur un livrable", agencyName: agency.name });
                     }
                 }
             });
+
+            // --- AGENCY BADGES ---
+
+            // PIXEL PERFECT & STAKHANOV
+            let hasPixelPerfectCycle = false;
+            let hasStakhanovCycle = false;
+
+            Object.values(agency.progress || {}).forEach(week => {
+                if (week.deliverables && week.deliverables.length > 0) {
+                    const allValidated = week.deliverables.every(d => d.status === 'validated');
+                    if (allValidated) {
+                        const allPerfect = week.deliverables.every(d => d.grading && d.grading.quality !== 'C' && (d.grading.daysLate === 0 || !d.grading.daysLate));
+                        if (allPerfect) hasPixelPerfectCycle = true;
+
+                        const allEarly = week.deliverables.every(d => {
+                            // Find log for this specific deliverable to see if it had 'Avance'
+                            const logEntry = agency.eventLog.find(e => e.label.includes(d.name) && e.description?.includes('(Avance)'));
+                            return !!logEntry;
+                        });
+                        if (allEarly) hasStakhanovCycle = true;
+                    }
+                }
+            });
+
+            if (hasPixelPerfectCycle) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'pixel_perfect');
+                if (def && !agency.badges?.some(b => b.id === 'pixel_perfect')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "A rendu un cycle complet sans rejet ni retard" });
+                }
+            }
+
+            if (hasStakhanovCycle) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'stakhanov');
+                if (def && !agency.badges?.some(b => b.id === 'stakhanov')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "A rendu tous les livrables d'un cycle en avance" });
+                }
+            }
+
+            // HEADHUNTER
+            const hasRecruited = agency.eventLog.some(e => e.label === 'Recrutement Validé');
+            if (hasRecruited) {
+                const def = BADGE_DEFINITIONS.find(b => b.id === 'headhunter');
+                if (def && !agency.badges?.some(b => b.id === 'headhunter')) {
+                    detectedAwards.push({ targetId: agency.id, targetName: agency.name, type: 'AGENCY', badge: def, reason: "A recruté avec succès un talent" });
+                }
+            }
         });
 
         if (detectedAwards.length === 0) {
@@ -146,12 +288,24 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
 
             if (award.type === 'AGENCY') {
                 // Add Badge
-                agency.badges.push(badgePayload);
+                agency.badges = [...(agency.badges || []), badgePayload];
                 
-                // Apply Rewards - BATCH NE GÈRE PAS OVERCAP DIRECTEMENT ICI,
-                // MAIS LE CALCUL MANUEL ICI PERMET DE DÉPASSER LE CAP PUISQU'ON SET LA VALEUR
+                // Apply Rewards
                 if (rewards.ve) agency.ve_current += rewards.ve;
                 if (rewards.budget) agency.budget_real += rewards.budget;
+
+                // If badge has individual rewards, give them to all members
+                agency.members = agency.members.map(m => {
+                    let newScore = m.individualScore;
+                    let newWallet = m.wallet || 0;
+                    let newKarma = m.karma || 50;
+
+                    if (rewards.score) newScore = Math.min(100, newScore + rewards.score);
+                    if (rewards.wallet) newWallet += rewards.wallet;
+                    if (rewards.karma) newKarma += rewards.karma;
+
+                    return { ...m, individualScore: newScore, wallet: newWallet, karma: newKarma };
+                });
 
                 // Log
                 agency.eventLog.push({
@@ -168,13 +322,17 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
                     if (m.id === award.targetId) {
                         let newScore = m.individualScore;
                         let newWallet = m.wallet || 0;
+                        let newKarma = m.karma || 50;
+
                         if (rewards.score) newScore = Math.min(100, newScore + rewards.score);
                         if (rewards.wallet) newWallet += rewards.wallet;
+                        if (rewards.karma) newKarma += rewards.karma;
 
                         return {
                             ...m,
                             individualScore: newScore,
                             wallet: newWallet,
+                            karma: newKarma,
                             badges: [...(m.badges || []), badgePayload]
                         };
                     }
@@ -218,6 +376,22 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
 
         const badgePayload = { ...selectedBadge, unlockedAt: new Date().toISOString().split('T')[0] };
         
+        // CHECK GLOBAL UNIQUENESS FOR SPECIFIC BADGES
+        if (selectedBadge.id === 'legend_100') {
+            const hasLegend = agencies.some(a => a.badges?.some(b => b.id === 'legend_100'));
+            if (hasLegend) {
+                toast('error', "Ce trophée (Légende) est UNIQUE et a déjà été attribué.");
+                return;
+            }
+        }
+        if (selectedBadge.id === 'score_100') {
+            const hasPioneer = agencies.some(a => a.members.some(m => m.badges?.some(b => b.id === 'score_100')));
+            if (hasPioneer) {
+                toast('error', "Ce trophée (Pionnier) est UNIQUE et a déjà été attribué.");
+                return;
+            }
+        }
+
         let bonusText = "";
         const rewards = selectedBadge.rewards || {};
 
@@ -235,8 +409,21 @@ export const AdminBadges: React.FC<AdminBadgesProps> = ({ agencies }) => {
             if (rewards.ve) { newVE += rewards.ve; bonusText += `+${rewards.ve} VE `; }
             if (rewards.budget) { newBudget += rewards.budget; bonusText += `+${rewards.budget} PiXi `; }
 
+            const updatedMembers = agency.members.map(m => {
+                let newScore = m.individualScore;
+                let newWallet = m.wallet || 0;
+                let newKarma = m.karma || 50;
+
+                if (rewards.score) newScore = Math.min(100, newScore + rewards.score);
+                if (rewards.wallet) newWallet += rewards.wallet;
+                if (rewards.karma) newKarma += rewards.karma;
+
+                return { ...m, individualScore: newScore, wallet: newWallet, karma: newKarma };
+            });
+
             await updateAgency({
                 ...agency,
+                members: updatedMembers,
                 badges: [...agency.badges, badgePayload],
                 ve_current: newVE,
                 budget_real: newBudget,

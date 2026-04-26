@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Agency, WeekModule } from '../../types';
 import { Modal } from '../Modal';
-import { Download, FileSpreadsheet, Users, Briefcase, History, FileText, Check } from 'lucide-react';
+import { Download, FileSpreadsheet, Users, Briefcase, History, FileText, Check, Database } from 'lucide-react';
 
 interface DataExportModalProps {
     isOpen: boolean;
@@ -10,7 +10,7 @@ interface DataExportModalProps {
     agencies: Agency[];
 }
 
-type ExportType = 'AGENCIES' | 'STUDENTS' | 'DELIVERABLES' | 'HISTORY';
+type ExportType = 'AGENCIES' | 'STUDENTS' | 'DELIVERABLES' | 'HISTORY' | 'RAW_JSON';
 type ClassFilter = 'ALL' | 'A' | 'B';
 
 export const DataExportModal: React.FC<DataExportModalProps> = ({ isOpen, onClose, agencies }) => {
@@ -118,11 +118,25 @@ export const DataExportModal: React.FC<DataExportModalProps> = ({ isOpen, onClos
                 e.deltaBudgetReal || 0
             ]));
             csvContent = [headers.join(','), ...rows.map(r => r.map(escapeCsv).join(','))].join('\n');
+        } else if (exportType === 'RAW_JSON') {
+            filename = `RNP_Export_RAW_JSON_${classFilter}_${new Date().toISOString().split('T')[0]}.json`;
+            csvContent = JSON.stringify(targetAgencies, null, 2);
         }
 
         // 3. Déclenchement
         setTimeout(() => {
-            downloadCSV(csvContent, filename);
+            if (exportType === 'RAW_JSON') {
+                const blob = new Blob([csvContent], { type: 'application/json;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                downloadCSV(csvContent, filename);
+            }
             setIsExporting(false);
             onClose();
         }, 500);
@@ -191,12 +205,20 @@ export const DataExportModal: React.FC<DataExportModalProps> = ({ isOpen, onClos
                             </div>
                             {exportType === 'HISTORY' && <Check size={18} className="ml-auto text-purple-600"/>}
                         </button>
+                        <button onClick={() => setExportType('RAW_JSON')} className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${exportType === 'RAW_JSON' ? 'bg-white border-slate-900 shadow-md ring-1 ring-slate-900' : 'bg-slate-50 border-slate-200 opacity-70 hover:opacity-100'}`}>
+                            <div className="p-2 bg-slate-200 text-slate-800 rounded-lg"><Database size={18}/></div>
+                            <div className="text-left">
+                                <span className="block font-bold text-slate-900 text-sm">Export Brut de Recherche (JSON)</span>
+                                <span className="block text-[10px] text-slate-500">Dump complet de toutes les données (Open Science)</span>
+                            </div>
+                            {exportType === 'RAW_JSON' && <Check size={18} className="ml-auto text-slate-900"/>}
+                        </button>
                     </div>
                 </div>
 
                 <div className="bg-slate-100 p-3 rounded-lg flex items-center gap-2 text-xs text-slate-500">
                     <FileSpreadsheet size={16}/>
-                    Format : CSV (Compatible Excel, Google Sheets, Numbers)
+                    {exportType === 'RAW_JSON' ? 'Format : JSON (Brut pour les data scientists)' : 'Format : CSV (Compatible Excel, Google Sheets, Numbers)'}
                 </div>
 
                 <button 

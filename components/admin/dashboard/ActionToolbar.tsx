@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Activity, Layers, CalendarDays, Zap } from 'lucide-react';
+import { Flame, Activity, Layers, CalendarDays, Zap, Database } from 'lucide-react';
 import { useGame } from '../../../contexts/GameContext';
 
 interface ActionToolbarProps {
@@ -7,10 +7,11 @@ interface ActionToolbarProps {
     setSelectedClass: (c: 'ALL' | 'A' | 'B') => void;
     onNavigate: (view: string) => void;
     onOpenControlPanel: () => void;
+    onOpenExportPanel?: () => void;
     readOnly?: boolean;
 }
 
-export const ActionToolbar: React.FC<ActionToolbarProps> = ({ selectedClass, setSelectedClass, onNavigate, onOpenControlPanel, readOnly }) => {
+export const ActionToolbar: React.FC<ActionToolbarProps> = ({ selectedClass, setSelectedClass, onNavigate, onOpenControlPanel, onOpenExportPanel, readOnly }) => {
     const { gameConfig, updateGameConfig } = useGame();
 
     const handleCycleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -73,7 +74,7 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({ selectedClass, set
                 )}
             </div>
     
-            {/* Actions / Control Center */}
+             {/* Actions / Control Center */}
             {!readOnly && (
             <div className="flex gap-2 w-full md:w-auto">
                  <button 

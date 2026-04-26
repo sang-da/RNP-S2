@@ -27,19 +27,54 @@ export const ReviewAudit: React.FC<ReviewAuditProps> = ({ reviews, agencies }) =
             const agencyName = agencies.find(a => a.id === agencyId)?.name || 'Agence Inconnue';
             
             // Calculate average and variance for this reviewer this week
-            const scores = reviewerReviews.map(r => r.totalScore);
+            const scores = reviewerReviews.map(r => {
+                if (r.totalScore !== undefined) return r.totalScore;
+                return ((r.ratings.attendance + r.ratings.quality + r.ratings.involvement) / 15) * 20;
+            });
             const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-            const isAllSame = scores.every(s => s === scores[0]);
+            
+            // Check for identical scores
+            const isAllSameScore = scores.every(s => s === scores[0]);
 
-            if (isAllSame) {
+            // Check for identical comments (ignoring whitespace)
+            const comments = reviewerReviews.map(r => (r.comment || "").trim().toLowerCase());
+            const isAllSameComment = comments.every(c => c === comments[0]) && comments[0].length > 0;
+
+            if (isAllSameComment) {
                 issues.push({
                     type: 'danger',
-                    title: 'Évaluations Identiques',
-                    description: `A donné exactement la même note (${scores[0]}/20) à tous ses collègues.`,
+                    title: 'Commentaires Identiques',
+                    description: `A copié-collé exactement la même justification pour tous ses collègues.`,
                     reviewerName,
                     agencyName
                 });
-            } else if (avg > 18) {
+            }
+
+            if (isAllSameScore && !isAllSameComment) {
+                issues.push({
+                    type: 'warning',
+                    title: 'Notes Identiques',
+                    description: `A donné exactement la même note (${scores[0].toFixed(1)}/20) à tous ses collègues.`,
+                    reviewerName,
+                    agencyName
+                });
+            }
+
+            // Check for bad grades without justification (less than 10/20, and comment < 30 chars)
+            reviewerReviews.forEach((review, index) => {
+                const score = scores[index];
+                if (score < 10 && (review.comment || "").trim().length <= 30) {
+                    issues.push({
+                        type: 'danger',
+                        title: 'Note sanction non justifiée',
+                        description: `A donné une très mauvaise note (${score.toFixed(1)}/20) à ${review.targetName} sans explication détaillée.`,
+                        reviewerName,
+                        agencyName
+                    });
+                }
+            });
+
+            if (avg > 18) {
                 issues.push({
                     type: 'warning',
                     title: 'Surnotation (Copinage ?)',
@@ -47,10 +82,10 @@ export const ReviewAudit: React.FC<ReviewAuditProps> = ({ reviews, agencies }) =
                     reviewerName,
                     agencyName
                 });
-            } else if (avg < 5) {
+            } else if (avg < 8) {
                 issues.push({
                     type: 'warning',
-                    title: 'Sous-notation (Vengeance ?)',
+                    title: 'Sous-notation (Sévérité extrême)',
                     description: `Moyenne des notes données très basse (${avg.toFixed(1)}/20).`,
                     reviewerName,
                     agencyName

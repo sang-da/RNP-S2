@@ -1,6 +1,6 @@
 
 import { doc, db, runTransaction } from '../../../services/firebase';
-import { Agency, GameEvent, PeerReview, Deliverable } from '../../../types';
+import { Agency, GameEvent, PeerReview, Deliverable, MercatoRequest } from '../../../types';
 import { GAME_RULES, HOLDING_RULES, calculateMarketVE, calculateVECap, applyVEShield } from '../../../constants';
 import { notificationService } from '../../../services/notificationService';
 
@@ -33,21 +33,26 @@ export const useOperationsLogic = (
               }
 
               let cost = 0;
-              if (opType === 'DATA_MINER') cost = 600;
-              if (opType === 'DOXXING') cost = 500;
-              if (opType === 'LEAK') cost = 300;
-              if (opType === 'PUMP_DUMP') cost = 800;
-              if (opType === 'LAUNDERING') cost = 200; 
-              if (opType === 'SHORT_SELL') cost = 500;
-              if (opType === 'CORRUPTED_FILE') cost = 400;
-              if (opType === 'BUY_VOTE') cost = 250;
-              if (opType === 'AUDIT_HOSTILE') cost = 500;
+              let costKarma = 0;
+              if (opType === 'DATA_MINER') { cost = 600; costKarma = 5; }
+              if (opType === 'DOXXING') { cost = 500; costKarma = 10; }
+              if (opType === 'LEAK') { cost = 300; costKarma = 5; }
+              if (opType === 'PUMP_DUMP') { cost = 800; costKarma = 15; }
+              if (opType === 'LAUNDERING') { cost = 200; costKarma = 20; } 
+              if (opType === 'SHORT_SELL') { cost = 500; costKarma = 5; }
+              if (opType === 'CORRUPTED_FILE') { cost = 400; costKarma = 20; }
+              if (opType === 'BUY_VOTE') { cost = 250; costKarma = 15; }
+              if (opType === 'AUDIT_HOSTILE') { cost = 500; costKarma = 10; }
 
               if ((student.wallet || 0) < cost && opType !== 'LAUNDERING') {
                   throw new Error("Fonds insuffisants");
               }
 
-              let updatedMembers = agency.members.map(m => m.id === studentId ? { ...m, wallet: (m.wallet || 0) - cost } : m);
+              let updatedMembers = agency.members.map(m => m.id === studentId ? { 
+                  ...m, 
+                  wallet: (m.wallet || 0) - cost,
+                  karma: (m.karma || 50) - costKarma
+              } : m);
               let description = `Opération ${opType} effectuée par ${student.name}.`;
               let eventType: any = 'BLACK_OP';
               let eventLabel = `Opération: ${opType}`;
@@ -88,6 +93,58 @@ export const useOperationsLogic = (
                       pendingEffects: [...(target.pendingEffects || []), { type: 'PUMP_DUMP_CRASH', amount: -12, label: 'Crash Boursier (Suite Pump&Dump)' }]
                   });
                   description = `Pump & Dump initié sur ${target.name}. (+5 VE)`;
+              }
+              else if (opType === 'AUDIT_HOSTILE' && target && targetRef) {
+                  transaction.update(targetRef, {
+                      pendingEffects: [...(target.pendingEffects || []), { 
+                          type: 'AUDIT_HOSTILE', 
+                          amount: Math.floor(Math.random() * -10) - 5, // -5 to -15 VE
+                          label: 'Redressement (Suite Audit Hostile)' 
+                      }]
+                  });
+                  description = `Audit Hostile déclenché contre ${target.name}.`;
+                  eventLabel = "Dénonciation Fiscale";
+              }
+              else if (opType === 'SHORT_SELL' && target && targetRef) {
+                  transaction.update(agencyRef, {
+                      pendingEffects: [...(agency.pendingEffects || []), { 
+                          type: 'SHORT_SELL_PAYOUT', 
+                          amount: 1200, 
+                          label: 'Gains Short Selling',
+                          targetId: target.id,
+                          targetStartingVE: target.ve_current,
+                          studentId: studentId
+                      }]
+                  });
+                  description = `Short Sell placé sur ${target.name}. Gain de 1200 PiXi si leur VE baisse.`;
+                  eventLabel = "Short Selling Initié";
+              }
+              else if (opType === 'BUY_VOTE' && payload.targetAgencyId && payload.requestId) {
+                  const targetAgencyRef = doc(db, "agencies", payload.targetAgencyId);
+                  const targetAgencyDoc = await transaction.get(targetAgencyRef);
+                  if (!targetAgencyDoc.exists) throw new Error("Agence cible pour vote introuvable");
+                  
+                  const targetAgency = targetAgencyDoc.data() as Agency;
+                  const reqIndex = targetAgency.mercatoRequests?.findIndex(r => r.id === payload.requestId);
+                  if (reqIndex === undefined || reqIndex === -1) throw new Error("Requête mercato introuvable");
+
+                  const req = targetAgency.mercatoRequests[reqIndex];
+                  const phantomId = `ghost-${Date.now()}`;
+                  
+                  const updatedReq: MercatoRequest = {
+                      ...req,
+                      votes: { ...(req.votes || {}), [phantomId]: 'APPROVE' as const }
+                  };
+                  
+                  const newMercatoRequests = [...targetAgency.mercatoRequests];
+                  newMercatoRequests[reqIndex] = updatedReq;
+                  
+                  transaction.update(targetAgencyRef, {
+                      mercatoRequests: newMercatoRequests
+                  });
+                  
+                  description = `Vote 'APPROVE' (Fantôme) ajouté secrètement à la requête Mercato de ${req.studentName}.`;
+                  eventLabel = "Bourrage d'Urne";
               }
               else if (opType === 'CORRUPTED_FILE' && payload.weekId) {
                   const roll = Math.random();

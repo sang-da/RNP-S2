@@ -167,8 +167,8 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
 
             // --- HOLDING: EJECTABLE SEAT CHECK ---
             // On vérifie si les membres ont été suggérés MVP cette semaine
-            const weekDeliverables = currentWeekConfig?.deliverables || [];
-            const mvpSuggestions = weekDeliverables.map(d => d.nominatedMvpId).filter(Boolean);
+            const agencyDeliverables = agency.progress[currentWeekId]?.deliverables || [];
+            const mvpSuggestions = agencyDeliverables.map(d => d.grading?.mvpId || d.nominatedMvpId).filter(Boolean);
 
             const updatedMembers = (agency.members || []).map(member => {
                 let scoreDelta = 0;
@@ -311,18 +311,47 @@ export const usePerformanceLogic = (agencies: Agency[], reviews: PeerReview[], w
             // --- 3. CALCUL VE (AVEC TOLÉRANCE OVERCAP) ---
             let veAdjustment = 0;
             
-            // 0. PENDING EFFECTS (ex: Pump & Dump Crash)
+            // 0. PENDING EFFECTS (ex: Pump & Dump Crash, Short Sell Payout)
             if (agency.pendingEffects && agency.pendingEffects.length > 0) {
                 agency.pendingEffects.forEach(effect => {
-                    veAdjustment += effect.amount;
-                    logEvents.push({
-                        id: `pending-eff-${Date.now()}-${agency.id}`,
-                        date: today,
-                        type: effect.amount > 0 ? 'VE_DELTA' : 'CRISIS',
-                        label: effect.label,
-                        deltaVE: effect.amount,
-                        description: `Effet différé appliqué (${effect.amount > 0 ? '+' : ''}${effect.amount} VE).`
-                    });
+                    if (effect.type === 'SHORT_SELL_PAYOUT') {
+                        const target = agencies.find(a => a.id === effect.targetId);
+                        if (target && effect.targetStartingVE && effect.studentId) {
+                            if (target.ve_current < effect.targetStartingVE) {
+                                // Add amount to student's wallet
+                                const s = updatedMembers.find(m => m.id === effect.studentId);
+                                if (s) {
+                                    s.wallet = (s.wallet || 0) + effect.amount;
+                                    logEvents.push({
+                                        id: `shortsell-win-${Date.now()}-${agency.id}`,
+                                        date: today,
+                                        type: 'REVENUE',
+                                        label: 'Gain Short Selling',
+                                        deltaBudgetReal: 0,
+                                        description: `Le pari contre ${target.name} a réussi. +${effect.amount} PiXi pour ${s.name}.`
+                                    });
+                                }
+                            } else {
+                                logEvents.push({
+                                    id: `shortsell-loss-${Date.now()}-${agency.id}`,
+                                    date: today,
+                                    type: 'INFO',
+                                    label: 'Perte Short Selling',
+                                    description: `Le pari contre ${target.name} a échoué (La VE n'a pas baissé).`
+                                });
+                            }
+                        }
+                    } else {
+                        veAdjustment += effect.amount;
+                        logEvents.push({
+                            id: `pending-eff-${Date.now()}-${agency.id}`,
+                            date: today,
+                            type: effect.amount > 0 ? 'VE_DELTA' : 'CRISIS',
+                            label: effect.label,
+                            deltaVE: effect.amount,
+                            description: `Effet différé appliqué (${effect.amount > 0 ? '+' : ''}${effect.amount} VE).`
+                        });
+                    }
                 });
             }
 
