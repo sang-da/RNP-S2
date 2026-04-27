@@ -51,6 +51,36 @@ export const QuizResults: React.FC<QuizResultsProps> = ({ quiz, onBack }) => {
     const getStudentName = (id: string) => students[id]?.name || "Étudiant inconnu";
     const getStudentAvatar = (id: string) => students[id]?.avatarUrl || null;
 
+    const handleExportCSV = () => {
+        if (attempts.length === 0) return;
+
+        const headers = ["Étudiant", "Agence", "Date", "Score", "Score Max", "Points gagnés", "PiXi gagnés"];
+        const rows = attempts.map(attempt => {
+            const studentName = getStudentName(attempt.studentId);
+            const agency = agencies.find(a => a.members.some(m => m.id === attempt.studentId))?.name || "Sans agence";
+            const date = new Date(attempt.date).toLocaleString();
+            
+            return [
+                `"${studentName}"`,
+                `"${agency}"`,
+                `"${date}"`,
+                attempt.score,
+                attempt.maxScore,
+                attempt.rewardsEarned?.points || 0,
+                attempt.rewardsEarned?.pixi || 0
+            ].join(",");
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Resultats_${quiz.title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     if (loading) {
         return <div className="p-12 text-center text-slate-500">Chargement des résultats...</div>;
     }
@@ -67,7 +97,11 @@ export const QuizResults: React.FC<QuizResultsProps> = ({ quiz, onBack }) => {
                         <p className="text-slate-500">{attempts.length} participation(s)</p>
                     </div>
                 </div>
-                <button className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold text-sm hover:bg-slate-200 flex items-center gap-2">
+                <button 
+                    onClick={handleExportCSV}
+                    disabled={attempts.length === 0}
+                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold text-sm hover:bg-slate-200 flex items-center gap-2 disabled:opacity-50"
+                >
                     <Download size={16}/> Exporter CSV
                 </button>
             </div>

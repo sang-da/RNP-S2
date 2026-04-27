@@ -26,8 +26,9 @@ export const useOperationsLogic = (
 
               let targetRef = null;
               let target = null;
-              if (payload.targetId) {
-                  targetRef = doc(db, "agencies", payload.targetId);
+              let targetIdForUpdate = payload.targetId || (payload.targetAgencyId ? payload.targetAgencyId : null);
+              if (targetIdForUpdate) {
+                  targetRef = doc(db, "agencies", targetIdForUpdate);
                   const targetDoc = await transaction.get(targetRef);
                   if (targetDoc.exists) target = targetDoc.data() as Agency;
               }
@@ -57,6 +58,15 @@ export const useOperationsLogic = (
               let eventType: any = 'BLACK_OP';
               let eventLabel = `Opération: ${opType}`;
               
+              const agencyUpdates: any = { members: updatedMembers };
+              const targetUpdates: any = {};
+              let updateTarget = false;
+              let updateAgency = true;
+
+              if (opType === 'CORRUPTED_FILE' && payload.weekId) {
+                  updateAgency = false; // We handle agencyUpdates manually below or at the end
+              }
+
               if (opType === 'DATA_MINER' && payload.targetId) {
                   description = `Extraction de données stratégiques sur cible externe.`;
               }
@@ -65,7 +75,7 @@ export const useOperationsLogic = (
                   const CASH_GAIN = 500; 
                   
                   if (student.individualScore >= SCORE_COST) {
-                      updatedMembers = updatedMembers.map(m => m.id === studentId ? { 
+                      agencyUpdates.members = updatedMembers.map(m => m.id === studentId ? { 
                           ...m, 
                           individualScore: m.individualScore - SCORE_COST,
                           wallet: (m.wallet || 0) + CASH_GAIN 
@@ -87,48 +97,42 @@ export const useOperationsLogic = (
                   const targetVECap = calculateVECap(target);
                   const finalVE = applyVEShield(target.ve_current, 5, targetMarketVE, targetVECap);
 
-                  transaction.update(targetRef, {
-                      ve_current: finalVE,
-                      eventLog: [...target.eventLog, immediateEvent],
-                      pendingEffects: [...(target.pendingEffects || []), { type: 'PUMP_DUMP_CRASH', amount: -12, label: 'Crash Boursier (Suite Pump&Dump)' }]
-                  });
+                  updateTarget = true;
+                  targetUpdates.ve_current = finalVE;
+                  targetUpdates.eventLog = [...target.eventLog, immediateEvent];
+                  targetUpdates.pendingEffects = [...(target.pendingEffects || []), { type: 'PUMP_DUMP_CRASH', amount: -12, label: 'Crash Boursier (Suite Pump&Dump)' }];
+                  
                   description = `Pump & Dump initié sur ${target.name}. (+5 VE)`;
               }
               else if (opType === 'AUDIT_HOSTILE' && target && targetRef) {
-                  transaction.update(targetRef, {
-                      pendingEffects: [...(target.pendingEffects || []), { 
-                          type: 'AUDIT_HOSTILE', 
-                          amount: Math.floor(Math.random() * -10) - 5, // -5 to -15 VE
-                          label: 'Redressement (Suite Audit Hostile)' 
-                      }]
-                  });
+                  updateTarget = true;
+                  targetUpdates.pendingEffects = [...(target.pendingEffects || []), { 
+                      type: 'AUDIT_HOSTILE', 
+                      amount: Math.floor(Math.random() * -10) - 5, // -5 to -15 VE
+                      label: 'Redressement (Suite Audit Hostile)' 
+                  }];
                   description = `Audit Hostile déclenché contre ${target.name}.`;
                   eventLabel = "Dénonciation Fiscale";
               }
               else if (opType === 'SHORT_SELL' && target && targetRef) {
-                  transaction.update(agencyRef, {
-                      pendingEffects: [...(agency.pendingEffects || []), { 
-                          type: 'SHORT_SELL_PAYOUT', 
-                          amount: 1200, 
-                          label: 'Gains Short Selling',
-                          targetId: target.id,
-                          targetStartingVE: target.ve_current,
-                          studentId: studentId
-                      }]
-                  });
+                  agencyUpdates.pendingEffects = [...(agency.pendingEffects || []), { 
+                      type: 'SHORT_SELL_PAYOUT', 
+                      amount: 1200, 
+                      label: 'Gains Short Selling',
+                      targetId: target.id,
+                      targetStartingVE: target.ve_current,
+                      studentId: studentId
+                  }];
                   description = `Short Sell placé sur ${target.name}. Gain de 1200 PiXi si leur VE baisse.`;
                   eventLabel = "Short Selling Initié";
               }
               else if (opType === 'BUY_VOTE' && payload.targetAgencyId && payload.requestId) {
-                  const targetAgencyRef = doc(db, "agencies", payload.targetAgencyId);
-                  const targetAgencyDoc = await transaction.get(targetAgencyRef);
-                  if (!targetAgencyDoc.exists) throw new Error("Agence cible pour vote introuvable");
+                  if (!target) throw new Error("Agence cible pour vote introuvable");
                   
-                  const targetAgency = targetAgencyDoc.data() as Agency;
-                  const reqIndex = targetAgency.mercatoRequests?.findIndex(r => r.id === payload.requestId);
+                  const reqIndex = target.mercatoRequests?.findIndex(r => r.id === payload.requestId);
                   if (reqIndex === undefined || reqIndex === -1) throw new Error("Requête mercato introuvable");
 
-                  const req = targetAgency.mercatoRequests[reqIndex];
+                  const req = target.mercatoRequests[reqIndex];
                   const phantomId = `ghost-${Date.now()}`;
                   
                   const updatedReq: MercatoRequest = {
@@ -136,17 +140,17 @@ export const useOperationsLogic = (
                       votes: { ...(req.votes || {}), [phantomId]: 'APPROVE' as const }
                   };
                   
-                  const newMercatoRequests = [...targetAgency.mercatoRequests];
+                  const newMercatoRequests = [...target.mercatoRequests];
                   newMercatoRequests[reqIndex] = updatedReq;
                   
-                  transaction.update(targetAgencyRef, {
-                      mercatoRequests: newMercatoRequests
-                  });
+                  updateTarget = true;
+                  targetUpdates.mercatoRequests = newMercatoRequests;
                   
                   description = `Vote 'APPROVE' (Fantôme) ajouté secrètement à la requête Mercato de ${req.studentName}.`;
                   eventLabel = "Bourrage d'Urne";
               }
               else if (opType === 'CORRUPTED_FILE' && payload.weekId) {
+                  updateAgency = true; // reactivate agency updates
                   const roll = Math.random();
                   const success = roll < 0.40; 
                   
@@ -169,11 +173,10 @@ export const useOperationsLogic = (
                               const marketVE = calculateMarketVE(agency);
                               const finalVE = applyVEShield(agency.ve_current, 4, marketVE, veCap);
 
-                              transaction.update(agencyRef, {
-                                  [`progress.${payload.weekId}`]: updatedWeek,
-                                  ve_current: finalVE,
-                                  eventLog: [...agency.eventLog, newEvent]
-                              });
+                              agencyUpdates[`progress.${payload.weekId}`] = updatedWeek;
+                              agencyUpdates.ve_current = finalVE;
+                              agencyUpdates.eventLog = [...agency.eventLog, newEvent];
+                              
                               description = "Fichier corrompu accepté. Gain de temps.";
                           } else {
                               throw new Error("Aucun livrable en attente pour corrompre.");
@@ -184,7 +187,7 @@ export const useOperationsLogic = (
                           id: `corrupt-fail-${Date.now()}`, date: new Date().toISOString().split('T')[0],
                           type: 'CRISIS', label: 'Fraude Détectée', deltaVE: 0, description: "Tentative de fichier corrompu repérée. Blâme."
                       };
-                      transaction.update(agencyRef, { eventLog: [...agency.eventLog, failEvent] });
+                      agencyUpdates.eventLog = [...agency.eventLog, failEvent];
                       description = "Fraude détectée. L'administration est prévenue.";
                   }
               }
@@ -199,10 +202,7 @@ export const useOperationsLogic = (
               };
 
               if (opType !== 'CORRUPTED_FILE') { 
-                  transaction.update(agencyRef, { 
-                      members: updatedMembers,
-                      eventLog: [...agency.eventLog, newEvent]
-                  });
+                  agencyUpdates.eventLog = [...(agencyUpdates.eventLog || agency.eventLog), newEvent];
               }
 
               // Notification for the group
@@ -221,25 +221,34 @@ export const useOperationsLogic = (
                   const finalVE = applyVEShield(target.ve_current, -10, targetMarketVE, targetVECap);
 
                   if (isFragile) {
-                      transaction.update(targetRef, { 
-                          ve_current: finalVE,
-                          eventLog: [...target.eventLog, {
-                              id: `audit-hit-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
-                              label: 'Audit Hostile Subi', deltaVE: -10, description: "Des failles ont été exposées."
-                          }]
-                      });
+                      targetUpdates.ve_current = finalVE;
+                      targetUpdates.eventLog = [...(targetUpdates.eventLog || target.eventLog), {
+                          id: `audit-hit-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
+                          label: 'Audit Hostile Subi', deltaVE: -10, description: "Des failles ont été exposées."
+                      }];
                   } else {
                       const sourceMarketVE = calculateMarketVE(agency);
                       const sourceVECap = calculateVECap(agency);
                       const finalSourceVE = applyVEShield(agency.ve_current, -20, sourceMarketVE, sourceVECap);
 
-                      transaction.update(agencyRef, {
-                          ve_current: finalSourceVE,
-                          eventLog: [...agency.eventLog, newEvent, {
-                              id: `audit-fail-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
-                              label: 'Audit Abusif', deltaVE: -20, description: "Attaque ratée sur cible saine."
-                          }]
-                      });
+                      agencyUpdates.ve_current = finalSourceVE;
+                      agencyUpdates.eventLog = [...(agencyUpdates.eventLog || agency.eventLog), {
+                          id: `audit-fail-${Date.now()}`, date: new Date().toISOString().split('T')[0], type: 'CRISIS',
+                          label: 'Audit Abusif', deltaVE: -20, description: "Attaque ratée sur cible saine."
+                      }];
+                  }
+              }
+
+              if (updateAgency) {
+                  transaction.update(agencyRef, agencyUpdates);
+              }
+              
+              if (updateTarget && targetRef) {
+                  if (targetRef.id !== agencyRef.id) {
+                      transaction.update(targetRef, targetUpdates);
+                  } else {
+                      // If the target is the same agency, merge updates
+                      transaction.update(agencyRef, { ...agencyUpdates, ...targetUpdates });
                   }
               }
           });
@@ -339,9 +348,19 @@ export const useOperationsLogic = (
                   throw new Error(`Le nombre total de membres ne peut pas dépasser ${GAME_RULES.MERGER_MAX_MEMBERS}.`);
               }
 
+              const currentWeekStr = `S${getCurrentGameWeek()}`;
               const updatedTargetMembers = target.members.map(m => ({
                   ...m,
-                  role: 'Employé'
+                  role: 'Employé',
+                  history: [...(m.history || []), {
+                      id: `merger-${Date.now()}-${m.id}`,
+                      date: new Date().toISOString().split('T')[0],
+                      weekId: currentWeekStr,
+                      agencyName: target.name,
+                      action: 'TRANSFER' as const,
+                      contextVE: target.ve_current,
+                      reason: `Rachat par ${source.name}`
+                  }]
               }));
 
               const combinedMembers = [...source.members, ...updatedTargetMembers];

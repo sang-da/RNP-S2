@@ -205,13 +205,22 @@ export const AdminMercato: React.FC<AdminMercatoProps> = ({ agencies, onUpdateAg
       const sourceAgency = studentData.agency;
 
       const newHistory = [...(student.history || [])];
+      
+      let actionType: 'LEFT' | 'JOINED' | 'PROMOTED' | 'DEMOTED' | 'TRANSFER' | 'FIRED' | 'RESIGNED' = 'LEFT';
+
       if (sourceAgency.id !== 'unassigned') {
+          if (request.type === 'FIRE') {
+              actionType = request.requesterId === request.studentId ? 'RESIGNED' : 'FIRED';
+          } else if (request.type === 'HIRE') {
+              actionType = 'TRANSFER';
+          }
+          
           newHistory.push({
               id: 'h-' + Date.now() + Math.random().toString(36).substr(2, 5),
               date: today,
               weekId: currentWeekId,
               agencyName: sourceAgency.name,
-              action: 'LEFT',
+              action: actionType,
               contextVE: sourceAgency.ve_current,
               reason: request.motivation || "Mercato"
           });
