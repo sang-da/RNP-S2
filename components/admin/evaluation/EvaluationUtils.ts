@@ -37,13 +37,24 @@ export const calculateDeliverableScore = (agency: Agency, criterionId?: string, 
     let count = 0;
 
     relevantDeliverables.forEach(d => {
-        if (!d.grading) return;
+        if (!d.grading) {
+            // Count missing or rejected deliverables as 0 instead of ignoring them
+            if (d.status === 'pending' || d.status === 'rejected') {
+                totalScore += 0; // 0 points
+                count++;         // Adds to denominator
+            }
+            return;
+        }
         
         let score = 0;
         if (d.grading.quality === 'A') score = 20;
         else if (d.grading.quality === 'B') score = 15;
         else if (d.grading.quality === 'C') score = 10;
-        else return; // Non évalué
+        else {
+            totalScore += 0;
+            count++;
+            return;
+        }
 
         if (d.grading.daysLate > 0) score -= (d.grading.daysLate * 2);
         if (d.grading.mvpId || d.nominatedMvpId) score += 2;
