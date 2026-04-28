@@ -54,31 +54,53 @@ export const QuizResults: React.FC<QuizResultsProps> = ({ quiz, onBack }) => {
     const handleExportCSV = () => {
         if (attempts.length === 0) return;
 
-        const headers = ["Étudiant", "Agence", "Date", "Score", "Score Max", "Points gagnés", "PiXi gagnés"];
+        const escapeCSV = (str: any) => {
+            if (str === null || str === undefined) return '""';
+            const escaped = String(str).replace(/"/g, '""');
+            return `"${escaped}"`;
+        };
+
+        const baseHeaders = ["Étudiant", "Agence", "Date", "Score", "Score Max", "Points gagnés", "PiXi gagnés"];
+        const questionHeaders = quiz.questions.map((q, idx) => `Q${idx + 1}: ${q.text}`);
+        const headers = [...baseHeaders, ...questionHeaders].map(escapeCSV);
+
         const rows = attempts.map(attempt => {
             const studentName = getStudentName(attempt.studentId);
             const agency = agencies.find(a => a.members.some(m => m.id === attempt.studentId))?.name || "Sans agence";
             const date = new Date(attempt.date).toLocaleString();
             
-            return [
-                `"${studentName}"`,
-                `"${agency}"`,
-                `"${date}"`,
+            const baseData = [
+                escapeCSV(studentName),
+                escapeCSV(agency),
+                escapeCSV(date),
                 attempt.score,
                 attempt.maxScore,
                 attempt.rewardsEarned?.points || 0,
                 attempt.rewardsEarned?.pixi || 0
-            ].join(",");
+            ];
+
+            const questionAnswers = quiz.questions.map(q => {
+                const answer = attempt.answers?.[q.id];
+                if (q.type === 'choice') {
+                    return escapeCSV(q.options?.[answer as number] || "Non répondu");
+                }
+                return escapeCSV(answer || "Non répondu");
+            });
+
+            return [...baseData, ...questionAnswers].join(",");
         });
 
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows].join("\n");
-        const encodedUri = encodeURI(csvContent);
+        const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `Resultats_${quiz.title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     if (loading) {
