@@ -95,7 +95,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     }, [referentialRules]);
 
     const [weights, setWeights] = useState({
-        group: { ve: 2, budget: 2, deliverables: 2, ai: 4 },
+        group: { ve: 2, budget: 2, deliverables: 2, ai: 4, budgetMaxPixi: 5000 },
         individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3 }
     });
 
@@ -221,7 +221,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                         setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'étudiant ${student.name} (${agency.name})...` } : null);
                         
                         const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                        const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
+                        const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
                         
                         const studentResult: StudentEvalResult = {
                             studentId: student.id,
@@ -305,7 +305,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             if (!student) throw new Error("Étudiant non trouvé.");
 
             const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-            const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
+            const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
             
             // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
             const existingResult = results.find(r => r.studentId === studentId);
@@ -386,7 +386,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                 toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                 
                 const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
-                const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews);
+                const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
                 
                 const studentResult: StudentEvalResult = {
                     studentId: student.id,

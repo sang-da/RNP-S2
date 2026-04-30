@@ -3,11 +3,11 @@ import { Settings } from 'lucide-react';
 
 interface EvaluationSettingsProps {
     weights: {
-        group: { ve: number, budget: number, deliverables?: number, ai: number },
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number },
         individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     };
     setWeights: React.Dispatch<React.SetStateAction<{
-        group: { ve: number, budget: number, deliverables?: number, ai: number },
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number },
         individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     }>>;
     referentialRules: string;
@@ -77,6 +77,20 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             className="w-full"
                         />
                         <div className="text-right text-xs text-slate-500">Coef: {weights.group.budget} {totalGroupWeight > 0 ? `(${Math.round((weights.group.budget / totalGroupWeight) * 100)}%)` : ''}</div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Plafond Budget (PiXi pour 20/20)</span>
+                            <span className="text-xs font-normal text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Paramètre Algo</span>
+                        </label>
+                        <input 
+                            type="number" min="100" step="100" 
+                            value={weights.group.budgetMaxPixi || 5000} 
+                            onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, budgetMaxPixi: parseInt(e.target.value) || 5000}}))}
+                            className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50"
+                        />
+                        <div className="text-xs text-slate-500 mt-1">Si l'agence a ≥ {weights.group.budgetMaxPixi || 5000} PiXi, elle aura 20/20 à la note de budget. (Défaut: 5000)</div>
                     </div>
 
                     <div>

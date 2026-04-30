@@ -68,12 +68,13 @@ export const calculateDeliverableScore = (agency: Agency, criterionId?: string, 
     return totalScore / count;
 };
 
-export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: Record<string, string[]>, globalReviews?: PeerReview[]) => {
+export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: Record<string, string[]>, globalReviews?: PeerReview[], weights?: any) => {
     // VE Score (max 20, assuming 100 VE = 20/20)
     const veScore = Math.min(20, Math.max(0, (agency.ve_current / 100) * 20));
     
-    // Budget Score (max 20, assuming 5000 PiXi = 20/20)
-    const budgetScore = Math.min(20, Math.max(0, (agency.budget_real / 5000) * 20));
+    // Budget Score (max 20, configurable budgetMaxPixi, defaults to 5000)
+    const budgetMax = weights?.group?.budgetMaxPixi || 5000;
+    const budgetScore = Math.min(20, Math.max(0, (agency.budget_real / budgetMax) * 20));
 
     // Base Individual Score (max 20, assuming 100 = 20/20)
     const baseIndividualScore = Math.min(20, Math.max(0, (student.individualScore / 100) * 20));
