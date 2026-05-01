@@ -5,6 +5,8 @@ import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, 
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 import { askGroq } from '../../../services/groqService';
+import { useGame } from '../../../contexts/GameContext';
+import { ReviewDataviz } from '../peer-reviews/ReviewDataviz';
 
 interface StudentProfileProps {
     student: Student;
@@ -26,6 +28,20 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     // AI Profiler State
     const [aiProfile, setAiProfile] = useState<any | null>(null);
     const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
+
+    const { reviews: globalReviews } = useGame();
+
+    const enrichedReviewsForDataviz = React.useMemo(() => {
+        return globalReviews.map(review => {
+            const ag = allAgencies.find(a => a.id === review.agencyId);
+            const target = allAgencies.flatMap(a => a.members).find(m => m.id === review.targetId);
+            return {
+                ...review,
+                agencyName: ag ? ag.name : 'Unknown Agency',
+                classId: target ? target.classId : 'Unknown'
+            };
+        });
+    }, [globalReviews, allAgencies]);
 
     const toggleQuiz = (id: string) => {
         setExpandedQuizzes(prev => ({ ...prev, [id]: !prev[id] }));
@@ -390,6 +406,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                         </ResponsiveContainer>
                     </div>
                 </div>
+            </div>
+
+            <div className="w-full">
+                <ReviewDataviz 
+                    reviews={enrichedReviewsForDataviz} 
+                    initialStudentId={student.id} 
+                    hideStudentSelector={true} 
+                    mode="progression_only" 
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

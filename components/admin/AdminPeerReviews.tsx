@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Agency, PeerReview } from '../../types';
-import { HeartHandshake, RefreshCw, ShieldAlert } from 'lucide-react';
+import { HeartHandshake, RefreshCw, ShieldAlert, Download, BarChart2, List, FileJson, FileText } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext'; // USE GLOBAL REVIEWS
 
 // SUB-COMPONENTS
@@ -9,6 +9,7 @@ import { ReviewFilters } from './peer-reviews/ReviewFilters';
 import { ReviewTable } from './peer-reviews/ReviewTable';
 import { ReviewStats } from './peer-reviews/ReviewStats';
 import { ReviewAudit } from './peer-reviews/ReviewAudit';
+import { ReviewDataviz } from './peer-reviews/ReviewDataviz';
 
 interface AdminPeerReviewsProps {
     agencies: Agency[];
@@ -21,12 +22,52 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
     const [filterAgencyId, setFilterAgencyId] = useState<string>('ALL');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showAudit, setShowAudit] = useState(false);
+    const [viewMode, setViewMode] = useState<'list' | 'dataviz'>('list');
     const { reviews: globalReviews } = useGame(); // GET GLOBAL REVIEWS
 
     const handleRefresh = () => {
         setIsRefreshing(true);
         // Simulate a refresh delay since data is synced via onSnapshot
         setTimeout(() => setIsRefreshing(false), 800);
+    };
+
+    const handleExportCSV = () => {
+        const headers = ["ID", "Semaine", "Date", "Reviewer_ID", "Reviewer_Nom", "Cible_ID", "Cible_Nom", "Agence", "Assiduité", "Qualité", "Implication", "Score_Total", "Commentaire"];
+        
+        const rows = enrichedReviews.map(r => [
+            r.id,
+            r.weekId,
+            r.date,
+            r.reviewerId,
+            r.reviewerName,
+            r.targetId,
+            r.targetName,
+            r.agencyName,
+            r.ratings.attendance,
+            r.ratings.quality,
+            r.ratings.involvement,
+            r.totalScore || 0,
+            `"${(r.comment || '').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+        downloadFile(csvContent, 'bilans_rh_export.csv', 'text/csv;charset=utf-8;');
+    };
+
+    const handleExportJSON = () => {
+        const jsonContent = JSON.stringify(enrichedReviews, null, 2);
+        downloadFile(jsonContent, 'bilans_rh_export.json', 'application/json');
+    };
+
+    const downloadFile = (content: string, fileName: string, mimeType: string) => {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // 1. ENRICHISSEMENT DES DONNÉES (Pour l'affichage)
@@ -83,22 +124,57 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
                         <span className="font-bold text-slate-700 ml-1">{globalReviews.length} avis enregistrés.</span>
                     </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 flex-wrap justify-end">
+                    <button 
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                        title="Exporter en CSV"
+                    >
+                        <Download size={16} />
+                        <span className="font-medium hidden sm:inline">CSV</span>
+                    </button>
+                    <button 
+                        onClick={handleExportJSON}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                        title="Exporter en JSON"
+                    >
+                        <FileJson size={16} />
+                        <span className="font-medium hidden sm:inline">JSON</span>
+                    </button>
                     <button 
                         onClick={() => setShowAudit(!showAudit)}
-                        className={`flex items-center gap-2 px-4 py-2 border rounded-xl transition-colors shadow-sm font-medium ${showAudit ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        className={`flex items-center gap-2 px-3 py-2 border rounded-xl transition-colors shadow-sm font-medium ${showAudit ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                     >
-                        <ShieldAlert size={18} />
-                        <span>Audit Anomalies</span>
+                        <ShieldAlert size={16} />
+                        <span className="hidden sm:inline">Audit</span>
                     </button>
                     <button 
                         onClick={handleRefresh}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                        title="Rafraîchir"
                     >
-                        <RefreshCw size={18} className={isRefreshing ? "animate-spin text-indigo-600" : ""} />
-                        <span className="font-medium">Rafraîchir les données</span>
+                        <RefreshCw size={16} className={isRefreshing ? "animate-spin text-indigo-600" : ""} />
+                        <span className="font-medium hidden sm:inline">Rafraîchir</span>
                     </button>
                 </div>
+            </div>
+
+            {/* VIEW MODE TABS */}
+            <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-max mx-auto overflow-x-auto hide-scrollbar">
+                <button 
+                    onClick={() => setViewMode('list')}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${viewMode === 'list' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                >
+                    <List size={18} />
+                    <span>Vue Liste d'avis</span>
+                </button>
+                <button 
+                    onClick={() => setViewMode('dataviz')}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${viewMode === 'dataviz' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                >
+                    <BarChart2 size={18} />
+                    <span>Mode Dataviz</span>
+                </button>
             </div>
 
             {showAudit && (
@@ -110,18 +186,26 @@ export const AdminPeerReviews: React.FC<AdminPeerReviewsProps> = ({ agencies }) 
             {/* STATS RAPIDES */}
             <ReviewStats reviews={filteredReviews} />
 
-            {/* FILTRES & RECHERCHE */}
-            <ReviewFilters 
-                searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                filterClass={filterClass} setFilterClass={setFilterClass}
-                filterWeek={filterWeek} setFilterWeek={setFilterWeek}
-                filterAgencyId={filterAgencyId} setFilterAgencyId={setFilterAgencyId}
-                availableWeeks={availableWeeks}
-                agencies={agencies.filter(a => a.id !== 'unassigned')}
-            />
+            {viewMode === 'dataviz' ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <ReviewDataviz reviews={filteredReviews} />
+                </div>
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+                    {/* FILTRES & RECHERCHE */}
+                    <ReviewFilters 
+                        searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                        filterClass={filterClass} setFilterClass={setFilterClass}
+                        filterWeek={filterWeek} setFilterWeek={setFilterWeek}
+                        filterAgencyId={filterAgencyId} setFilterAgencyId={setFilterAgencyId}
+                        availableWeeks={availableWeeks}
+                        agencies={agencies.filter(a => a.id !== 'unassigned')}
+                    />
 
-            {/* LISTE DES REVIEWS */}
-            <ReviewTable reviews={filteredReviews} onResetFilters={resetFilters} />
+                    {/* LISTE DES REVIEWS */}
+                    <ReviewTable reviews={filteredReviews} onResetFilters={resetFilters} />
+                </div>
+            )}
 
         </div>
     );
