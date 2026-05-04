@@ -200,11 +200,17 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             
             setEvaluationProgress({ total: totalMembers, current: 0, label: "Initialisation de l'évaluation..." });
 
+            const skipGroupAI = weights.group.ai === 0;
+            const skipIndividualAI = weights.individual.ai === 0;
+
             for (let i = 0; i < agenciesToEval.length; i++) {
                 const agency = agenciesToEval[i];
                 try {
                     setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'agence ${agency.name} (${i + 1}/${agenciesToEval.length})...` } : null);
-                    const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
+                    let groupEvaluation: CriterionEval[] = [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }];
+                    if (!skipGroupAI) {
+                        groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
+                    }
                     
                     const updatedAgency = { ...agency };
                     const agencyResults: StudentEvalResult[] = [];
@@ -213,14 +219,17 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
                     const updatedMembers = [];
                     for (let j = 0; j < updatedAgency.members.length; j++) {
                         // Add a small delay between requests to avoid rate limits
-                        if (j > 0) {
+                        if (!skipIndividualAI && j > 0) {
                             await new Promise(resolve => setTimeout(resolve, 2000));
                         }
                         
                         const student = updatedAgency.members[j];
                         setEvaluationProgress(prev => prev ? { ...prev, label: `Évaluation de l'étudiant ${student.name} (${agency.name})...` } : null);
                         
-                        const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+                        let memberEvalResult: { criteria: CriterionEval[]; studentFeedback: string; } = { criteria: [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }], studentFeedback: "L'évaluation IA individuelle est désactivée." };
+                        if (!skipIndividualAI) {
+                            memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+                        }
                         const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
                         
                         const studentResult: StudentEvalResult = {
@@ -304,7 +313,12 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const student = agency.members.find(m => m.id === studentId);
             if (!student) throw new Error("Étudiant non trouvé.");
 
-            const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+            const skipIndividualAI = weights.individual.ai === 0;
+
+            let memberEvalResult: { criteria: CriterionEval[]; studentFeedback: string; } = { criteria: [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }], studentFeedback: "L'évaluation IA individuelle est désactivée." };
+            if (!skipIndividualAI) {
+                memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+            }
             const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
             
             // We need the existing group evaluation for this student, or we fetch a new one if it doesn't exist
@@ -369,7 +383,13 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const agency = agencies.find(a => a.id === agencyId);
             if (!agency) throw new Error("Agence non trouvée.");
 
-            const groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
+            const skipGroupAI = weights.group.ai === 0;
+            const skipIndividualAI = weights.individual.ai === 0;
+
+            let groupEvaluation: CriterionEval[] = [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }];
+            if (!skipGroupAI) {
+                groupEvaluation = await evaluateAgencyWithGroq(agency, referentialRules, groupPrompt, dataConfig);
+            }
             
             const updatedAgency = { ...agency };
             const agencyResults: StudentEvalResult[] = [];
@@ -378,14 +398,17 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const updatedMembers = [];
             for (let j = 0; j < updatedAgency.members.length; j++) {
                 // Add a small delay between requests to avoid rate limits
-                if (j > 0) {
+                if (!skipIndividualAI && j > 0) {
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 
                 const student = updatedAgency.members[j];
                 toast('info', `Évaluation de l'étudiant ${student.name} (${j + 1}/${updatedAgency.members.length})...`);
                 
-                const memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+                let memberEvalResult: { criteria: CriterionEval[]; studentFeedback: string; } = { criteria: [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }], studentFeedback: "L'évaluation IA individuelle est désactivée." };
+                if (!skipIndividualAI) {
+                    memberEvalResult = await evaluateMemberWithGroq(agency, student, referentialRules, individualPrompt, dataConfig);
+                }
                 const algoScores = calculateAlgoScores(agency, student, deliverableMapping, globalReviews, weights);
                 
                 const studentResult: StudentEvalResult = {

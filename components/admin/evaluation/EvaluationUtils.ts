@@ -134,7 +134,9 @@ export const getWeightedIndividualCriterionScore = (result: StudentEvalResult, a
 };
 
 export const getFinalGroupScore = (result: StudentEvalResult, weights: any, agency?: Agency, mapping?: Record<string, string[]>) => {
-    if (!result.groupEvaluation || result.groupEvaluation.length === 0) return 0;
+    if (!result.groupEvaluation || result.groupEvaluation.length === 0) {
+        return getWeightedGroupCriterionScore(result, 0, weights, -1);
+    }
     const sum = result.groupEvaluation.reduce((acc, crit) => {
         const specificDelivScore = agency && mapping ? calculateDeliverableScore(agency, crit.criterionId, mapping) : -1;
         return acc + getWeightedGroupCriterionScore(result, crit.score, weights, specificDelivScore);
@@ -143,7 +145,9 @@ export const getFinalGroupScore = (result: StudentEvalResult, weights: any, agen
 };
 
 export const getFinalIndividualScore = (result: StudentEvalResult, weights: any, agency?: Agency, mapping?: Record<string, string[]>) => {
-    if (!result.individualEvaluation || result.individualEvaluation.length === 0) return 0;
+    if (!result.individualEvaluation || result.individualEvaluation.length === 0) {
+        return getWeightedIndividualCriterionScore(result, 0, weights, -1);
+    }
     const sum = result.individualEvaluation.reduce((acc, crit) => {
         const specificDelivScore = agency && mapping ? calculateDeliverableScore(agency, crit.criterionId, mapping) : -1;
         return acc + getWeightedIndividualCriterionScore(result, crit.score, weights, specificDelivScore);
