@@ -95,8 +95,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     }, [referentialRules]);
 
     const [weights, setWeights] = useState({
-        group: { ve: 2, budget: 2, deliverables: 2, ai: 4, budgetMaxPixi: 5000, missingDelivPenalty: 0 },
-        individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3 }
+        group: { ve: 2, budget: 2, deliverables: 2, ai: 4, budgetMaxPixi: 5000, missingDelivPenalty: 0, aiEnabled: true },
+        individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3, aiEnabled: true }
     });
 
     useEffect(() => {
@@ -200,8 +200,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             
             setEvaluationProgress({ total: totalMembers, current: 0, label: "Initialisation de l'évaluation..." });
 
-            const skipGroupAI = weights.group.ai === 0;
-            const skipIndividualAI = weights.individual.ai === 0;
+            const skipGroupAI = weights.group.ai === 0 || weights.group.aiEnabled === false;
+            const skipIndividualAI = weights.individual.ai === 0 || weights.individual.aiEnabled === false;
 
             for (let i = 0; i < agenciesToEval.length; i++) {
                 const agency = agenciesToEval[i];
@@ -313,7 +313,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const student = agency.members.find(m => m.id === studentId);
             if (!student) throw new Error("Étudiant non trouvé.");
 
-            const skipIndividualAI = weights.individual.ai === 0;
+            const skipIndividualAI = weights.individual.ai === 0 || weights.individual.aiEnabled === false;
 
             let memberEvalResult: { criteria: CriterionEval[]; studentFeedback: string; } = { criteria: [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }], studentFeedback: "L'évaluation IA individuelle est désactivée." };
             if (!skipIndividualAI) {
@@ -383,8 +383,8 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
             const agency = agencies.find(a => a.id === agencyId);
             if (!agency) throw new Error("Agence non trouvée.");
 
-            const skipGroupAI = weights.group.ai === 0;
-            const skipIndividualAI = weights.individual.ai === 0;
+            const skipGroupAI = weights.group.ai === 0 || weights.group.aiEnabled === false;
+            const skipIndividualAI = weights.individual.ai === 0 || weights.individual.aiEnabled === false;
 
             let groupEvaluation: CriterionEval[] = [{ criterionId: "BASE", score: 0, feedback: "Évaluation IA désactivée." }];
             if (!skipGroupAI) {

@@ -3,12 +3,12 @@ import { Settings } from 'lucide-react';
 
 interface EvaluationSettingsProps {
     weights: {
-        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number },
-        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number, aiEnabled?: boolean },
+        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number, aiEnabled?: boolean }
     };
     setWeights: React.Dispatch<React.SetStateAction<{
-        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number },
-        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number, aiEnabled?: boolean },
+        individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number, aiEnabled?: boolean }
     }>>;
     referentialRules: string;
     setReferentialRules: (rules: string) => void;
@@ -122,15 +122,27 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                         <div className="text-right text-xs text-slate-500">Coef: {weights.group.deliverables || 0} {totalGroupWeight > 0 ? `(${Math.round(((weights.group.deliverables || 0) / totalGroupWeight) * 100)}%)` : ''}</div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Évaluation IA (Référentiel)</label>
-                        <input 
-                            type="range" min="0" max="10" step="1" 
-                            value={weights.group.ai} 
-                            onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, ai: parseInt(e.target.value)}}))}
-                            className="w-full"
-                        />
-                        <div className="text-right text-xs text-slate-500">Coef: {weights.group.ai} {totalGroupWeight > 0 ? `(${Math.round((weights.group.ai / totalGroupWeight) * 100)}%)` : ''}</div>
+                    <div className={`p-4 rounded-lg border ${weights.group.aiEnabled !== false ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-200'} transition-colors`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-semibold text-slate-800">Évaluation IA (Référentiel)</label>
+                            <button
+                                type="button"
+                                onClick={() => setWeights(prev => ({...prev, group: {...prev.group, aiEnabled: prev.group.aiEnabled === false ? true : false}}))}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${weights.group.aiEnabled !== false ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                            >
+                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${weights.group.aiEnabled !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                        <div className={`${weights.group.aiEnabled === false ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input 
+                                type="range" min="0" max="10" step="1" 
+                                value={weights.group.ai} 
+                                onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, ai: parseInt(e.target.value)}}))}
+                                className="w-full"
+                            />
+                            <div className="text-right text-xs text-slate-500">Coef: {weights.group.ai} {totalGroupWeight > 0 ? `(${Math.round((weights.group.ai / totalGroupWeight) * 100)}%)` : ''}</div>
+                        </div>
+                        {weights.group.aiEnabled === false && <p className="text-xs text-red-600/80 mt-1 font-medium italic">Aucun appel API ne sera effectué pour l'agence.</p>}
                     </div>
                 </div>
 
@@ -171,15 +183,27 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                         <div className="text-right text-xs text-slate-500">Coef: {weights.individual.deliverables || 0} {totalIndivWeight > 0 ? `(${Math.round(((weights.individual.deliverables || 0) / totalIndivWeight) * 100)}%)` : ''}</div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Évaluation IA (Référentiel)</label>
-                        <input 
-                            type="range" min="0" max="10" step="1" 
-                            value={weights.individual.ai} 
-                            onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, ai: parseInt(e.target.value)}}))}
-                            className="w-full"
-                        />
-                        <div className="text-right text-xs text-slate-500">Coef: {weights.individual.ai} {totalIndivWeight > 0 ? `(${Math.round((weights.individual.ai / totalIndivWeight) * 100)}%)` : ''}</div>
+                    <div className={`p-4 rounded-lg border ${weights.individual.aiEnabled !== false ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-200'} transition-colors`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-semibold text-slate-800">Évaluation IA (Référentiel)</label>
+                            <button
+                                type="button"
+                                onClick={() => setWeights(prev => ({...prev, individual: {...prev.individual, aiEnabled: prev.individual.aiEnabled === false ? true : false}}))}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${weights.individual.aiEnabled !== false ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                            >
+                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${weights.individual.aiEnabled !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                        <div className={`${weights.individual.aiEnabled === false ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input 
+                                type="range" min="0" max="10" step="1" 
+                                value={weights.individual.ai} 
+                                onChange={(e) => setWeights(prev => ({...prev, individual: {...prev.individual, ai: parseInt(e.target.value)}}))}
+                                className="w-full"
+                            />
+                            <div className="text-right text-xs text-slate-500">Coef: {weights.individual.ai} {totalIndivWeight > 0 ? `(${Math.round((weights.individual.ai / totalIndivWeight) * 100)}%)` : ''}</div>
+                        </div>
+                        {weights.individual.aiEnabled === false && <p className="text-xs text-red-600/80 mt-1 font-medium italic">Aucun appel API ne sera effectué pour l'individu.</p>}
                     </div>
                 </div>
             </div>
