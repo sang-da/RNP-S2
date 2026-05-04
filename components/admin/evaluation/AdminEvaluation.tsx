@@ -95,7 +95,7 @@ Retournez UNIQUEMENT un objet JSON avec cette structure exacte :
     }, [referentialRules]);
 
     const [weights, setWeights] = useState({
-        group: { ve: 2, budget: 2, deliverables: 2, ai: 4, budgetMaxPixi: 5000 },
+        group: { ve: 2, budget: 2, deliverables: 2, ai: 4, budgetMaxPixi: 5000, missingDelivPenalty: 0 },
         individual: { baseScore: 3, peerReviews: 2, deliverables: 2, ai: 3 }
     });
 

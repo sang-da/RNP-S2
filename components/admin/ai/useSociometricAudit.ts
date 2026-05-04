@@ -35,7 +35,7 @@ export const useSociometricAudit = (agencies: Agency[], setChatHistory: React.Di
                     // Enhancing the logical detection of P2P and Phantom
                     if (e.description.includes(' -> ') || e.description.includes('<-')) totalP2PTransfers++;
                     if (e.type === 'BLACK_OP' || e.description.includes('Achat de :') || e.description.includes('Enchère') || e.label.includes('Backdoor')) totalPhantomMarketTxs++;
-                    if (e.type === 'JURY' || e.label.includes('Jury') || e.description.includes('administration') || e.description.includes('Jury')) totalJuryEvents++;
+                    if (e.label.includes('Jury') || e.description.includes('administration') || e.description.includes('Jury')) totalJuryEvents++;
                     
                     const eDate = new Date(e.date);
                     if (eDate < minDate) minDate = eDate;

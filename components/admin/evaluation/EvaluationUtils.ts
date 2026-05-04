@@ -69,8 +69,17 @@ export const calculateDeliverableScore = (agency: Agency, criterionId?: string, 
 };
 
 export const calculateAlgoScores = (agency: Agency, student: Student, mapping?: Record<string, string[]>, globalReviews?: PeerReview[], weights?: any) => {
-    // VE Score (max 20, assuming 100 VE = 20/20)
-    const veScore = Math.min(20, Math.max(0, (agency.ve_current / 100) * 20));
+    // Missing Deliverables Penalty
+    let missingCount = 0;
+    if (agency.progress) {
+        const allDeliverables = Object.values(agency.progress).flatMap(week => week.deliverables || []);
+        missingCount = allDeliverables.filter(d => !d.grading && (d.status === 'pending' || d.status === 'rejected')).length;
+    }
+    const vePenalty = missingCount * (weights?.group?.missingDelivPenalty || 0);
+
+    // VE Score (max 20, assuming 100 VE = 20/20) with penalty
+    let veScore = (agency.ve_current / 100) * 20;
+    veScore = Math.min(20, Math.max(0, veScore - vePenalty));
     
     // Budget Score (max 20, configurable budgetMaxPixi, defaults to 5000)
     const budgetMax = weights?.group?.budgetMaxPixi || 5000;

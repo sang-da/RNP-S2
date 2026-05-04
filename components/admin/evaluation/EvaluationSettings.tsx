@@ -3,11 +3,11 @@ import { Settings } from 'lucide-react';
 
 interface EvaluationSettingsProps {
     weights: {
-        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number },
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number },
         individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     };
     setWeights: React.Dispatch<React.SetStateAction<{
-        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number },
+        group: { ve: number, budget: number, deliverables?: number, ai: number, budgetMaxPixi?: number, missingDelivPenalty?: number },
         individual: { baseScore: number, peerReviews: number, deliverables?: number, ai: number }
     }>>;
     referentialRules: string;
@@ -66,6 +66,24 @@ export const EvaluationSettings: React.FC<EvaluationSettingsProps> = ({
                             className="w-full"
                         />
                         <div className="text-right text-xs text-slate-500">Coef: {weights.group.ve} {totalGroupWeight > 0 ? `(${Math.round((weights.group.ve / totalGroupWeight) * 100)}%)` : ''}</div>
+                    </div>
+
+                    <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+                        <label className="block text-sm font-medium text-red-800 mb-1 flex items-center justify-between">
+                            <span>Malus VE : Livrables manquants</span>
+                            <span className="text-xs font-normal text-red-600 bg-red-100 px-2 py-0.5 rounded">Pénalité</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-red-700">-</span>
+                            <input 
+                                type="number" min="0" max="5" step="0.25" 
+                                value={weights.group.missingDelivPenalty !== undefined ? weights.group.missingDelivPenalty : 0} 
+                                onChange={(e) => setWeights(prev => ({...prev, group: {...prev.group, missingDelivPenalty: parseFloat(e.target.value) || 0}}))}
+                                className="w-24 p-2 border border-red-200 rounded-lg text-sm bg-white text-red-700 font-medium"
+                            />
+                            <span className="text-sm text-red-700">pts / livrable</span>
+                        </div>
+                        <div className="text-xs text-red-600/80 mt-1">Réduit la note VE de l'agence pour chaque livrable non rendu ou rejeté.</div>
                     </div>
 
                     <div>
