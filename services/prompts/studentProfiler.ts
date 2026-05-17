@@ -1,6 +1,6 @@
 export const getStudentProfilerPrompt = (data: any) => {
     const { student, agency, S1_AVERAGES, agenciesKnown, resignations,
-            mvpCount, mainDeliverables, mvpRatio, weeksEvaluatedByPeers,
+            mvpCount, mainDeliverables, mvpRatio, agencyRatiosText, weeksEvaluatedByPeers,
             totalWeeksActive, weeksEvaluatedOthers, quizAttempts, portfolio,
             behaviorStats, timeline, agencyMemberCount } = data;
 
@@ -22,6 +22,7 @@ STATISTIQUES CALCULÉES PRE-ANALYSE:
 - Agences connues: ${agenciesKnown}
 - Démissions/Départs: ${resignations}
 - Taux de participation (Livraison en tant que MVP): ${mvpCount} fois sur ${mainDeliverables} livrables agence éligibles (${mvpRatio}%)
+- Détail par agence : ${agencyRatiosText}
 - Présence aux peer reviews: Évalué sur ${weeksEvaluatedByPeers}/${totalWeeksActive} sem. A évalué les autres sur ${weeksEvaluatedOthers}/${totalWeeksActive} sem.
   (NOTE IMPORTANTE: Si l'étudiant(e) est le seul membre de son agence (${agencyMemberCount} === 1), il/elle n'a pas pu être évalué(e) ni évaluer d'autres pairs. Ne le/la pénalise pas sur le manque de peer reviews ou sur l'absence de citations dans ce cas.)
 

@@ -63,11 +63,28 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         }
     };
 
-    const { mvpCount, mainDeliverables, mvpRatio } = React.useMemo(() => {
+    const { mvpCount, mainDeliverables, mvpRatio, agencyRatiosText } = React.useMemo(() => {
         const mvpCount = portfolio.filter(p => p.isMvp).length;
         const mainDeliverables = portfolio.filter(p => !p.isSpecial).length;
         const mvpRatio = mainDeliverables > 0 ? Math.round((mvpCount / mainDeliverables) * 100) : 0;
-        return { mvpCount, mainDeliverables, mvpRatio };
+        
+        const agencyRatios: Record<string, { mvp: number, total: number }> = {};
+        portfolio.filter(p => !p.isSpecial).forEach(p => {
+            const ag = p.agency || 'Sans Agence';
+            if (!agencyRatios[ag]) {
+                agencyRatios[ag] = { mvp: 0, total: 0 };
+            }
+            agencyRatios[ag].total++;
+            if (p.isMvp) {
+                agencyRatios[ag].mvp++;
+            }
+        });
+        
+        const agencyRatiosText = Object.entries(agencyRatios)
+            .map(([ag, counts]) => `${counts.mvp.toString().padStart(2, '0')}/${counts.total.toString().padStart(2, '0')} ${ag}`)
+            .join(' & ');
+
+        return { mvpCount, mainDeliverables, mvpRatio, agencyRatiosText };
     }, [portfolio]);
 
     const handleGenerateProfile = async () => {
@@ -83,7 +100,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
         const prompt = getStudentProfilerPrompt({
             student, agency, S1_AVERAGES, agenciesKnown, resignations,
-            mvpCount, mainDeliverables, mvpRatio, weeksEvaluatedByPeers,
+            mvpCount, mainDeliverables, mvpRatio, agencyRatiosText, weeksEvaluatedByPeers,
             totalWeeksActive, weeksEvaluatedOthers, quizAttempts, portfolio,
             behaviorStats, timeline, agencyMemberCount
         });
@@ -200,16 +217,19 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                 position: absolute !important; 
                                 left: 0 !important; 
                                 top: 0 !important; 
-                                margin: 0 !important; 
                                 width: 210mm !important; 
-                                height: 297mm !important;
+                                height: auto !important;
+                                min-height: 297mm !important;
+                                margin: 0 !important;
+                                padding: 10mm !important;
+                                box-sizing: border-box !important;
                                 -webkit-print-color-adjust: exact !important;
                                 print-color-adjust: exact !important;
                             }
-                            @page { size: A4; margin: 0; }
+                            @page { size: A4 portrait; margin: 0; }
                         }
                     `}</style>
-                    <div id="profile-doc-container" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-8 pb-20 px-8 text-slate-900 shadow-2xl rounded-2xl overflow-hidden print:rounded-none print:shadow-none print:h-[297mm] print:w-[210mm] print:overflow-hidden print:pt-6 print:pb-12 print:px-6 animate-in fade-in slide-in-from-bottom-8 duration-500">
+                    <div id="profile-doc-container" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-8 pb-20 px-8 text-slate-900 shadow-2xl rounded-2xl overflow-hidden print:rounded-none print:shadow-none print:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-500">
                         {/* DECORATIVE HEADER */}
                         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
                         <div className="absolute top-0 right-0 p-6 opacity-20"><Cloud size={140} className="text-white"/></div>
@@ -232,7 +252,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                             <div className="col-span-1 border-r border-slate-200 pr-5 space-y-5">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ratio de participation</p>
-                                    <p className="text-4xl font-black text-indigo-600">{mvpCount}/{mainDeliverables}<span className="text-base text-slate-400 font-bold ml-1">({mvpRatio}%)</span></p>
+                                    <p className="text-4xl font-black text-indigo-600">{mvpRatio}<span className="text-2xl text-slate-400 font-bold ml-0.5">%</span></p>
+                                    <div className="text-[9px] text-slate-500 font-bold mt-1.5 leading-tight">
+                                        <p>Global : {mvpCount.toString().padStart(2, '0')}/{mainDeliverables.toString().padStart(2, '0')} rendus</p>
+                                        <p className="text-indigo-400 mt-0.5">{agencyRatiosText}</p>
+                                    </div>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
@@ -342,20 +366,20 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                     </div>
                                     
                                     {aiProfile.council_highlights && (
-                                        <div className="mt-4 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/60 shadow-sm print:bg-indigo-50/50 print:border-indigo-100 print:mt-2">
-                                            <h3 className="text-[11px] font-black text-indigo-900 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Star size={12} className="text-indigo-500 fill-indigo-200" /> Points Brillants de Production</h3>
-                                            <p className="text-[10px] text-slate-700 leading-relaxed print:leading-tight">{aiProfile.council_highlights}</p>
+                                        <div className="mt-6 p-4 bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-200 shadow-sm print:mt-4 print:border-indigo-200">
+                                            <h3 className="text-[11px] font-black text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Star size={14} className="text-indigo-600 fill-indigo-200" /> Talents & Points Brillants</h3>
+                                            <p className="text-xs text-indigo-950 font-medium leading-relaxed italic print:text-[11px] print:leading-tight">{aiProfile.council_highlights}</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="absolute bottom-8 left-8 right-8 border-t-2 border-slate-100 pt-4 print:bottom-6 print:left-6 print:right-6">
-                            <div className="flex justify-between items-end">
-                                <div className="max-w-xl">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
-                                    <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block print:text-xs">{aiProfile.recommendation}</p>
+                        <div className="mt-8 border-t-2 border-slate-100 pt-6 print:mt-4 print:pt-4">
+                            <div className="flex justify-between items-end gap-4">
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
+                                    <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-3 rounded-lg border border-indigo-100/60 inline-block w-full print:text-xs print:p-2">{aiProfile.recommendation}</p>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1 items-center mb-1"><Cloud size={14} className="text-indigo-300"/> Profiler IA & Analyste</p>
