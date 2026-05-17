@@ -34,6 +34,16 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
     const { reviews: globalReviews } = useGame();
 
+    React.useEffect(() => {
+        if (showPrintModal) {
+            const originalTitle = document.title;
+            document.title = `RNP Studio - Fiche ${student.name.replace(/\s+/g, '_')}`;
+            return () => {
+                document.title = originalTitle;
+            };
+        }
+    }, [showPrintModal, student.name]);
+
     const enrichedReviewsForDataviz = React.useMemo(() => {
         return globalReviews.map(review => {
             const ag = allAgencies.find(a => a.id === review.agencyId);
@@ -128,33 +138,23 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         - Points brillants de production : Dans quel type de livrables a-t-il excellé ? (regarde son portfolio)
         - Recommandations : Clair, actionnable pour l'équipe pédagogique.
         
-        ATTENTION : POUR QUE LE JSON SOIT VALIDE, TON RÉSULTAT DOIT ÊTRE UN JSON MINIFIÉ SUR UNE SEULE LIGNE SANS AUCUN SAUT DE LIGNE RÉEL/PHYSIQUE. UTILISE UNIQUEMENT LA CHAÎNE EXACTE "\\n" (backslash n) POUR REPRÉSENTER UN SAUT DE LIGNE DANS TON MARKDOWN. Échappe aussi les guillemets.
+        ATTENTION : TU DOIS RETOURNER UN OBJET JSON VALIDE (réponse JSON pure). N'échappe pas les apostrophes (\').
+        Utilise \\n (backslash n) pour représenter un vrai saut de ligne dans le texte de la synthèse (Markdown). N'utilise JAMAIS de vrais sauts de ligne dans les strings pour ne pas casser le JSON_PARSE.
         
-        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure :
+        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte (SANS AUCUN BLOC MARKDOWN \`\`\`json) :
         {"psychological_profile":"...", "soft_skills":{"leadership":0,"teamwork":0,"reliability":0,"creativity":0}, "strengths":["..."], "weaknesses":["..."], "verdict":"...", "recommendation":"...", "class_council_summary":"..."}
         `;
 
         try {
-            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide et STRICTEMENT MINIFIÉ SUR UNE SEULE LIGNE.", [], "llama-3.3-70b-versatile");
-            let rawStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            const systemPrompt = "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un objet JSON avec le format correspondant. Produis ton analyse de manière percutante, dans un JSON valide. N'échappe pas les apostrophes inutilement.";
+            const result = await askGroq(prompt, {}, systemPrompt, [], "llama-3.3-70b-versatile", true); // JSON MODE Enabled
             
-            // Clean unescaped newlines in the JSON string safely (only inside string values or blindly if model failed minification)
-            let isString = false;
-            let jsonStr = "";
-            for (let i = 0; i < rawStr.length; i++) {
-                const char = rawStr[i];
-                if (char === '"' && rawStr[i-1] !== '\\') isString = !isString;
-                
-                if (char === '\n') {
-                    jsonStr += isString ? '\\n' : ''; // remove if outside, escape if inside
-                } else if (char === '\r') {
-                    // ignore
-                } else {
-                    jsonStr += char;
-                }
-            }
-            
-            const parsedProfile = JSON.parse(jsonStr);
+            // Just in case it wrapped with markdown anyway despite JSON mode:
+            let rawStr = result.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+            // Remove any bad escapes like \' that break JSON.parse
+            rawStr = rawStr.replace(/(?:\\')/g, "'");
+
+            const parsedProfile = JSON.parse(rawStr);
 
             // Algorithmic Soft Skills calculation (40% algo, 60% IA)
             const gradesCount = gradeDistribution ? gradeDistribution.reduce((acc: any, g: any) => ({ ...acc, [g.name]: g.value }), {}) : {};
@@ -632,10 +632,22 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
         {/* PRINT VIEW (CLASS COUNCIL SUMMARY) MODAL */}
         {showPrintModal && aiProfile && aiProfile.class_council_summary && (
-            <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:absolute print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
+            <React.Fragment>
+            <style>{`
+                @media print {
+                    body * { visibility: hidden !important; }
+                    #print-modal-section, #print-modal-section * { visibility: visible !important; }
+                    #print-modal-section { position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; }
+                    @page { margin: 0; }
+                }
+            `}</style>
+            <div id="print-modal-section" className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:absolute print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
                 <div className="absolute top-4 right-4 flex gap-4 print:hidden">
                     <button onClick={() => setShowPrintModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-700">Fermer (Échap)</button>
-                    <button onClick={() => window.print()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
+                    <button onClick={() => {
+                        window.scrollTo(0,0);
+                        setTimeout(() => window.print(), 100);
+                    }} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
                 </div>
                 <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl print:shadow-none">
                     
@@ -755,6 +767,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     </div>
                 </div>
             </div>
+            </React.Fragment>
         )}
         </>
     );

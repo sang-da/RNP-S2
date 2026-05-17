@@ -206,7 +206,8 @@ export const askGroq = async (
     contextData: any, 
     systemRole: string = "Tu es un assistant pédagogique expert.",
     history: {role: 'user'|'ai', content: string}[] = [],
-    modelName: string = GROQ_MODEL
+    modelName: string = GROQ_MODEL,
+    jsonMode: boolean = false
 ): Promise<string> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
@@ -219,18 +220,24 @@ export const askGroq = async (
             { role: "user", content: prompt }
         ];
 
+        const payload: any = {
+            model: modelName,
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 4000
+        };
+
+        if (jsonMode) {
+            payload.response_format = { type: "json_object" };
+        }
+
         const response = await fetchWithFallback(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: modelName,
-                messages: messages,
-                temperature: 0.7,
-                max_tokens: 4000
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {

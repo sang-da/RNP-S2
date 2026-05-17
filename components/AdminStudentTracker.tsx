@@ -210,7 +210,7 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                             file: d.fileUrl,
                             finalDelta: d.grading?.finalDelta || 0,
                             isSpecial,
-                            comments: d.grading?.comments || ''
+                            comments: d.feedback || ''
                         });
 
                         if (!performanceByWeek[week.id]) performanceByWeek[week.id] = 0;
