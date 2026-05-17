@@ -73,6 +73,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         }
     };
 
+    const { mvpCount, mainDeliverables, mvpRatio } = React.useMemo(() => {
+        const mvpCount = portfolio.filter(p => p.isMvp).length;
+        const mainDeliverables = portfolio.filter(p => !p.isSpecial).length;
+        const mvpRatio = mainDeliverables > 0 ? Math.round((mvpCount / mainDeliverables) * 100) : 0;
+        return { mvpCount, mainDeliverables, mvpRatio };
+    }, [portfolio]);
+
     const handleGenerateProfile = async () => {
         setIsGeneratingProfile(true);
         
@@ -82,10 +89,6 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         const totalWeeksActive = timeline.length;
         const weeksEvaluatedByPeers = timeline.filter(t => t.reviewsReceived && t.reviewsReceived.length > 0).length;
         const weeksEvaluatedOthers = timeline.filter(t => t.reviewsGiven && t.reviewsGiven.length > 0).length;
-
-        const mvpCount = portfolio.filter(p => p.isMvp).length;
-        const mainDeliverables = portfolio.filter(p => !p.isSpecial).length;
-        const mvpRatio = mainDeliverables > 0 ? Math.round((mvpCount / mainDeliverables) * 100) : 0;
 
         const prompt = `Analyse le profil exhaustif de l'étudiant ${student.name}.
         
@@ -649,7 +652,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                         setTimeout(() => window.print(), 100);
                     }} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
                 </div>
-                <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl print:shadow-none">
+                <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl print:shadow-none print:h-[297mm] print:overflow-hidden">
                     
                     {/* DECORATIVE HEADER */}
                     <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
@@ -672,8 +675,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     <div className="grid grid-cols-4 gap-8 mb-10">
                         <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Score Actuel</p>
-                                <p className="text-4xl font-black text-indigo-600">{student.individualScore}<span className="text-base text-slate-400 font-bold">/100</span></p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ratio de participation</p>
+                                <p className="text-4xl font-black text-indigo-600">{mvpCount}/{mainDeliverables}<span className="text-base text-slate-400 font-bold ml-1">({mvpRatio}%)</span></p>
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
