@@ -124,6 +124,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         - Points brillants de production : Dans quel type de livrables a-t-il excellé ?
         - Recommandations : Clair, actionnable pour l'équipe pédagogique.
         
+        ATTENTION : POUR QUE LE JSON SOIT VALIDE, TU NE DOIS FAIRE AUCUN SAUT DE LIGNE RÉEL/PHYSIQUE À L'INTÉRIEUR DES VALEURS DE TEXTE. UTILISE UNIQUEMENT "\\n" (backslash n) POUR FAIRE DES SAUTS DE LIGNE DANS TON MARKDOWN. Échappe aussi les guillemets (" -> \\").
+        
         Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte :
         {
           "psychological_profile": "Analyse détaillée du comportement et de l'évolution (environ 3-4 phrases)",
