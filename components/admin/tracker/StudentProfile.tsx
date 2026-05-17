@@ -5,6 +5,7 @@ import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, 
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 import { askGroq } from '../../../services/groqService';
+import { getStudentProfilerPrompt } from '../../../services/prompts/studentProfiler';
 import { useGame } from '../../../contexts/GameContext';
 import { ReviewDataviz } from '../peer-reviews/ReviewDataviz';
 import { S1_AVERAGES } from '../../../config/awards';
@@ -26,23 +27,12 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [playingAudio, setPlayingAudio] = useState<string | null>(null);
     const [expandedQuizzes, setExpandedQuizzes] = useState<Record<string, boolean>>({});
-    const [showPrintModal, setShowPrintModal] = useState(false);
     
     // AI Profiler State
     const [aiProfile, setAiProfile] = useState<any | null>(null);
     const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
 
     const { reviews: globalReviews } = useGame();
-
-    React.useEffect(() => {
-        if (showPrintModal) {
-            const originalTitle = document.title;
-            document.title = `RNP Studio - Fiche ${student.name.replace(/\s+/g, '_')}`;
-            return () => {
-                document.title = originalTitle;
-            };
-        }
-    }, [showPrintModal, student.name]);
 
     const enrichedReviewsForDataviz = React.useMemo(() => {
         return globalReviews.map(review => {
@@ -89,64 +79,14 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         const totalWeeksActive = timeline.length;
         const weeksEvaluatedByPeers = timeline.filter(t => t.reviewsReceived && t.reviewsReceived.length > 0).length;
         const weeksEvaluatedOthers = timeline.filter(t => t.reviewsGiven && t.reviewsGiven.length > 0).length;
+        const agencyMemberCount = (agency?.members?.length) || 1;
 
-        const prompt = `Analyse le profil exhaustif de l'étudiant ${student.name}.
-        
-        DONNÉES DE L'ÉTUDIANT:
-        - Rôle: ${student.role}
-        - Score Initial (Moy. S1): ${S1_AVERAGES[student.name] ? S1_AVERAGES[student.name] + '/20' : 'N/A'}
-        - Score Actuel: ${student.individualScore}/100
-        - Portefeuille: ${student.wallet} PiXi
-        - Épargne: ${student.savings || 0} PiXi
-        - Prêt/Dette: ${student.loanDebt || 0} PiXi
-        - Karma: ${student.karma ?? 50}
-        - Agence actuelle: ${agency.name}
-        
-        STATISTIQUES CALCULÉES PRE-ANALYSE:
-        - Agences connues: ${agenciesKnown}
-        - Démissions/Départs: ${resignations}
-        - Taux de livraison en tant que MVP: ${mvpCount} fois sur ${mainDeliverables} livrables agence éligibles (${mvpRatio}%)
-        - Présence aux évaluations par les pairs: Évalué sur ${weeksEvaluatedByPeers} des ${totalWeeksActive} semaines. A évalué les autres sur ${weeksEvaluatedOthers} des ${totalWeeksActive} semaines.
-        
-        RÉSULTATS DE QUIZ (Théorie & Sondages):
-        ${JSON.stringify(quizAttempts.map(q => ({ quizId: q.quizId, score: q.score, transcriptions: q.transcriptions, answers: q.answers })))}
-        
-        HISTORIQUE DES AGENCES:
-        ${JSON.stringify(student.history || [])}
-        
-        PORTFOLIO (Livrables réalisés):
-        Tu ne dois évaluer l'étudiant QUE sur les livrables où il a été déclaré MVP (directement responsable). Ne le pénalise pas pour les livrables de l'agence où il n'a pas contribué directement.
-        ${JSON.stringify(portfolio.filter(p => p.isMvp || p.isSpecial).map(p => ({ week: p.week, name: p.name, score: p.score, isMVP: p.isMvp, comments: p.comments, agency: p.agency })))}
-        
-        ÉVALUATIONS REÇUES (Peer Reviews):
-        - Moyenne reçue globale: ${behaviorStats.avgReceived.toFixed(1)}/5
-        ${JSON.stringify(timeline.flatMap(t => t.reviewsReceived || []).map(r => ({ week: r.weekId, score: ((r.ratings.quality || 0) + (r.ratings.attendance || 0) + (r.ratings.involvement || 0)) / 3, comment: r.comment })))}
-        
-        ÉVALUATIONS DONNÉES (Comment il note les autres):
-        ${JSON.stringify(timeline.flatMap(t => t.reviewsGiven || []).map(r => ({ week: r.weekId, score: ((r.ratings.quality || 0) + (r.ratings.attendance || 0) + (r.ratings.involvement || 0)) / 3, comment: r.comment })))}
-        
-        NOTES PÉDAGOGIQUES:
-        ${JSON.stringify(student.notes || [])}
-        
-        Génère un profil psychologique et professionnel complet.
-        
-        === INSTRUCTIONS POUR LE RÉSUMÉ DU CONSEIL DE CLASSE ===
-        Tu dois générer un "class_council_summary" écrit en Markdown riche. Il doit obligatoirement inclure :
-        - Un titre/statut percutant qui résume l'analyse comportementale (ex: "👑 Leader naturel mais financierement excessif")
-        - Avis des pairs sur l'étudiant : Intègre les stats (${weeksEvaluatedByPeers}/${totalWeeksActive} semaines), résume l'opinion générale et inclus une courte citation (verbatim fort) extraite des avis.
-        - Avis de l'étudiant sur ses pairs : Intègre les stats (${weeksEvaluatedOthers}/${totalWeeksActive} semaines), résume son style d'évaluation (sévère, constructif) et inclus un verbatim typique.
-        - Factuel : Participation (dépôts en MVP : ${mvpCount}/${mainDeliverables} -> ${mvpRatio}%), démissions (${resignations}), parcours agences.
-        - Tendances financières: Analyse de son Portefeuille/Épargne/Dette donnés ci-dessus (économe, panier percé, fourmi...).
-        - Contributions & Savoir : N'utilise pas les notes (ex: 4/4), base-toi SURTOUT sur ses réponses (transcriptions/answers) aux questionnaires fournies ci-dessus (s'il y en a) pour extraire des verbatims marquants ou statuer sur son niveau de recul.
-        - Points brillants de production : Dans quel type de livrables a-t-il excellé ? (regarde son portfolio)
-        - Recommandations : Clair, actionnable pour l'équipe pédagogique.
-        
-        ATTENTION : TU DOIS RETOURNER UN OBJET JSON VALIDE (réponse JSON pure). N'échappe pas les apostrophes (\').
-        Utilise \\n (backslash n) pour représenter un vrai saut de ligne dans le texte de la synthèse (Markdown). N'utilise JAMAIS de vrais sauts de ligne dans les strings pour ne pas casser le JSON_PARSE.
-        
-        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte (SANS AUCUN BLOC MARKDOWN \`\`\`json) :
-        {"psychological_profile":"...", "soft_skills":{"leadership":0,"teamwork":0,"reliability":0,"creativity":0}, "strengths":["..."], "weaknesses":["..."], "verdict":"...", "recommendation":"...", "class_council_summary":"..."}
-        `;
+        const prompt = getStudentProfilerPrompt({
+            student, agency, S1_AVERAGES, agenciesKnown, resignations,
+            mvpCount, mainDeliverables, mvpRatio, weeksEvaluatedByPeers,
+            totalWeeksActive, weeksEvaluatedOthers, quizAttempts, portfolio,
+            behaviorStats, timeline, agencyMemberCount
+        });
 
         try {
             const systemPrompt = "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un objet JSON avec le format correspondant. Produis ton analyse de manière percutante, dans un JSON valide. N'échappe pas les apostrophes inutilement.";
@@ -184,15 +124,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         }
     };
 
-    const handlePrintCouncil = () => {
-        setShowPrintModal(true);
-    };
-
     return (
         <>
-        <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500 print:hidden">
+        <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
             {/* ID CARD */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden print:hidden">
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
                 
                 <div className="flex flex-col items-center">
@@ -212,15 +148,6 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 
                 <div className="flex-1 w-full">
                     <div className="flex justify-end mb-4 gap-2 print:hidden">
-                        {aiProfile && (
-                            <button 
-                                onClick={handlePrintCouncil}
-                                className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                                Imprimer Fiche Conseil
-                            </button>
-                        )}
                         <button 
                             onClick={handleGenerateProfile}
                             disabled={isGeneratingProfile}
@@ -246,76 +173,184 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 </div>
             </div>
 
-            {/* AI PROFILER RESULT */}
+            {/* AI PROFILER RESULT (A4 Document Style) */}
             {aiProfile && (
-                <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden animate-in fade-in zoom-in duration-500">
-                    <div className="absolute top-0 right-0 p-8 opacity-10"><Bot size={120}/></div>
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm"><Bot size={24} className="text-indigo-300"/></div>
-                            <div>
-                                <h4 className="text-xl font-bold text-white">Profil IA Exhaustif</h4>
-                                <p className="text-indigo-200 text-sm">Analyse basée sur les livrables, évaluations et historique</p>
-                            </div>
-                            <div className="ml-auto px-4 py-2 bg-white/10 rounded-full border border-white/20 font-black tracking-widest uppercase text-sm">
-                                {aiProfile.verdict}
+                <div className="relative mt-8">
+                    {/* Floating print button */}
+                    <div className="absolute -top-4 right-4 z-20 flex gap-2 print:hidden">
+                        <button onClick={() => {
+                            const originalTitle = document.title;
+                            document.title = `RNP Studio - Fiche ${student.name.replace(/\s+/g, '_')}`;
+                            window.scrollTo(0, 0);
+                            setTimeout(() => {
+                                window.print();
+                                document.title = originalTitle;
+                            }, 100);
+                        }} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                            Imprimer
+                        </button>
+                    </div>
+
+                    <style>{`
+                        @media print {
+                            body * { visibility: hidden !important; }
+                            #profile-doc-container, #profile-doc-container * { visibility: visible !important; }
+                            #profile-doc-container { position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; }
+                            @page { margin: 0; }
+                        }
+                    `}</style>
+                    <div id="profile-doc-container" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl rounded-2xl overflow-hidden print:rounded-none print:shadow-none print:h-[297mm] print:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-500">
+                        {/* DECORATIVE HEADER */}
+                        <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
+                        <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
+                        
+                        {/* HEADER CONTENT */}
+                        <div className="relative z-10 flex items-end gap-6 mb-12 mt-12">
+                            <img src={student.avatarUrl} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10 object-cover" />
+                            <div className="pb-2">
+                                <h1 className="text-5xl font-black text-white drop-shadow-md mb-3">{student.name}</h1>
+                                <div className="flex gap-3 items-center">
+                                    <span className="bg-white text-indigo-900 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
+                                    <span className="bg-amber-400 text-amber-950 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm flex items-center gap-2">
+                                        <Crown size={16}/> {aiProfile.verdict}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="md:col-span-2 space-y-6">
-                                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                                    <h5 className="text-xs font-bold text-indigo-300 uppercase mb-2">Analyse Psychologique</h5>
-                                    <p className="text-sm leading-relaxed text-slate-200">{aiProfile.psychological_profile}</p>
+                        <div className="grid grid-cols-4 gap-8 mb-10">
+                            <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ratio de participation</p>
+                                    <p className="text-4xl font-black text-indigo-600">{mvpCount}/{mainDeliverables}<span className="text-base text-slate-400 font-bold ml-1">({mvpRatio}%)</span></p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
+                                    <p className="text-4xl font-black text-yellow-500">{behaviorStats.avgReceived.toFixed(1)}<span className="text-base text-slate-400 font-bold">/5</span></p>
                                 </div>
                                 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                                        <h5 className="text-xs font-bold text-emerald-400 uppercase mb-3">Points Forts</h5>
-                                        <ul className="space-y-2">
-                                            {aiProfile.strengths?.map((s: string, i: number) => (
-                                                <li key={i} className="text-sm flex items-start gap-2 text-slate-200">
-                                                    <span className="text-emerald-400 mt-0.5">•</span> {s}
-                                                </li>
-                                            ))}
-                                        </ul>
+                                <div className="pt-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Finances</p>
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Portefeuille</span><span className="font-bold text-slate-800">{student.wallet} ¤</span></div>
+                                        <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Épargne</span><span className="font-bold text-teal-600">{student.savings || 0} ¤</span></div>
+                                        {(student.loanDebt || 0) > 0 && <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Dette</span><span className="font-bold text-red-600">{student.loanDebt} ¤</span></div>}
                                     </div>
-                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                                        <h5 className="text-xs font-bold text-red-400 uppercase mb-3">Points d'Attention</h5>
-                                        <ul className="space-y-2">
-                                            {aiProfile.weaknesses?.map((w: string, i: number) => (
-                                                <li key={i} className="text-sm flex items-start gap-2 text-slate-200">
-                                                    <span className="text-red-400 mt-0.5">•</span> {w}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-
-                                <div className="bg-indigo-500/20 p-4 rounded-2xl border border-indigo-400/30">
-                                    <h5 className="text-xs font-bold text-indigo-300 uppercase mb-2">Recommandation Pédagogique</h5>
-                                    <p className="text-sm font-medium text-white">{aiProfile.recommendation}</p>
                                 </div>
                                 
-                                {aiProfile.class_council_summary && (
-                                    <div className="bg-amber-500/20 p-5 rounded-2xl border border-amber-400/30">
-                                        <h5 className="text-xs font-bold text-amber-300 uppercase mb-4 flex items-center gap-2">
-                                            <Crown size={16}/> Mémorandum Conseil de Classe
-                                        </h5>
-                                        <div className="text-sm text-slate-100 max-w-none [&>h3]:text-amber-300 [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:mt-4 [&>ul]:list-disc [&>ul]:ml-4 [&>ul>li]:mb-2 [&>p]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:text-slate-300 [&>strong]:text-white">
-                                            <Markdown>{aiProfile.class_council_summary}</Markdown>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Agences Mémorables</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold ring-1 ring-slate-200">{agency.name}</span>
+                                        {Array.from(new Set(student.history?.map(h => h.agencyName))).filter(name => name !== agency.name).map((name, i) => (
+                                            <span key={i} className="bg-white border border-slate-200 text-slate-400 px-2 py-1 rounded text-[10px]">{name as string}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                <div className="pt-4 border-t border-slate-200">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Soft Skills (IA)</p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Leadership</span><span className="text-slate-900">{aiProfile.soft_skills?.leadership || 0}%</span></div>
+                                            <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-amber-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.leadership || 0}%` }}></div></div>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Coopération</span><span className="text-slate-900">{aiProfile.soft_skills?.teamwork || 0}%</span></div>
+                                            <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.teamwork || 0}%` }}></div></div>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Fiabilité</span><span className="text-slate-900">{aiProfile.soft_skills?.reliability || 0}%</span></div>
+                                            <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.reliability || 0}%` }}></div></div>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Créativité</span><span className="text-slate-900">{aiProfile.soft_skills?.creativity || 0}%</span></div>
+                                            <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-purple-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.creativity || 0}%` }}></div></div>
                                         </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
+                            
+                            <div className="col-span-3 pb-8">
+                                {/* HIGHLIGHT STRENGTHS VISUALLY */}
+                                <div className="flex flex-wrap gap-2 mb-6">
+                                    {aiProfile.strengths?.map((s: string, idx: number) => (
+                                        <span key={idx} className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                            <Star size={12} className="text-indigo-500 fill-indigo-200" /> {s}
+                                        </span>
+                                    ))}
+                                    {aiProfile.weaknesses?.map((w: string, idx: number) => (
+                                        <span key={idx} className="bg-rose-50 border border-rose-100 text-rose-700 px-3 py-1 rounded-lg text-xs font-bold shadow-sm">
+                                            ⚠️ {w}
+                                        </span>
+                                    ))}
+                                </div>
 
-                            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
-                                <h5 className="text-xs font-bold text-indigo-300 uppercase mb-6 text-center">Soft Skills (IA)</h5>
-                                <div className="space-y-5">
-                                    <SkillBar label="Leadership" value={aiProfile.soft_skills?.leadership || 0} color="bg-amber-400" />
-                                    <SkillBar label="Travail d'équipe" value={aiProfile.soft_skills?.teamwork || 0} color="bg-blue-400" />
-                                    <SkillBar label="Fiabilité" value={aiProfile.soft_skills?.reliability || 0} color="bg-emerald-400" />
-                                    <SkillBar label="Créativité" value={aiProfile.soft_skills?.creativity || 0} color="bg-purple-400" />
+                                <div className="mb-6 p-5 bg-slate-50 rounded-2xl border border-slate-100 ring-1 ring-slate-900/5 shadow-inner">
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Bot size={14}/> Synthèse Psychologique IA</h3>
+                                    <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    {aiProfile.council_peer_opinions && (
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Avis des pairs</h3>
+                                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{aiProfile.council_peer_opinions}</p>
+                                            {aiProfile.council_peer_verbatim && (
+                                                <blockquote className="border-l-4 border-amber-400 pl-3 py-1 bg-amber-50/50 text-slate-700 italic rounded-r-lg text-xs">
+                                                    « {aiProfile.council_peer_verbatim} »
+                                                </blockquote>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {aiProfile.council_student_opinions && (
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Avis de l'étudiant(e) sur le groupe</h3>
+                                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{aiProfile.council_student_opinions}</p>
+                                            {aiProfile.council_student_verbatim && (
+                                                <blockquote className="border-l-4 border-indigo-400 pl-3 py-1 bg-indigo-50/50 text-slate-700 italic rounded-r-lg text-xs">
+                                                    « {aiProfile.council_student_verbatim} »
+                                                </blockquote>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    <div className="grid grid-cols-2 gap-6">
+                                        {aiProfile.council_factual && (
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Présence & Constante</h3>
+                                                <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_factual}</p>
+                                            </div>
+                                        )}
+                                        {aiProfile.council_financials && (
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Santé Financière</h3>
+                                                <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_financials}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {aiProfile.council_highlights && (
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Points Brillants de Production</h3>
+                                            <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_highlights}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="absolute bottom-12 left-12 right-12 border-t-2 border-slate-100 pt-6">
+                            <div className="flex justify-between items-end">
+                                <div className="max-w-xl">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
+                                    <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block">{aiProfile.recommendation}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1 items-center mb-1"><Cloud size={14} className="text-indigo-300"/> Profiler IA & Analyste</p>
+                                    <p className="text-[10px] font-medium text-slate-400">Généré le {new Date().toLocaleDateString('fr-FR')}</p>
                                 </div>
                             </div>
                         </div>
@@ -632,146 +667,6 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 allAgencies={allAgencies}
             />
         </div>
-
-        {/* PRINT VIEW (CLASS COUNCIL SUMMARY) MODAL */}
-        {showPrintModal && aiProfile && aiProfile.class_council_summary && (
-            <React.Fragment>
-            <style>{`
-                @media print {
-                    body * { visibility: hidden !important; }
-                    #print-modal-section, #print-modal-section * { visibility: visible !important; }
-                    #print-modal-section { position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; }
-                    @page { margin: 0; }
-                }
-            `}</style>
-            <div id="print-modal-section" className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:absolute print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
-                <div className="absolute top-4 right-4 flex gap-4 print:hidden">
-                    <button onClick={() => setShowPrintModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-700">Fermer (Échap)</button>
-                    <button onClick={() => {
-                        window.scrollTo(0,0);
-                        setTimeout(() => window.print(), 100);
-                    }} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
-                </div>
-                <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl print:shadow-none print:h-[297mm] print:overflow-hidden">
-                    
-                    {/* DECORATIVE HEADER */}
-                    <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
-                    <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
-                    
-                    {/* HEADER CONTENT */}
-                    <div className="relative z-10 flex items-end gap-6 mb-12 mt-12">
-                        <img src={student.avatarUrl} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10" />
-                        <div className="pb-2">
-                            <h1 className="text-5xl font-black text-white drop-shadow-md mb-3">{student.name}</h1>
-                            <div className="flex gap-3 items-center">
-                                <span className="bg-white text-indigo-900 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
-                                <span className="bg-amber-400 text-amber-950 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm flex items-center gap-2">
-                                    <Crown size={16}/> {aiProfile.verdict}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-8 mb-10">
-                        <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ratio de participation</p>
-                                <p className="text-4xl font-black text-indigo-600">{mvpCount}/{mainDeliverables}<span className="text-base text-slate-400 font-bold ml-1">({mvpRatio}%)</span></p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
-                                <p className="text-4xl font-black text-yellow-500">{behaviorStats.avgReceived.toFixed(1)}<span className="text-base text-slate-400 font-bold">/5</span></p>
-                            </div>
-                            
-                            <div className="pt-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Finances</p>
-                                <div className="space-y-1">
-                                    <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Portefeuille</span><span className="font-bold text-slate-800">{student.wallet} ¤</span></div>
-                                    <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Épargne</span><span className="font-bold text-teal-600">{student.savings || 0} ¤</span></div>
-                                    {(student.loanDebt || 0) > 0 && <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Dette</span><span className="font-bold text-red-600">{student.loanDebt} ¤</span></div>}
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Agences Mémorables</p>
-                                <div className="flex gap-2 flex-wrap">
-                                    <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold ring-1 ring-slate-200">{agency.name}</span>
-                                    {Array.from(new Set(student.history?.map(h => h.agencyName))).filter(name => name !== agency.name).map((name, i) => (
-                                        <span key={i} className="bg-white border border-slate-200 text-slate-400 px-2 py-1 rounded text-[10px]">{name}</span>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="pt-4 border-t border-slate-200">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Soft Skills (IA)</p>
-                                <div className="space-y-3">
-                                    <div>
-                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Leadership</span><span className="text-slate-900">{aiProfile.soft_skills?.leadership || 0}%</span></div>
-                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-amber-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.leadership || 0}%` }}></div></div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Coopération</span><span className="text-slate-900">{aiProfile.soft_skills?.teamwork || 0}%</span></div>
-                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.teamwork || 0}%` }}></div></div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Fiabilité</span><span className="text-slate-900">{aiProfile.soft_skills?.reliability || 0}%</span></div>
-                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.reliability || 0}%` }}></div></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="col-span-3 pb-8">
-                            {/* HIGHLIGHT STRENGTHS VISUALLY */}
-                            <div className="flex flex-wrap gap-2 mb-6">
-                                {aiProfile.strengths?.map((s: string, idx: number) => (
-                                    <span key={idx} className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                                        <Star size={12} className="text-indigo-500 fill-indigo-200" /> {s}
-                                    </span>
-                                ))}
-                                {aiProfile.weaknesses?.map((w: string, idx: number) => (
-                                    <span key={idx} className="bg-rose-50 border border-rose-100 text-rose-700 px-3 py-1 rounded-lg text-xs font-bold shadow-sm">
-                                        ⚠️ {w}
-                                    </span>
-                                ))}
-                            </div>
-
-                            <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 ring-1 ring-slate-900/5 shadow-inner">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Bot size={14}/> Synthèse Psychologique IA</h3>
-                                <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
-                            </div>
-                            
-                            <div className="max-w-none text-slate-800
-                                [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4 print:[&>h1]:text-lg print:[&>h1]:mb-2
-                                [&>h2]:text-base [&>h2]:font-black [&>h2]:text-slate-800 [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:border-b [&>h2]:border-slate-200 [&>h2]:pb-1 print:[&>h2]:text-sm print:[&>h2]:mt-3 print:[&>h2]:mb-1
-                                [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4 print:[&>h3]:text-xs print:[&>h3]:mt-2 print:[&>h3]:mb-1
-                                [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600 [&>p]:text-sm print:[&>p]:text-[11px] print:[&>p]:mb-1.5 print:[&>p]:leading-tight
-                                [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:text-sm print:[&>ul]:text-[11px] print:[&>ul]:mb-1.5 print:[&>ul>li]:my-0.5
-                                [&>ul>li]:my-1.5
-                                [&>strong]:text-slate-900 [&>strong]:font-bold
-                                [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4 [&>blockquote]:italic [&>blockquote]:bg-amber-50/50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r-xl print:[&>blockquote]:py-1 print:[&>blockquote]:my-2"
-                            >
-                                <Markdown>{aiProfile.class_council_summary}</Markdown>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="absolute bottom-12 left-12 right-12 border-t-2 border-slate-100 pt-6">
-                        <div className="flex justify-between items-end">
-                            <div className="max-w-xl">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
-                                <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block">{aiProfile.recommendation}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1 items-center mb-1"><Cloud size={14} className="text-indigo-300"/> Profiler IA & Analyste</p>
-                                <p className="text-[10px] font-medium text-slate-400">Généré le {new Date().toLocaleDateString('fr-FR')}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            </React.Fragment>
-        )}
         </>
     );
 };
