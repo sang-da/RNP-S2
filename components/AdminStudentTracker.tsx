@@ -137,7 +137,32 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
         const performanceByWeek: Record<string, number> = {}; 
         const gradesCount = { A: 0, B: 0, C: 0, REJ: 0 };
 
+        const pastRejections: any[] = [];
+
         agencies.forEach(a => {
+            // Analyser les événements de rejet dans l'historique
+            if (a.eventLog) {
+                a.eventLog.filter(e => e.label.startsWith('Rejet:')).forEach(rej => {
+                    const isMvp = rej.description?.includes(`MVP: ${targetStudent.name}`) ? true : false;
+                    // On vérifie si l'étudiant faisait partie de cette agence (approximation via l'historique total)
+                    const wasInAgency = studentTimeline.some(t => t.agencyName === a.name);
+                    
+                    if (isMvp || wasInAgency) {
+                        pastRejections.push({
+                            week: '0', // Used to parse to S0 or similar for sorting safely
+                            name: rej.label.replace('Rejet: ', ''),
+                            isMvp,
+                            score: 'REJECTED',
+                            agency: a.name,
+                            file: undefined,
+                            finalDelta: rej.deltaVE || 0,
+                            isSpecial: false,
+                            comments: rej.description
+                        });
+                    }
+                });
+            }
+
             Object.values(a.progress).forEach((week: any) => {
                 week.deliverables.forEach((d: Deliverable) => {
                     const isMvp = d.grading?.mvpId === targetStudent.id;
@@ -199,6 +224,16 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                     }
                 });
             });
+        });
+
+        // Merge pastRejections that are not already in works (as currently rejected deliverables)
+        pastRejections.forEach(rej => {
+            const alreadyInWorks = works.some(w => w.name === rej.name && w.score === 'REJECTED' && w.agency === rej.agency && w.comments === rej.comments);
+            if (!alreadyInWorks) {
+                works.push(rej);
+                gradesCount.REJ++;
+                // They won't have a specific week ID charted, but they will count towards stats!
+            }
         });
 
         const chartData = Object.entries(performanceByWeek)

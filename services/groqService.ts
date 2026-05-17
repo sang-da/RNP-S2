@@ -205,7 +205,8 @@ export const askGroq = async (
     prompt: string, 
     contextData: any, 
     systemRole: string = "Tu es un assistant pédagogique expert.",
-    history: {role: 'user'|'ai', content: string}[] = []
+    history: {role: 'user'|'ai', content: string}[] = [],
+    modelName: string = GROQ_MODEL
 ): Promise<string> => {
     const apiKey = getGroqKey();
     const apiUrl = getGroqApiUrl();
@@ -225,10 +226,10 @@ export const askGroq = async (
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: GROQ_MODEL,
+                model: modelName,
                 messages: messages,
                 temperature: 0.7,
-                max_tokens: 1024
+                max_tokens: 4000
             })
         });
 

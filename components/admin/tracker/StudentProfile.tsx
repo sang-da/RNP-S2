@@ -135,7 +135,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         `;
 
         try {
-            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide et STRICTEMENT MINIFIÉ SUR UNE SEULE LIGNE.");
+            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide et STRICTEMENT MINIFIÉ SUR UNE SEULE LIGNE.", [], "llama-3.3-70b-versatile");
             let rawStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
             
             // Clean unescaped newlines in the JSON string safely (only inside string values or blindly if model failed minification)
@@ -154,7 +154,25 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 }
             }
             
-            setAiProfile(JSON.parse(jsonStr));
+            const parsedProfile = JSON.parse(jsonStr);
+
+            // Algorithmic Soft Skills calculation (40% algo, 60% IA)
+            const gradesCount = gradeDistribution ? gradeDistribution.reduce((acc: any, g: any) => ({ ...acc, [g.name]: g.value }), {}) : {};
+            const algoSoftSkills = {
+                leadership: Math.min(100, Math.round(((mvpCount / (totalWeeksActive || 1)) * 100 * 2) || 0)), 
+                teamwork: Math.min(100, Math.round((behaviorStats?.avgReceived / 5) * 100) || 50),
+                reliability: Math.min(100, Math.round((behaviorStats?.avgReceived / 5) * 100) || 50),
+                creativity: Math.min(100, Math.round(((gradesCount?.A || 0) / (mainDeliverables || 1)) * 100 * 1.5))
+            };
+            
+            if (parsedProfile.soft_skills) {
+                parsedProfile.soft_skills.leadership = Math.round((algoSoftSkills.leadership * 0.4) + (Number(parsedProfile.soft_skills.leadership || 0) * 0.6));
+                parsedProfile.soft_skills.teamwork = Math.round((algoSoftSkills.teamwork * 0.4) + (Number(parsedProfile.soft_skills.teamwork || 0) * 0.6));
+                parsedProfile.soft_skills.reliability = Math.round((algoSoftSkills.reliability * 0.4) + (Number(parsedProfile.soft_skills.reliability || 0) * 0.6));
+                parsedProfile.soft_skills.creativity = Math.round((algoSoftSkills.creativity * 0.4) + (Number(parsedProfile.soft_skills.creativity || 0) * 0.6));
+            }
+
+            setAiProfile(parsedProfile);
         } catch (error) {
             console.error("Erreur IA Profiler:", error);
             alert("Erreur lors de la génération du profil IA.");
@@ -614,7 +632,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
         {/* PRINT VIEW (CLASS COUNCIL SUMMARY) MODAL */}
         {showPrintModal && aiProfile && aiProfile.class_council_summary && (
-            <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:fixed print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
+            <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:absolute print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
                 <div className="absolute top-4 right-4 flex gap-4 print:hidden">
                     <button onClick={() => setShowPrintModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-700">Fermer (Échap)</button>
                     <button onClick={() => window.print()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
@@ -663,8 +681,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Agences Mémorables</p>
                                 <div className="flex gap-2 flex-wrap">
                                     <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold ring-1 ring-slate-200">{agency.name}</span>
-                                    {student.history?.map(h => (
-                                        <span key={h.id} className="bg-white border border-slate-200 text-slate-400 px-2 py-1 rounded text-[10px]">{h.agencyName}</span>
+                                    {Array.from(new Set(student.history?.map(h => h.agencyName))).filter(name => name !== agency.name).map((name, i) => (
+                                        <span key={i} className="bg-white border border-slate-200 text-slate-400 px-2 py-1 rounded text-[10px]">{name}</span>
                                     ))}
                                 </div>
                             </div>
@@ -709,14 +727,14 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                             </div>
                             
                             <div className="max-w-none text-slate-800
-                                [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4
-                                [&>h2]:text-base [&>h2]:font-black [&>h2]:text-slate-800 [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:border-b [&>h2]:border-slate-200 [&>h2]:pb-1
-                                [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4
-                                [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600 [&>p]:text-sm
-                                [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:text-sm
+                                [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4 print:[&>h1]:text-lg print:[&>h1]:mb-2
+                                [&>h2]:text-base [&>h2]:font-black [&>h2]:text-slate-800 [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:border-b [&>h2]:border-slate-200 [&>h2]:pb-1 print:[&>h2]:text-sm print:[&>h2]:mt-3 print:[&>h2]:mb-1
+                                [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4 print:[&>h3]:text-xs print:[&>h3]:mt-2 print:[&>h3]:mb-1
+                                [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600 [&>p]:text-sm print:[&>p]:text-[11px] print:[&>p]:mb-1.5 print:[&>p]:leading-tight
+                                [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:text-sm print:[&>ul]:text-[11px] print:[&>ul]:mb-1.5 print:[&>ul>li]:my-0.5
                                 [&>ul>li]:my-1.5
                                 [&>strong]:text-slate-900 [&>strong]:font-bold
-                                [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4 [&>blockquote]:italic [&>blockquote]:bg-amber-50/50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r-xl"
+                                [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4 [&>blockquote]:italic [&>blockquote]:bg-amber-50/50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r-xl print:[&>blockquote]:py-1 print:[&>blockquote]:my-2"
                             >
                                 <Markdown>{aiProfile.class_council_summary}</Markdown>
                             </div>
