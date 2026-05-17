@@ -26,6 +26,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [playingAudio, setPlayingAudio] = useState<string | null>(null);
     const [expandedQuizzes, setExpandedQuizzes] = useState<Record<string, boolean>>({});
+    const [showPrintModal, setShowPrintModal] = useState(false);
     
     // AI Profiler State
     const [aiProfile, setAiProfile] = useState<any | null>(null);
@@ -83,6 +84,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         - Score Initial (Moy. S1): ${S1_AVERAGES[student.name] ? S1_AVERAGES[student.name] + '/20' : 'N/A'}
         - Score Actuel: ${student.individualScore}/100
         - Portefeuille: ${student.wallet} PiXi
+        - Épargne: ${student.savings || 0} PiXi
+        - Prêt/Dette: ${student.loanDebt || 0} PiXi
         - Karma: ${student.karma ?? 50}
         - Agence actuelle: ${agency.name}
         
@@ -92,8 +95,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         - Taux de livraison en tant que MVP: ${mvpCount} fois sur ${mainDeliverables} livrables agence éligibles (${mvpRatio}%)
         - Présence aux évaluations par les pairs: Évalué sur ${weeksEvaluatedByPeers} des ${totalWeeksActive} semaines. A évalué les autres sur ${weeksEvaluatedOthers} des ${totalWeeksActive} semaines.
         
-        RÉSULTATS DE QUIZ (Théorie):
-        ${JSON.stringify(quizAttempts.map(q => ({ quizId: q.quizId, score: q.score, maxScore: q.maxScore })))}
+        RÉSULTATS DE QUIZ (Théorie & Sondages):
+        ${JSON.stringify(quizAttempts.map(q => ({ quizId: q.quizId, score: q.score, transcriptions: q.transcriptions, answers: q.answers })))}
         
         HISTORIQUE DES AGENCES:
         ${JSON.stringify(student.history || [])}
@@ -104,10 +107,10 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         
         ÉVALUATIONS REÇUES (Peer Reviews):
         - Moyenne reçue globale: ${behaviorStats.avgReceived.toFixed(1)}/5
-        ${JSON.stringify(timeline.flatMap(t => t.reviewsReceived || []).map(r => ({ week: r.weekId, score: (r.ratings.quality + r.ratings.attendance + r.ratings.involvement) / 3, comment: r.comment })))}
+        ${JSON.stringify(timeline.flatMap(t => t.reviewsReceived || []).map(r => ({ week: r.weekId, score: ((r.ratings.quality || 0) + (r.ratings.attendance || 0) + (r.ratings.involvement || 0)) / 3, comment: r.comment })))}
         
         ÉVALUATIONS DONNÉES (Comment il note les autres):
-        ${JSON.stringify(timeline.flatMap(t => t.reviewsGiven || []).map(r => ({ week: r.weekId, score: (r.ratings.quality + r.ratings.attendance + r.ratings.involvement) / 3, comment: r.comment })))}
+        ${JSON.stringify(timeline.flatMap(t => t.reviewsGiven || []).map(r => ({ week: r.weekId, score: ((r.ratings.quality || 0) + (r.ratings.attendance || 0) + (r.ratings.involvement || 0)) / 3, comment: r.comment })))}
         
         NOTES PÉDAGOGIQUES:
         ${JSON.stringify(student.notes || [])}
@@ -119,32 +122,38 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         - Un titre/statut percutant qui résume l'analyse comportementale (ex: "👑 Leader naturel mais financierement excessif")
         - Avis des pairs sur l'étudiant : Intègre les stats (${weeksEvaluatedByPeers}/${totalWeeksActive} semaines), résume l'opinion générale et inclus une courte citation (verbatim fort) extraite des avis.
         - Avis de l'étudiant sur ses pairs : Intègre les stats (${weeksEvaluatedOthers}/${totalWeeksActive} semaines), résume son style d'évaluation (sévère, constructif) et inclus un verbatim typique.
-        - Factuel : Participation (dépôts en MVP : ${mvpCount}/${mainDeliverables} -> ${mvpRatio}%), tendances financières, démissions (${resignations}), parcours agences.
-        - Contributions & Savoir : Les infos importantes qu'il a pu donner lors des questionnaire/quiz étudiés ci-dessus (évidences d'acquisition ou lacunes).
-        - Points brillants de production : Dans quel type de livrables a-t-il excellé ?
+        - Factuel : Participation (dépôts en MVP : ${mvpCount}/${mainDeliverables} -> ${mvpRatio}%), démissions (${resignations}), parcours agences.
+        - Tendances financières: Analyse de son Portefeuille/Épargne/Dette donnés ci-dessus (économe, panier percé, fourmi...).
+        - Contributions & Savoir : N'utilise pas les notes (ex: 4/4), base-toi SURTOUT sur ses réponses (transcriptions/answers) aux questionnaires fournies ci-dessus (s'il y en a) pour extraire des verbatims marquants ou statuer sur son niveau de recul.
+        - Points brillants de production : Dans quel type de livrables a-t-il excellé ? (regarde son portfolio)
         - Recommandations : Clair, actionnable pour l'équipe pédagogique.
         
-        ATTENTION : POUR QUE LE JSON SOIT VALIDE, TU NE DOIS FAIRE AUCUN SAUT DE LIGNE RÉEL/PHYSIQUE À L'INTÉRIEUR DES VALEURS DE TEXTE. UTILISE UNIQUEMENT "\\n" (backslash n) POUR FAIRE DES SAUTS DE LIGNE DANS TON MARKDOWN. Échappe aussi les guillemets (" -> \\").
+        ATTENTION : POUR QUE LE JSON SOIT VALIDE, TON RÉSULTAT DOIT ÊTRE UN JSON MINIFIÉ SUR UNE SEULE LIGNE SANS AUCUN SAUT DE LIGNE RÉEL/PHYSIQUE. UTILISE UNIQUEMENT LA CHAÎNE EXACTE "\\n" (backslash n) POUR REPRÉSENTER UN SAUT DE LIGNE DANS TON MARKDOWN. Échappe aussi les guillemets.
         
-        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte :
-        {
-          "psychological_profile": "Analyse détaillée du comportement et de l'évolution (environ 3-4 phrases)",
-          "soft_skills": {
-            "leadership": <nombre entre 0 et 100>,
-            "teamwork": <nombre entre 0 et 100>,
-            "reliability": <nombre entre 0 et 100>,
-            "creativity": <nombre entre 0 et 100>
-          },
-          "strengths": ["point fort 1", "point fort 2"],
-          "weaknesses": ["point faible 1", "point faible 2"],
-          "verdict": "Un mot ou une courte expression (ex: 'Moteur d'équipe', 'Électron libre', 'En difficulté')",
-          "recommendation": "Conseil d'action pour l'équipe pédagogique",
-          "class_council_summary": "Résumé Markdown structuré et ultra-détaillé pour la présentation en conseil de classe suivant précisément les "instructions pour le résumé du conseil de classe"."
-        }`;
+        Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure :
+        {"psychological_profile":"...", "soft_skills":{"leadership":0,"teamwork":0,"reliability":0,"creativity":0}, "strengths":["..."], "weaknesses":["..."], "verdict":"...", "recommendation":"...", "class_council_summary":"..."}
+        `;
 
         try {
-            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide.");
-            const jsonStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            const result = await askGroq(prompt, {}, "Tu es un profiler RH expert et un analyste pédagogique. Tu dois impérativement retourner un JSON valide et STRICTEMENT MINIFIÉ SUR UNE SEULE LIGNE.");
+            let rawStr = result.substring(result.indexOf('{'), result.lastIndexOf('}') + 1);
+            
+            // Clean unescaped newlines in the JSON string safely (only inside string values or blindly if model failed minification)
+            let isString = false;
+            let jsonStr = "";
+            for (let i = 0; i < rawStr.length; i++) {
+                const char = rawStr[i];
+                if (char === '"' && rawStr[i-1] !== '\\') isString = !isString;
+                
+                if (char === '\n') {
+                    jsonStr += isString ? '\\n' : ''; // remove if outside, escape if inside
+                } else if (char === '\r') {
+                    // ignore
+                } else {
+                    jsonStr += char;
+                }
+            }
+            
             setAiProfile(JSON.parse(jsonStr));
         } catch (error) {
             console.error("Erreur IA Profiler:", error);
@@ -155,7 +164,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     };
 
     const handlePrintCouncil = () => {
-        window.print();
+        setShowPrintModal(true);
     };
 
     return (
@@ -603,97 +612,127 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
             />
         </div>
 
-        {/* PRINT VIEW (CLASS COUNCIL SUMMARY) */}
-        {aiProfile && aiProfile.class_council_summary && (
-            <div className="hidden print:block w-full max-w-[210mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900">
-                
-                {/* DECORATIVE HEADER */}
-                <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
-                <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
-                
-                {/* HEADER CONTENT */}
-                <div className="relative z-10 flex items-end gap-6 mb-12 mt-6">
-                    <img src={student.avatarUrl} className="w-28 h-28 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10" />
-                    <div className="pb-2">
-                        <h1 className="text-4xl font-black text-white drop-shadow-md mb-2">{student.name}</h1>
-                        <div className="flex gap-3 items-center">
-                            <span className="bg-white text-indigo-900 px-4 py-1 rounded-full text-xs font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
-                            <span className="bg-amber-400 text-amber-950 px-4 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-2">
-                                <Crown size={14}/> {aiProfile.verdict}
-                            </span>
+        {/* PRINT VIEW (CLASS COUNCIL SUMMARY) MODAL */}
+        {showPrintModal && aiProfile && aiProfile.class_council_summary && (
+            <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto print:bg-white print:fixed print:inset-0 print:z-50 flex justify-center py-10 print:py-0">
+                <div className="absolute top-4 right-4 flex gap-4 print:hidden">
+                    <button onClick={() => setShowPrintModal(false)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-700">Fermer (Échap)</button>
+                    <button onClick={() => window.print()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Lancer l'impression</button>
+                </div>
+                <div className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl print:shadow-none">
+                    
+                    {/* DECORATIVE HEADER */}
+                    <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
+                    <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
+                    
+                    {/* HEADER CONTENT */}
+                    <div className="relative z-10 flex items-end gap-6 mb-12 mt-12">
+                        <img src={student.avatarUrl} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10" />
+                        <div className="pb-2">
+                            <h1 className="text-5xl font-black text-white drop-shadow-md mb-3">{student.name}</h1>
+                            <div className="flex gap-3 items-center">
+                                <span className="bg-white text-indigo-900 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
+                                <span className="bg-amber-400 text-amber-950 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm flex items-center gap-2">
+                                    <Crown size={16}/> {aiProfile.verdict}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-4 gap-8 mb-10">
-                    <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Score Actuel</p>
-                            <p className="text-3xl font-black text-indigo-600">{student.individualScore}<span className="text-sm text-slate-400">/100</span></p>
+                    <div className="grid grid-cols-4 gap-8 mb-10">
+                        <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Score Actuel</p>
+                                <p className="text-4xl font-black text-indigo-600">{student.individualScore}<span className="text-base text-slate-400 font-bold">/100</span></p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
+                                <p className="text-4xl font-black text-yellow-500">{behaviorStats.avgReceived.toFixed(1)}<span className="text-base text-slate-400 font-bold">/5</span></p>
+                            </div>
+                            
+                            <div className="pt-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Finances</p>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Portefeuille</span><span className="font-bold text-slate-800">{student.wallet} ¤</span></div>
+                                    <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Épargne</span><span className="font-bold text-teal-600">{student.savings || 0} ¤</span></div>
+                                    {(student.loanDebt || 0) > 0 && <div className="flex justify-between items-center text-xs"><span className="text-slate-500">Dette</span><span className="font-bold text-red-600">{student.loanDebt} ¤</span></div>}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Agences Mémorables</p>
+                                <div className="flex gap-2 flex-wrap">
+                                    <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold ring-1 ring-slate-200">{agency.name}</span>
+                                    {student.history?.map(h => (
+                                        <span key={h.id} className="bg-white border border-slate-200 text-slate-400 px-2 py-1 rounded text-[10px]">{h.agencyName}</span>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4 border-t border-slate-200">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Soft Skills (IA)</p>
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Leadership</span><span className="text-slate-900">{aiProfile.soft_skills?.leadership || 0}%</span></div>
+                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-amber-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.leadership || 0}%` }}></div></div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Coopération</span><span className="text-slate-900">{aiProfile.soft_skills?.teamwork || 0}%</span></div>
+                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.teamwork || 0}%` }}></div></div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Fiabilité</span><span className="text-slate-900">{aiProfile.soft_skills?.reliability || 0}%</span></div>
+                                        <div className="h-2 border border-slate-100 bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.reliability || 0}%` }}></div></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
-                            <p className="text-3xl font-black text-yellow-500">{behaviorStats.avgReceived.toFixed(1)}<span className="text-sm text-slate-400">/5</span></p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Agences (Total)</p>
-                            <div className="flex gap-2 flex-wrap">
-                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{agency.name}</span>
-                                {student.history?.map(h => (
-                                    <span key={h.id} className="bg-slate-50 text-slate-400 px-2 py-1 rounded text-xs">{h.agencyName}</span>
+                        
+                        <div className="col-span-3 pb-8">
+                            {/* HIGHLIGHT STRENGTHS VISUALLY */}
+                            <div className="flex flex-wrap gap-2 mb-6">
+                                {aiProfile.strengths?.map((s: string, idx: number) => (
+                                    <span key={idx} className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                        <Star size={12} className="text-indigo-500 fill-indigo-200" /> {s}
+                                    </span>
+                                ))}
+                                {aiProfile.weaknesses?.map((w: string, idx: number) => (
+                                    <span key={idx} className="bg-rose-50 border border-rose-100 text-rose-700 px-3 py-1 rounded-lg text-xs font-bold shadow-sm">
+                                        ⚠️ {w}
+                                    </span>
                                 ))}
                             </div>
-                        </div>
-                        
-                        <div className="pt-4 border-t border-slate-200">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Compétences (IA)</p>
-                            <div className="space-y-3">
-                                <div>
-                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Leadership</span><span className="text-slate-900">{aiProfile.soft_skills?.leadership || 0}%</span></div>
-                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-amber-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.leadership || 0}%` }}></div></div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Equipe</span><span className="text-slate-900">{aiProfile.soft_skills?.teamwork || 0}%</span></div>
-                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.teamwork || 0}%` }}></div></div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Fiabilité</span><span className="text-slate-900">{aiProfile.soft_skills?.reliability || 0}%</span></div>
-                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.reliability || 0}%` }}></div></div>
-                                </div>
+
+                            <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 ring-1 ring-slate-900/5 shadow-inner">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Bot size={14}/> Synthèse Psychologique IA</h3>
+                                <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
+                            </div>
+                            
+                            <div className="max-w-none text-slate-800
+                                [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4
+                                [&>h2]:text-base [&>h2]:font-black [&>h2]:text-slate-800 [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:border-b [&>h2]:border-slate-200 [&>h2]:pb-1
+                                [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4
+                                [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600 [&>p]:text-sm
+                                [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:text-sm
+                                [&>ul>li]:my-1.5
+                                [&>strong]:text-slate-900 [&>strong]:font-bold
+                                [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-2 [&>blockquote]:my-4 [&>blockquote]:italic [&>blockquote]:bg-amber-50/50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r-xl"
+                            >
+                                <Markdown>{aiProfile.class_council_summary}</Markdown>
                             </div>
                         </div>
                     </div>
-                    
-                    <div className="col-span-3">
-                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Synthèse Psychologique</h3>
-                            <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
-                        </div>
-                        
-                        <div className="max-w-none text-slate-800
-                            [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4
-                            [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-indigo-800 [&>h2]:mb-3 [&>h2]:mt-6
-                            [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4
-                            [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600
-                            [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5
-                            [&>ul>li]:my-1
-                            [&>strong]:text-slate-900 [&>strong]:font-bold
-                            [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-1 [&>blockquote]:italic [&>blockquote]:bg-amber-50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r"
-                        >
-                            <Markdown>{aiProfile.class_council_summary}</Markdown>
-                        </div>
-                    </div>
-                </div>
 
-                <div className="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-6">
-                    <div className="flex justify-between items-end">
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recommandation Pédagogique</p>
-                            <p className="text-sm font-bold text-indigo-900">{aiProfile.recommendation}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1"><Cloud size={14}/> Profiler IA</p>
-                            <p className="text-[10px] text-slate-400">Généré le {new Date().toLocaleDateString('fr-FR')}</p>
+                    <div className="absolute bottom-12 left-12 right-12 border-t-2 border-slate-100 pt-6">
+                        <div className="flex justify-between items-end">
+                            <div className="max-w-xl">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
+                                <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block">{aiProfile.recommendation}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1 items-center mb-1"><Cloud size={14} className="text-indigo-300"/> Profiler IA & Analyste</p>
+                                <p className="text-[10px] font-medium text-slate-400">Généré le {new Date().toLocaleDateString('fr-FR')}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
