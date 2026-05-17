@@ -61,14 +61,14 @@ ATTENTION AU FORMAT (JSON OBJECT EXPECTED):
   "recommendation": "Une phrase choc et actionnable pour l'équipe pédagogique (ex: 'À séparer de X pour le forcer à prendre la parole' ou 'Besoin d'un recadrage sur l'assiduité')",
   
   "council_peer_opinions": "Résumé très bref (2 lignes max) de comment l'étudiant est perçu par le groupe",
-  "council_peer_verbatim": "Une citation authentique (et courte) extraite des commentaires reçus (italic)",
+  "council_peer_verbatim": "Une citation EXACTE ET AUTHENTIQUE extraite mot pour mot des commentaires reçus",
   "council_student_opinions": "Résumé de sa façon de noter et commenter les autres (sévère, constructif, passif...)",
-  "council_student_verbatim": "Une citation typique extraite de ses commentaires donnés",
+  "council_student_verbatim": "Une citation EXACTE extraite mot pour mot de ses commentaires donnés",
   
   "council_factual": "Analyse de sa participation et fidélité. (Ex: 'A dirigé X livrables (Y%). A changé Z fois d'agence')",
-  "council_financials": "Analyse de son profil financier selon les PiXi possédés (économe, panier percé, etc.)",
+  "council_financials": "Analyse de son profil d'épargnant / rapport à l'argent (fourmi, cigale, gère bien son budget, investi pour son avenir...), déduite de ses soldes (ne donne pas les nombres de PiXi bruts, analyse juste sa posture professionnelle face à la rémunération).",
   
-  "council_highlights": "Quels sont les types de livrables ou compétences où il/elle s'est le plus démarqué(e) ? (se baser sur le portfolio, 2 lignes max)"
+  "council_highlights": "Quels sont les types de livrables ou compétences où il/elle s'est le plus démarqué(e) ? (se baser sur le portfolio, 4 lignes max, très concret et mettant en valeur ses talents)"
 }
 
 RÈGLES IMPÉRATIVES:

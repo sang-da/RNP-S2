@@ -196,31 +196,40 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                         @media print {
                             body * { visibility: hidden !important; }
                             #profile-doc-container, #profile-doc-container * { visibility: visible !important; }
-                            #profile-doc-container { position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; }
-                            @page { margin: 0; }
+                            #profile-doc-container { 
+                                position: absolute !important; 
+                                left: 0 !important; 
+                                top: 0 !important; 
+                                margin: 0 !important; 
+                                width: 210mm !important; 
+                                height: 297mm !important;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            @page { size: A4; margin: 0; }
                         }
                     `}</style>
-                    <div id="profile-doc-container" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900 shadow-2xl rounded-2xl overflow-hidden print:rounded-none print:shadow-none print:h-[297mm] print:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-500">
+                    <div id="profile-doc-container" className="w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white relative pt-8 pb-20 px-8 text-slate-900 shadow-2xl rounded-2xl overflow-hidden print:rounded-none print:shadow-none print:h-[297mm] print:w-[210mm] print:overflow-hidden print:pt-6 print:pb-12 print:px-6 animate-in fade-in slide-in-from-bottom-8 duration-500">
                         {/* DECORATIVE HEADER */}
-                        <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
-                        <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
+                        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
+                        <div className="absolute top-0 right-0 p-6 opacity-20"><Cloud size={140} className="text-white"/></div>
                         
                         {/* HEADER CONTENT */}
-                        <div className="relative z-10 flex items-end gap-6 mb-12 mt-12">
-                            <img src={student.avatarUrl} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10 object-cover" />
-                            <div className="pb-2">
-                                <h1 className="text-5xl font-black text-white drop-shadow-md mb-3">{student.name}</h1>
-                                <div className="flex gap-3 items-center">
-                                    <span className="bg-white text-indigo-900 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
-                                    <span className="bg-amber-400 text-amber-950 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm flex items-center gap-2">
-                                        <Crown size={16}/> {aiProfile.verdict}
+                        <div className="relative z-10 flex items-end gap-6 mb-8 mt-10">
+                            <img src={student.avatarUrl} className="w-24 h-24 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10 object-cover" />
+                            <div className="pb-1">
+                                <h1 className="text-4xl font-black text-white drop-shadow-md mb-2">{student.name}</h1>
+                                <div className="flex gap-2 items-center">
+                                    <span className="bg-white text-indigo-900 px-3 py-1 rounded-full text-xs font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
+                                    <span className="bg-amber-400 text-amber-950 px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1.5">
+                                        <Crown size={14}/> {aiProfile.verdict}
                                     </span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-8 mb-10">
-                            <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
+                        <div className="grid grid-cols-4 gap-6 mb-8">
+                            <div className="col-span-1 border-r border-slate-200 pr-5 space-y-5">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ratio de participation</p>
                                     <p className="text-4xl font-black text-indigo-600">{mvpCount}/{mainDeliverables}<span className="text-base text-slate-400 font-bold ml-1">({mvpRatio}%)</span></p>
@@ -292,13 +301,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                     <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
                                 </div>
                                 
-                                <div className="space-y-6">
+                                <div className="space-y-5">
                                     {aiProfile.council_peer_opinions && (
                                         <div>
-                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Avis des pairs</h3>
-                                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{aiProfile.council_peer_opinions}</p>
+                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-1">Avis des pairs</h3>
+                                            <p className="text-[11px] text-slate-600 leading-relaxed mb-1.5">{aiProfile.council_peer_opinions}</p>
                                             {aiProfile.council_peer_verbatim && (
-                                                <blockquote className="border-l-4 border-amber-400 pl-3 py-1 bg-amber-50/50 text-slate-700 italic rounded-r-lg text-xs">
+                                                <blockquote className="border-l-4 border-amber-400 pl-3 py-1 bg-amber-50/50 text-slate-700 italic rounded-r-lg text-[11px]">
                                                     « {aiProfile.council_peer_verbatim} »
                                                 </blockquote>
                                             )}
@@ -307,46 +316,46 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
 
                                     {aiProfile.council_student_opinions && (
                                         <div>
-                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Avis de l'étudiant(e) sur le groupe</h3>
-                                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{aiProfile.council_student_opinions}</p>
+                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-1">Avis de l'étudiant(e) sur le groupe</h3>
+                                            <p className="text-[11px] text-slate-600 leading-relaxed mb-1.5">{aiProfile.council_student_opinions}</p>
                                             {aiProfile.council_student_verbatim && (
-                                                <blockquote className="border-l-4 border-indigo-400 pl-3 py-1 bg-indigo-50/50 text-slate-700 italic rounded-r-lg text-xs">
+                                                <blockquote className="border-l-4 border-indigo-400 pl-3 py-1 bg-indigo-50/50 text-slate-700 italic rounded-r-lg text-[11px]">
                                                     « {aiProfile.council_student_verbatim} »
                                                 </blockquote>
                                             )}
                                         </div>
                                     )}
                                     
-                                    <div className="grid grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-2 gap-4">
                                         {aiProfile.council_factual && (
                                             <div>
-                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Présence & Constante</h3>
-                                                <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_factual}</p>
+                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-1">Présence & Constante</h3>
+                                                <p className="text-[11px] text-slate-600 leading-relaxed">{aiProfile.council_factual}</p>
                                             </div>
                                         )}
                                         {aiProfile.council_financials && (
                                             <div>
-                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Santé Financière</h3>
-                                                <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_financials}</p>
+                                                <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-1">Santé Financière</h3>
+                                                <p className="text-[11px] text-slate-600 leading-relaxed">{aiProfile.council_financials}</p>
                                             </div>
                                         )}
                                     </div>
                                     
                                     {aiProfile.council_highlights && (
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-1 mb-2">Points Brillants de Production</h3>
-                                            <p className="text-xs text-slate-600 leading-relaxed">{aiProfile.council_highlights}</p>
+                                        <div className="mt-4 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/60 shadow-sm print:bg-indigo-50/50 print:border-indigo-100 print:mt-2">
+                                            <h3 className="text-[11px] font-black text-indigo-900 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Star size={12} className="text-indigo-500 fill-indigo-200" /> Points Brillants de Production</h3>
+                                            <p className="text-[10px] text-slate-700 leading-relaxed print:leading-tight">{aiProfile.council_highlights}</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="absolute bottom-12 left-12 right-12 border-t-2 border-slate-100 pt-6">
+                        <div className="absolute bottom-8 left-8 right-8 border-t-2 border-slate-100 pt-4 print:bottom-6 print:left-6 print:right-6">
                             <div className="flex justify-between items-end">
                                 <div className="max-w-xl">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
-                                    <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block">{aiProfile.recommendation}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Activity size={12}/> Recommandation Pédagogique</p>
+                                    <p className="text-sm font-bold text-indigo-900 bg-indigo-50/50 p-2 rounded border border-indigo-100 inline-block print:text-xs">{aiProfile.recommendation}</p>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1 items-center mb-1"><Cloud size={14} className="text-indigo-300"/> Profiler IA & Analyste</p>
