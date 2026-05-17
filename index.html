@@ -82,6 +82,22 @@
         border-top: 1px solid #e2e8f0;
         margin: 1rem 0;
       }
+
+      /* Print Styles */
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        @page {
+          margin: 0; /* Remove default browser margins if possible */
+        }
+        body {
+          margin: 0;
+          background-color: white !important;
+        }
+      }
     </style>
     <script>
       window.onerror = function(message, source, lineno, colno, error) {

@@ -1,12 +1,14 @@
 
 import React, { useState } from 'react';
 import { Student, Agency, Deliverable, PeerReview, QuizAttempt } from '../../../types';
-import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square, Eye, EyeOff, Bot, RefreshCw } from 'lucide-react';
+import { User, Wallet, TrendingUp, Trophy, Activity, Star, BarChart2, FileText, Crown, Building2, Settings, ArrowRight, History, StickyNote, Lock, Globe, FileCog, MessageSquare, Play, Mic, Square, Eye, EyeOff, Bot, RefreshCw, Cloud } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts';
 import { StudentEditModal } from './StudentEditModal';
 import { askGroq } from '../../../services/groqService';
 import { useGame } from '../../../contexts/GameContext';
 import { ReviewDataviz } from '../peer-reviews/ReviewDataviz';
+import { S1_AVERAGES } from '../../../config/awards';
+import Markdown from 'react-markdown';
 
 interface StudentProfileProps {
     student: Student;
@@ -63,28 +65,65 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
     const handleGenerateProfile = async () => {
         setIsGeneratingProfile(true);
         
+        const agenciesKnown = new Set([student.classId, ...(student.history || []).map(h => h.agencyName)]).size;
+        const resignations = (student.history || []).filter(h => h.action === 'RESIGNED' || h.action === 'LEFT').length;
+
+        const totalWeeksActive = timeline.length;
+        const weeksEvaluatedByPeers = timeline.filter(t => t.reviewsReceived && t.reviewsReceived.length > 0).length;
+        const weeksEvaluatedOthers = timeline.filter(t => t.reviewsGiven && t.reviewsGiven.length > 0).length;
+
+        const mvpCount = portfolio.filter(p => p.isMvp).length;
+        const mainDeliverables = portfolio.filter(p => !p.isSpecial).length;
+        const mvpRatio = mainDeliverables > 0 ? Math.round((mvpCount / mainDeliverables) * 100) : 0;
+
         const prompt = `Analyse le profil exhaustif de l'étudiant ${student.name}.
         
         DONNÉES DE L'ÉTUDIANT:
         - Rôle: ${student.role}
-        - Score: ${student.individualScore}/100
+        - Score Initial (Moy. S1): ${S1_AVERAGES[student.name] ? S1_AVERAGES[student.name] + '/20' : 'N/A'}
+        - Score Actuel: ${student.individualScore}/100
         - Portefeuille: ${student.wallet} PiXi
+        - Karma: ${student.karma ?? 50}
         - Agence actuelle: ${agency.name}
+        
+        STATISTIQUES CALCULÉES PRE-ANALYSE:
+        - Agences connues: ${agenciesKnown}
+        - Démissions/Départs: ${resignations}
+        - Taux de livraison en tant que MVP: ${mvpCount} fois sur ${mainDeliverables} livrables agence éligibles (${mvpRatio}%)
+        - Présence aux évaluations par les pairs: Évalué sur ${weeksEvaluatedByPeers} des ${totalWeeksActive} semaines. A évalué les autres sur ${weeksEvaluatedOthers} des ${totalWeeksActive} semaines.
+        
+        RÉSULTATS DE QUIZ (Théorie):
+        ${JSON.stringify(quizAttempts.map(q => ({ quizId: q.quizId, score: q.score, maxScore: q.maxScore })))}
         
         HISTORIQUE DES AGENCES:
         ${JSON.stringify(student.history || [])}
         
         PORTFOLIO (Livrables réalisés):
-        ${JSON.stringify(portfolio.map(p => ({ week: p.week, name: p.name, score: p.score, isMVP: p.isMvp, agency: p.agency })))}
+        Tu ne dois évaluer l'étudiant QUE sur les livrables où il a été déclaré MVP (directement responsable). Ne le pénalise pas pour les livrables de l'agence où il n'a pas contribué directement.
+        ${JSON.stringify(portfolio.filter(p => p.isMvp || p.isSpecial).map(p => ({ week: p.week, name: p.name, score: p.score, isMVP: p.isMvp, comments: p.comments, agency: p.agency })))}
         
         ÉVALUATIONS REÇUES (Peer Reviews):
-        - Moyenne reçue: ${behaviorStats.avgReceived.toFixed(1)}/5
+        - Moyenne reçue globale: ${behaviorStats.avgReceived.toFixed(1)}/5
         ${JSON.stringify(timeline.flatMap(t => t.reviewsReceived || []).map(r => ({ week: r.weekId, score: (r.ratings.quality + r.ratings.attendance + r.ratings.involvement) / 3, comment: r.comment })))}
+        
+        ÉVALUATIONS DONNÉES (Comment il note les autres):
+        ${JSON.stringify(timeline.flatMap(t => t.reviewsGiven || []).map(r => ({ week: r.weekId, score: (r.ratings.quality + r.ratings.attendance + r.ratings.involvement) / 3, comment: r.comment })))}
         
         NOTES PÉDAGOGIQUES:
         ${JSON.stringify(student.notes || [])}
         
         Génère un profil psychologique et professionnel complet.
+        
+        === INSTRUCTIONS POUR LE RÉSUMÉ DU CONSEIL DE CLASSE ===
+        Tu dois générer un "class_council_summary" écrit en Markdown riche. Il doit obligatoirement inclure :
+        - Un titre/statut percutant qui résume l'analyse comportementale (ex: "👑 Leader naturel mais financierement excessif")
+        - Avis des pairs sur l'étudiant : Intègre les stats (${weeksEvaluatedByPeers}/${totalWeeksActive} semaines), résume l'opinion générale et inclus une courte citation (verbatim fort) extraite des avis.
+        - Avis de l'étudiant sur ses pairs : Intègre les stats (${weeksEvaluatedOthers}/${totalWeeksActive} semaines), résume son style d'évaluation (sévère, constructif) et inclus un verbatim typique.
+        - Factuel : Participation (dépôts en MVP : ${mvpCount}/${mainDeliverables} -> ${mvpRatio}%), tendances financières, démissions (${resignations}), parcours agences.
+        - Contributions & Savoir : Les infos importantes qu'il a pu donner lors des questionnaire/quiz étudiés ci-dessus (évidences d'acquisition ou lacunes).
+        - Points brillants de production : Dans quel type de livrables a-t-il excellé ?
+        - Recommandations : Clair, actionnable pour l'équipe pédagogique.
+        
         Tu dois retourner UNIQUEMENT un JSON STRICT avec cette structure exacte :
         {
           "psychological_profile": "Analyse détaillée du comportement et de l'évolution (environ 3-4 phrases)",
@@ -97,7 +136,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
           "strengths": ["point fort 1", "point fort 2"],
           "weaknesses": ["point faible 1", "point faible 2"],
           "verdict": "Un mot ou une courte expression (ex: 'Moteur d'équipe', 'Électron libre', 'En difficulté')",
-          "recommendation": "Conseil d'action pour l'équipe pédagogique"
+          "recommendation": "Conseil d'action pour l'équipe pédagogique",
+          "class_council_summary": "Résumé Markdown structuré et ultra-détaillé pour la présentation en conseil de classe suivant précisément les "instructions pour le résumé du conseil de classe"."
         }`;
 
         try {
@@ -112,8 +152,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
         }
     };
 
+    const handlePrintCouncil = () => {
+        window.print();
+    };
+
     return (
-        <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
+        <>
+        <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500 print:hidden">
             {/* ID CARD */}
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500"></div>
@@ -134,7 +179,16 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 </div>
                 
                 <div className="flex-1 w-full">
-                    <div className="flex justify-end mb-4 gap-2">
+                    <div className="flex justify-end mb-4 gap-2 print:hidden">
+                        {aiProfile && (
+                            <button 
+                                onClick={handlePrintCouncil}
+                                className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                Imprimer Fiche Conseil
+                            </button>
+                        )}
                         <button 
                             onClick={handleGenerateProfile}
                             disabled={isGeneratingProfile}
@@ -210,6 +264,17 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                                     <h5 className="text-xs font-bold text-indigo-300 uppercase mb-2">Recommandation Pédagogique</h5>
                                     <p className="text-sm font-medium text-white">{aiProfile.recommendation}</p>
                                 </div>
+                                
+                                {aiProfile.class_council_summary && (
+                                    <div className="bg-amber-500/20 p-5 rounded-2xl border border-amber-400/30">
+                                        <h5 className="text-xs font-bold text-amber-300 uppercase mb-4 flex items-center gap-2">
+                                            <Crown size={16}/> Mémorandum Conseil de Classe
+                                        </h5>
+                                        <div className="text-sm text-slate-100 max-w-none [&>h3]:text-amber-300 [&>h3]:font-bold [&>h3]:mb-2 [&>h3]:mt-4 [&>ul]:list-disc [&>ul]:ml-4 [&>ul>li]:mb-2 [&>p]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:text-slate-300 [&>strong]:text-white">
+                                            <Markdown>{aiProfile.class_council_summary}</Markdown>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col justify-center">
@@ -343,7 +408,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
             )}
 
             {/* ANALYTICS CHARTS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
                 
                 {/* 1. RADAR CHART (SOFT SKILLS) */}
                 <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
@@ -408,7 +473,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 </div>
             </div>
 
-            <div className="w-full">
+            <div className="w-full print:hidden">
                 <ReviewDataviz 
                     reviews={enrichedReviewsForDataviz} 
                     initialStudentId={student.id} 
@@ -417,7 +482,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 print:hidden">
                 {/* COL 1: TIMELINE DE CARRIÈRE */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
@@ -535,6 +600,104 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                 allAgencies={allAgencies}
             />
         </div>
+
+        {/* PRINT VIEW (CLASS COUNCIL SUMMARY) */}
+        {aiProfile && aiProfile.class_council_summary && (
+            <div className="hidden print:block w-full max-w-[210mm] mx-auto bg-white relative pt-12 pb-24 px-12 text-slate-900">
+                
+                {/* DECORATIVE HEADER */}
+                <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900"></div>
+                <div className="absolute top-0 right-0 p-8 opacity-20"><Cloud size={180} className="text-white"/></div>
+                
+                {/* HEADER CONTENT */}
+                <div className="relative z-10 flex items-end gap-6 mb-12 mt-6">
+                    <img src={student.avatarUrl} className="w-28 h-28 rounded-3xl border-4 border-white shadow-xl bg-slate-50 relative z-10" />
+                    <div className="pb-2">
+                        <h1 className="text-4xl font-black text-white drop-shadow-md mb-2">{student.name}</h1>
+                        <div className="flex gap-3 items-center">
+                            <span className="bg-white text-indigo-900 px-4 py-1 rounded-full text-xs font-bold shadow-sm tracking-wide uppercase">{student.classId === 'A' ? 'Classe A' : 'Classe B'}</span>
+                            <span className="bg-amber-400 text-amber-950 px-4 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-2">
+                                <Crown size={14}/> {aiProfile.verdict}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-8 mb-10">
+                    <div className="col-span-1 border-r border-slate-200 pr-6 space-y-6">
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Score Actuel</p>
+                            <p className="text-3xl font-black text-indigo-600">{student.individualScore}<span className="text-sm text-slate-400">/100</span></p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Moy. Pair-à-Pair</p>
+                            <p className="text-3xl font-black text-yellow-500">{behaviorStats.avgReceived.toFixed(1)}<span className="text-sm text-slate-400">/5</span></p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Agences (Total)</p>
+                            <div className="flex gap-2 flex-wrap">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">{agency.name}</span>
+                                {student.history?.map(h => (
+                                    <span key={h.id} className="bg-slate-50 text-slate-400 px-2 py-1 rounded text-xs">{h.agencyName}</span>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="pt-4 border-t border-slate-200">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Compétences (IA)</p>
+                            <div className="space-y-3">
+                                <div>
+                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Leadership</span><span className="text-slate-900">{aiProfile.soft_skills?.leadership || 0}%</span></div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-amber-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.leadership || 0}%` }}></div></div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Equipe</span><span className="text-slate-900">{aiProfile.soft_skills?.teamwork || 0}%</span></div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.teamwork || 0}%` }}></div></div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-[10px] font-bold mb-1"><span className="text-slate-600">Fiabilité</span><span className="text-slate-900">{aiProfile.soft_skills?.reliability || 0}%</span></div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${aiProfile.soft_skills?.reliability || 0}%` }}></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="col-span-3">
+                        <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Synthèse Psychologique</h3>
+                            <p className="text-sm font-medium text-slate-700 leading-relaxed indent-4">{aiProfile.psychological_profile}</p>
+                        </div>
+                        
+                        <div className="max-w-none text-slate-800
+                            [&>h1]:text-2xl [&>h1]:font-black [&>h1]:text-indigo-900 [&>h1]:mb-4
+                            [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-indigo-800 [&>h2]:mb-3 [&>h2]:mt-6
+                            [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-indigo-600 [&>h3]:uppercase [&>h3]:tracking-wider [&>h3]:mb-2 [&>h3]:mt-4
+                            [&>p]:mb-3 [&>p]:leading-relaxed [&>p]:text-slate-600
+                            [&>ul]:text-slate-600 [&>ul]:mb-4 [&>ul]:list-disc [&>ul]:pl-5
+                            [&>ul>li]:my-1
+                            [&>strong]:text-slate-900 [&>strong]:font-bold
+                            [&>blockquote]:border-l-4 [&>blockquote]:border-amber-400 [&>blockquote]:pl-4 [&>blockquote]:py-1 [&>blockquote]:italic [&>blockquote]:bg-amber-50 [&>blockquote]:text-slate-700 [&>blockquote]:rounded-r"
+                        >
+                            <Markdown>{aiProfile.class_council_summary}</Markdown>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-6">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recommandation Pédagogique</p>
+                            <p className="text-sm font-bold text-indigo-900">{aiProfile.recommendation}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-end gap-1"><Cloud size={14}/> Profiler IA</p>
+                            <p className="text-[10px] text-slate-400">Généré le {new Date().toLocaleDateString('fr-FR')}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 

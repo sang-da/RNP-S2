@@ -184,7 +184,8 @@ export const AdminStudentTracker: React.FC<AdminStudentTrackerProps> = ({ agenci
                             agency: a.name,
                             file: d.fileUrl,
                             finalDelta: d.grading?.finalDelta || 0,
-                            isSpecial
+                            isSpecial,
+                            comments: d.grading?.comments || ''
                         });
 
                         if (!performanceByWeek[week.id]) performanceByWeek[week.id] = 0;
