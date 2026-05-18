@@ -196,13 +196,74 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, agency,
                     {/* Floating print button */}
                     <div className="absolute -top-4 right-4 z-20 flex gap-2 print:hidden">
                         <button onClick={() => {
-                            const originalTitle = document.title;
-                            document.title = `RNP Studio - Fiche ${student.name.replace(/\s+/g, '_')}`;
-                            window.scrollTo(0, 0);
-                            setTimeout(() => {
-                                window.print();
-                                document.title = originalTitle;
-                            }, 100);
+                            const printElement = document.getElementById('profile-doc-container');
+                            if (!printElement) return;
+
+                            const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+                                .map(el => el.outerHTML)
+                                .join('');
+
+                            const iframe = document.createElement('iframe');
+                            iframe.style.position = 'fixed';
+                            iframe.style.right = '0';
+                            iframe.style.bottom = '0';
+                            iframe.style.width = '0';
+                            iframe.style.height = '0';
+                            iframe.style.border = '0';
+                            document.body.appendChild(iframe);
+
+                            const doc = iframe.contentWindow?.document;
+                            if (doc) {
+                                doc.open();
+                                doc.write(`
+                                    <!DOCTYPE html>
+                                    <html>
+                                        <head>
+                                            <title>Fiche Conseil - ${student.name.replace(/\s+/g, '_')}</title>
+                                            ${styles}
+                                            <style>
+                                                @page { size: A4 portrait; margin: 0; }
+                                                body { 
+                                                    margin: 0; 
+                                                    background: white; 
+                                                    -webkit-print-color-adjust: exact; 
+                                                    print-color-adjust: exact; 
+                                                }
+                                                /* Reset inside iframe so container fits perfectly */
+                                                #profile-doc-container {
+                                                    box-shadow: none !important;
+                                                    border-radius: 0 !important;
+                                                    width: 210mm !important;
+                                                    height: 297mm !important;
+                                                    min-height: 297mm !important;
+                                                    margin: 0 !important;
+                                                    overflow: hidden !important;
+                                                }
+                                                #profile-doc-container * {
+                                                    animation: none !important;
+                                                    transition: none !important;
+                                                }
+                                            </style>
+                                        </head>
+                                        <body>
+                                            ${printElement.outerHTML}
+                                        </body>
+                                    </html>
+                                `);
+                                doc.close();
+
+                                setTimeout(() => {
+                                    if (iframe.contentWindow) {
+                                        iframe.contentWindow.focus();
+                                        iframe.contentWindow.print();
+                                    }
+                                    setTimeout(() => {
+                                        if (document.body.contains(iframe)) {
+                                            document.body.removeChild(iframe);
+                                        }
+                                    }, 1000);
+                                }, 500);
+                            }
                         }} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-indigo-600/30 shadow-lg hover:bg-indigo-500 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             Imprimer
